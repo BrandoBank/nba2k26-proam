@@ -6,6 +6,8 @@ import Login from './pages/Login'
 import NewSeries from './pages/NewSeries'
 import SeriesDetail from './pages/SeriesDetail'
 import GameEntry from './pages/GameEntry'
+import LogMatchup from './pages/LogMatchup'
+import Accolades from './pages/Accolades'
 
 function ProtectedRoute({ children }) {
   const { session, loading } = useAuth()
@@ -25,6 +27,8 @@ export default function App() {
         <Route path="/series/new" element={<ProtectedRoute><NewSeries /></ProtectedRoute>} />
         <Route path="/series/:id" element={<SeriesDetail />} />
         <Route path="/series/:id/add-game" element={<ProtectedRoute><GameEntry /></ProtectedRoute>} />
+        <Route path="/series/:id/game/:gameId/matchup" element={<LogMatchup />} />
+        <Route path="/series/:id/accolades" element={<Accolades />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

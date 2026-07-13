@@ -93,6 +93,7 @@ export default function SeriesDetail() {
               {series.published ? 'Unpublish' : 'Publish'}
             </button>
           )}
+          <Link to={`/series/${id}/accolades`} style={s.btnGhost}>Accolades</Link>
           <button onClick={() => {
             const url = `${window.location.origin}/series/${id}`
             navigator.clipboard.writeText(url)
@@ -112,6 +113,7 @@ export default function SeriesDetail() {
                 {g.our_result === 'W' ? '+' : ''}{g.our_score - g.opp_score}
               </div>
               {g.brando_position && <div style={s.gameBuild}>B: {g.brando_position}</div>}
+              <Link to={`/series/${id}/game/${g.id}/matchup`} style={s.matchupLink}>log matchup</Link>
               {isEditor && (
                 <Link to={`/series/${id}/game/${g.id}/edit`} style={s.editLink}>edit</Link>
               )}
@@ -218,7 +220,8 @@ const s = {
   gameScore: { fontSize: '1rem', fontWeight: 700, color: '#fff', marginBottom: '0.15rem' },
   gameMargin: { fontSize: '0.75rem', color: '#666' },
   gameBuild: { fontSize: '0.72rem', color: '#555', marginTop: '0.2rem' },
-  editLink: { display: 'block', fontSize: '0.7rem', color: '#1d6ef5', textDecoration: 'none', marginTop: '0.4rem' },
+  editLink: { display: 'block', fontSize: '0.7rem', color: '#1d6ef5', textDecoration: 'none', marginTop: '0.2rem' },
+  matchupLink: { display: 'block', fontSize: '0.7rem', color: '#f4701b', textDecoration: 'none', marginTop: '0.4rem' },
   empty: { color: '#444', textAlign: 'center', padding: '3rem 0' },
   tableWrap: { marginTop: '2rem' },
   teamLabel: { fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem' },
