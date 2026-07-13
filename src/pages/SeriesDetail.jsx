@@ -93,6 +93,8 @@ export default function SeriesDetail() {
               {series.published ? 'Unpublish' : 'Publish'}
             </button>
           )}
+          <Link to={`/series/${id}/chart`} style={s.btnPrimary}>View Chart</Link>
+          {isEditor && <Link to={`/series/${id}/rankings`} style={s.btnSuccess}>Edit Rankings</Link>}
           <Link to={`/series/${id}/accolades`} style={s.btnGhost}>Accolades</Link>
           <button onClick={() => {
             const url = `${window.location.origin}/series/${id}`
