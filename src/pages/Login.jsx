@@ -18,7 +18,7 @@ export default function Login() {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <h1 style={styles.title}>NBA 2K26 PRO-AM</h1>
+        <h1 style={styles.title}>NEXT STEP SERIES</h1>
         <p style={styles.sub}>Editor Access</p>
         {sent ? (
           <p style={styles.sent}>Magic link sent to <strong>{email}</strong>. Check your inbox.</p>
