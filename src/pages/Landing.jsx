@@ -13,14 +13,19 @@ export default function Landing() {
   const { isEditor } = useAuth()
   const [leaders, setLeaders] = useState(null)
   const [recentSeries, setRecentSeries] = useState([])
+  const [hotStreaks, setHotStreaks] = useState([])
+  const [clutchLeaders, setClutchLeaders] = useState([])
+  const [consistencyData, setConsistencyData] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchStats() {
-      const [{ data: careers }, { data: series }, { data: mvps }] = await Promise.all([
+      const [{ data: careers }, { data: series }, { data: rankings }, { data: clutch }, { data: consistency }] = await Promise.all([
         supabase.from('career_player_totals').select('*'),
         supabase.from('series').select('*').eq('status', 'complete').order('ended_at', { ascending: false }).limit(3),
-        supabase.from('series_rankings').select('*, players(gamertag, display_name)').eq('is_mvp', true),
+        supabase.from('series_rankings').select('*, players(gamertag,display_name), series(name,ended_at)').eq('finalized', true).order('series(ended_at)', { ascending: true }),
+        supabase.from('clutch_game_stats').select('*').order('clutch_ppg', { ascending: false }).limit(5),
+        supabase.from('player_consistency').select('*').order('consistency_score', { ascending: false }).limit(10),
       ])
 
       if (careers && careers.length > 0) {
@@ -44,6 +49,25 @@ export default function Landing() {
         })
       }
       setRecentSeries(series || [])
+      setClutchLeaders(clutch || [])
+      setConsistencyData(consistency || [])
+
+      // Compute hot streaks: consecutive ELITE finishes per player
+      if (rankings && rankings.length > 0) {
+        const byPlayer = {}
+        rankings.forEach(r => {
+          const gtag = r.players?.gamertag
+          if (!gtag) return
+          if (!byPlayer[gtag]) byPlayer[gtag] = { gamertag: gtag, display_name: r.players?.display_name, streaks: [] }
+          byPlayer[gtag].streaks.push(r.tier)
+        })
+        const streaks = Object.values(byPlayer).map(p => {
+          let cur = 0, max = 0
+          p.streaks.forEach(t => { if (t === 'ELITE') { cur++; max = Math.max(max, cur) } else cur = 0 })
+          return { ...p, currentStreak: cur, maxStreak: max }
+        }).filter(p => p.maxStreak >= 2).sort((a, b) => b.currentStreak - a.currentStreak || b.maxStreak - a.maxStreak)
+        setHotStreaks(streaks.slice(0, 4))
+      }
       setLoading(false)
     }
     fetchStats()
@@ -275,6 +299,117 @@ export default function Landing() {
         </section>
       )}
 
+      {/* HOT STREAKS */}
+      <section style={{...p.section, background: '#000'}}>
+        <div style={p.sectionInner}>
+          <div style={p.sectionHeader}>
+            <div style={{...p.sectionEye, color: colors.orange}}><IconFlame size={13} color={colors.orange} /><span>HOT STREAKS</span></div>
+            <h2 style={p.sectionH2}>Consecutive ELITE Finishes</h2>
+            <p style={p.sectionDesc}>Who's locked in. Back-to-back ELITE series means you're running the league — not just having one good night.</p>
+          </div>
+          {hotStreaks.length === 0 ? (
+            <CompetitiveEmpty label="Hot streak data populates after 2+ completed series with finalized rankings." />
+          ) : (
+            <div style={p.streakGrid}>
+              {hotStreaks.map((pl, i) => (
+                <div key={pl.gamertag} style={p.streakCard}>
+                  <div style={{...p.streakRank, color: i === 0 ? colors.orange : '#444'}}>#{i+1}</div>
+                  <div style={p.streakName}>{pl.display_name || pl.gamertag}</div>
+                  <div style={p.streakBadge}>
+                    <span style={{color: colors.elite, fontWeight: 900, fontSize: '1.3rem'}}>{pl.currentStreak}</span>
+                    <span style={{color: '#444', fontSize: '0.72rem', marginLeft: 4}}>consecutive ELITE</span>
+                  </div>
+                  {pl.maxStreak > pl.currentStreak && <div style={p.streakMax}>Career best: {pl.maxStreak} in a row</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* CLUTCH + CONSISTENCY */}
+      <section style={{...p.section, background: '#050505'}}>
+        <div style={p.sectionInner}>
+          <div style={p.twoCol}>
+            <div style={p.twoColHalf}>
+              <div style={p.sectionHeader}>
+                <div style={{...p.sectionEye, color: '#f59e0b'}}><IconFlame size={13} color="#f59e0b" /><span>CLUTCH GENE</span></div>
+                <h2 style={{...p.sectionH2, fontSize: '1.3rem'}}>When It Matters Most</h2>
+                <p style={p.sectionDesc}>Performance in deciding games (G5, G6, G7). This is where legacies are made or exposed.</p>
+              </div>
+              {clutchLeaders.length === 0 ? (
+                <CompetitiveEmpty label="Clutch stats unlock after series go to G5+." />
+              ) : (
+                <div style={p.listCard}>
+                  {clutchLeaders.slice(0,5).map((pl, i) => (
+                    <div key={pl.gamertag} style={p.listRow}>
+                      <span style={{color: '#333', fontSize: '0.75rem', minWidth: 18}}>#{i+1}</span>
+                      <span style={p.listName}>{pl.gamertag}</span>
+                      <span style={{color: '#f59e0b', fontWeight: 700, fontSize: '0.88rem'}}>{pl.clutch_ppg} PPG</span>
+                      <span style={{color: '#444', fontSize: '0.75rem'}}>{pl.clutch_fg_pct ? `${pl.clutch_fg_pct}% FG` : ''}</span>
+                      <span style={{color: '#333', fontSize: '0.72rem'}}>{pl.clutch_wins}W</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={p.twoColHalf}>
+              <div style={p.sectionHeader}>
+                <div style={{...p.sectionEye, color: '#06b6d4'}}><IconTarget size={13} color="#06b6d4" /><span>CONSISTENCY</span></div>
+                <h2 style={{...p.sectionH2, fontSize: '1.3rem'}}>Show Up Every Night</h2>
+                <p style={p.sectionDesc}>Who delivers the same output regardless of matchup or game situation. High variance = unreliable.</p>
+              </div>
+              {consistencyData.length === 0 ? (
+                <CompetitiveEmpty label="Consistency scores need 2+ games in a series." />
+              ) : (
+                <div style={p.listCard}>
+                  {consistencyData.slice(0,5).map((pl, i) => (
+                    <div key={`${pl.gamertag}-${pl.series_id}`} style={p.listRow}>
+                      <span style={{color: '#333', fontSize: '0.75rem', minWidth: 18}}>#{i+1}</span>
+                      <span style={p.listName}>{pl.gamertag}</span>
+                      <span style={{color: '#06b6d4', fontWeight: 700, fontSize: '0.88rem'}}>{pl.consistency_score}%</span>
+                      <span style={{color: '#444', fontSize: '0.75rem'}}>{pl.ppg} PPG avg</span>
+                      <span style={{color: '#333', fontSize: '0.72rem'}}>±{pl.pts_stddev}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* COMPETITIVE FEATURES EXPLAINER */}
+      <section style={{...p.section, background: '#000', borderBottom: '1px solid #0f0f0f'}}>
+        <div style={p.sectionInner}>
+          <div style={p.sectionHeader}>
+            <div style={p.sectionEye}><IconTrophy size={13} color={colors.orange} /><span>COMPETITIVE FEATURES</span></div>
+            <h2 style={p.sectionH2}>Built for the Serious Ones</h2>
+          </div>
+          <div style={p.featureGrid}>
+            {[
+              { label: 'Hot Streak', color: colors.orange, desc: 'Back-to-back ELITE finishes tracked across every series. Who\'s on a run right now.' },
+              { label: 'Rival Record', color: colors.blue, desc: 'Head-to-head W/L when specific players are on opposite sides. Who owns who.' },
+              { label: 'Clutch Gene', color: '#f59e0b', desc: 'G5/G6/G7 performance only. Separate stats for when the series is on the line.' },
+              { label: 'Consistency Badge', color: '#06b6d4', desc: 'Standard deviation of your output. High variance means you\'re unreliable. Low = locked in.' },
+              { label: 'Pretender Flag', color: colors.gTier, desc: 'SOLID or lower on the winning team. Your ring doesn\'t mean you earned it.' },
+              { label: 'Series Predictions', color: colors.gold, desc: 'Before each series, pick the winner, MVP, and length. Track who calls it right.' },
+              { label: 'Per-Game MVP', color: colors.elite, desc: 'Auto-awarded after every game. Separate from series MVP — shows who peaked.' },
+              { label: 'Achievement Badges', color: colors.statGreen, desc: '50% Club, MVP Dynasty, Iron Man, G Tier Regular and more. Milestone tracking.' },
+            ].map(f => (
+              <div key={f.label} style={p.featureItem}>
+                <div style={{...p.featureDot, background: f.color}} />
+                <div>
+                  <div style={{...p.featureLabel, color: f.color}}>{f.label}</div>
+                  <div style={p.featureDesc}>{f.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* HOW IT WORKS */}
       <section style={{...p.section, background: '#050505'}}>
         <div style={p.sectionInner}>
@@ -312,6 +447,14 @@ export default function Landing() {
           <span style={p.footerSub}>NBA 2K26 Pro-Am Stat Tracker</span>
         </div>
       </footer>
+    </div>
+  )
+}
+
+function CompetitiveEmpty({ label }) {
+  return (
+    <div style={{ padding: '1.5rem', background: '#080808', border: '1px solid #111', borderRadius: 8, color: '#333', fontSize: '0.8rem', fontStyle: 'italic', textAlign: 'center' }}>
+      {label}
     </div>
   )
 }
@@ -378,6 +521,26 @@ const p = {
   sectionHeader: { marginBottom: '2.5rem' },
   sectionEye: { display: 'flex', alignItems: 'center', gap: 6, color: colors.orange, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '0.6rem' },
   sectionH2: { fontSize: 'clamp(1.4rem, 3vw, 2rem)', fontWeight: 800, margin: 0, color: '#fff', letterSpacing: '-0.01em' },
+  sectionDesc: { color: '#444', fontSize: '0.85rem', lineHeight: 1.65, margin: '0.75rem 0 0' },
+
+  streakGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' },
+  streakCard: { background: '#080808', border: '1px solid #111', borderRadius: 10, padding: '1.25rem' },
+  streakRank: { fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '0.4rem' },
+  streakName: { fontWeight: 800, fontSize: '1rem', color: '#fff', marginBottom: '0.5rem' },
+  streakBadge: { display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: '0.3rem' },
+  streakMax: { color: '#333', fontSize: '0.72rem', marginTop: '0.4rem' },
+
+  twoCol: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '3rem' },
+  twoColHalf: {},
+  listCard: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+  listRow: { display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.75rem', background: '#080808', border: '1px solid #111', borderRadius: 6 },
+  listName: { flex: 1, fontWeight: 700, fontSize: '0.88rem', color: '#fff' },
+
+  featureGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' },
+  featureItem: { display: 'flex', gap: '0.85rem', alignItems: 'flex-start', padding: '1rem', background: '#050505', border: '1px solid #111', borderRadius: 8 },
+  featureDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 5 },
+  featureLabel: { fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.3rem' },
+  featureDesc: { color: '#444', fontSize: '0.8rem', lineHeight: 1.6 },
 
   statGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 1, background: '#111', border: '1px solid #111', borderRadius: 12, overflow: 'hidden' },
   loadingGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 1, background: '#111', border: '1px solid #111', borderRadius: 12, overflow: 'hidden' },
