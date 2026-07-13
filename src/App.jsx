@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import Home from './pages/Home'
 import Login from './pages/Login'
+import NewSeries from './pages/NewSeries'
+import SeriesDetail from './pages/SeriesDetail'
+import GameEntry from './pages/GameEntry'
 
 function ProtectedRoute({ children }) {
   const { session, loading } = useAuth()
@@ -16,13 +19,9 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
-        {/* Phase 2+ routes — scaffolded here, pages coming next */}
-        <Route path="/series/:id" element={<div style={{color:'#fff',padding:'2rem'}}>Series view — coming in Phase 2</div>} />
-        <Route path="/series/new" element={
-          <ProtectedRoute>
-            <div style={{color:'#fff',padding:'2rem'}}>New series form — coming in Phase 2</div>
-          </ProtectedRoute>
-        } />
+        <Route path="/series/new" element={<ProtectedRoute><NewSeries /></ProtectedRoute>} />
+        <Route path="/series/:id" element={<SeriesDetail />} />
+        <Route path="/series/:id/add-game" element={<ProtectedRoute><GameEntry /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
