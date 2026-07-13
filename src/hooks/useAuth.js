@@ -18,11 +18,8 @@ export function useAuth() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const signIn = (email) =>
-    supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin },
-    })
+  const signIn = (email, password) =>
+    supabase.auth.signInWithPassword({ email, password })
 
   const signOut = () => supabase.auth.signOut()
 

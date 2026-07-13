@@ -1,18 +1,23 @@
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useNavigate } from 'react-router-dom'
 
 export default function Login() {
   const { signIn } = useAuth()
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    const { error } = await signIn(email)
+    setLoading(true)
+    const { error } = await signIn(email, password)
+    setLoading(false)
     if (error) setError(error.message)
-    else setSent(true)
+    else navigate('/')
   }
 
   return (
@@ -20,22 +25,28 @@ export default function Login() {
       <div style={styles.card}>
         <h1 style={styles.title}>NEXT STEP SERIES</h1>
         <p style={styles.sub}>Editor Access</p>
-        {sent ? (
-          <p style={styles.sent}>Magic link sent to <strong>{email}</strong>. Check your inbox.</p>
-        ) : (
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <input
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              style={styles.input}
-            />
-            <button type="submit" style={styles.btn}>Send Magic Link</button>
-            {error && <p style={styles.error}>{error}</p>}
-          </form>
-        )}
+        <form onSubmit={handleSubmit} style={styles.form}>
+          <input
+            type="email"
+            placeholder="your@email.com"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+            style={styles.input}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            required
+            style={styles.input}
+          />
+          <button type="submit" disabled={loading} style={styles.btn}>
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
+          {error && <p style={styles.error}>{error}</p>}
+        </form>
       </div>
     </div>
   )
@@ -91,5 +102,4 @@ const styles = {
     fontWeight: 600,
   },
   error: { color: '#e55', fontSize: '0.85rem', margin: 0 },
-  sent: { color: '#aaa', lineHeight: 1.6 },
 }
