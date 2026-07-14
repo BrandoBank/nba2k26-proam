@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { computeImpactScores } from '../lib/ranking'
+
+const TIER_ORDER = ['ELITE', 'STRONG', 'SOLID', 'G_TIER']
+const TIER_COLORS = { ELITE: '#9333ea', STRONG: '#2563eb', SOLID: '#16a34a', G_TIER: '#dc2626' }
 
 export default function SeriesDetail() {
   const { id } = useParams()
@@ -10,23 +14,32 @@ export default function SeriesDetail() {
   const [series, setSeries] = useState(null)
   const [games, setGames] = useState([])
   const [stats, setStats] = useState([]) // series_player_stats view
+  const [finalizedRankings, setFinalizedRankings] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [lastUpdated, setLastUpdated] = useState(null)
 
-  useEffect(() => { fetchAll() }, [id])
-
-  async function fetchAll() {
-    setLoading(true)
-    const [{ data: ser }, { data: gms }, { data: sts }] = await Promise.all([
+  const fetchAll = useCallback(async () => {
+    const [{ data: ser }, { data: gms }, { data: sts }, { data: rankings }] = await Promise.all([
       supabase.from('series').select('*').eq('id', id).single(),
       supabase.from('games').select('*').eq('series_id', id).order('game_number'),
       supabase.from('series_player_stats').select('*').eq('series_id', id),
+      supabase.from('series_rankings').select('*, players(gamertag,display_name)').eq('series_id', id).eq('finalized', true),
     ])
     setSeries(ser)
     setGames(gms || [])
     setStats(sts || [])
+    setFinalizedRankings(rankings || [])
+    setLastUpdated(new Date())
     setLoading(false)
-  }
+  }, [id])
+
+  useEffect(() => {
+    fetchAll()
+    // Auto-refresh every 45s while series is in progress
+    const interval = setInterval(fetchAll, 45000)
+    return () => clearInterval(interval)
+  }, [fetchAll])
 
   async function markComplete() {
     const wins = games.filter(g => g.our_result === 'W').length
@@ -59,6 +72,22 @@ export default function SeriesDetail() {
   // Split stats by side
   const ourStats = stats.filter(p => p.primary_side === 'our').sort((a,b) => b.ppg - a.ppg)
   const oppStats = stats.filter(p => p.primary_side === 'opp').sort((a,b) => b.ppg - a.ppg)
+
+  // Live rankings — use finalized if available, else compute deterministically
+  const liveRankings = (() => {
+    if (finalizedRankings.length > 0) return finalizedRankings.map(r => ({
+      player_id: r.player_id,
+      gamertag: r.players?.gamertag || '',
+      display_name: r.players?.display_name,
+      tier: r.tier,
+      is_mvp: r.is_mvp,
+      impact_score: r.impact_score,
+      primary_side: r.primary_side,
+      finalized: true,
+    }))
+    if (stats.length === 0) return []
+    return computeImpactScores(stats).map(r => ({ ...r, finalized: false }))
+  })()
 
   return (
     <div style={s.page}>
@@ -127,6 +156,77 @@ export default function SeriesDetail() {
       {games.length === 0 && (
         <div style={s.empty}>
           No games yet.{isEditor ? ' Add the first game above.' : ''}
+        </div>
+      )}
+
+      {/* Matchup CTA */}
+      {games.length > 0 && series.status === 'in_progress' && (
+        <div style={s.matchupCta}>
+          <div style={s.matchupCtaText}>
+            <span style={{color: '#f4701b', fontWeight: 700}}>Players:</span> Log who you guarded to improve ranking accuracy.
+          </div>
+          <div style={s.matchupCtaGames}>
+            {games.map(g => (
+              <Link key={g.id} to={`/series/${id}/game/${g.id}/matchup`} style={s.matchupCtaBtn}>
+                G{g.game_number}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Live Rankings */}
+      {liveRankings.length > 0 && (
+        <div style={s.rankingWrap}>
+          <div style={s.rankingHeader}>
+            <div style={s.rankingTitle}>
+              {liveRankings[0]?.finalized
+                ? <span style={s.finalBadge}>FINAL RANKINGS</span>
+                : <span style={s.liveBadge}>LIVE RANKINGS</span>
+              }
+              {series.name}
+            </div>
+            <div style={s.rankingMeta}>
+              {liveRankings[0]?.finalized
+                ? 'Finalized — '
+                : 'Auto-updates as stats & matchups come in · '
+              }
+              {lastUpdated && `Last refreshed ${lastUpdated.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`}
+              {!liveRankings[0]?.finalized && (
+                <button onClick={fetchAll} style={s.refreshBtn}>Refresh</button>
+              )}
+            </div>
+          </div>
+          {TIER_ORDER.map(tier => {
+            const players = liveRankings.filter(r => r.tier === tier)
+            if (players.length === 0) return null
+            return (
+              <div key={tier} style={{...s.tierRow, borderLeftColor: TIER_COLORS[tier]}}>
+                <div style={{...s.tierTag, color: TIER_COLORS[tier]}}>{tier === 'G_TIER' ? 'G TIER' : tier}</div>
+                <div style={s.tierPlayers}>
+                  {players.map(r => (
+                    <div key={r.player_id} style={s.rankPlayer}>
+                      {r.is_mvp && <span style={s.mvpStar}>★</span>}
+                      <span style={{color: r.primary_side === 'our' ? '#4da6ff' : '#ff6b6b', fontWeight: 700}}>
+                        {r.display_name || r.gamertag}
+                      </span>
+                      <span style={s.impactScore}>{Number(r.impact_score || 0).toFixed(1)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+          {!liveRankings[0]?.finalized && isEditor && (
+            <div style={s.rankingFooter}>
+              Rankings are auto-computed. <Link to={`/series/${id}/rankings`} style={{color: '#f4701b', textDecoration: 'none'}}>Open editor to adjust & publish →</Link>
+            </div>
+          )}
+          {liveRankings[0]?.finalized && (
+            <div style={s.rankingFooter}>
+              <Link to={`/series/${id}/chart`} style={{color: '#f4701b', textDecoration: 'none'}}>View full chart & download PNG →</Link>
+            </div>
+          )}
         </div>
       )}
 
@@ -225,6 +325,27 @@ const s = {
   editLink: { display: 'block', fontSize: '0.7rem', color: '#1d6ef5', textDecoration: 'none', marginTop: '0.2rem' },
   matchupLink: { display: 'block', fontSize: '0.7rem', color: '#f4701b', textDecoration: 'none', marginTop: '0.4rem' },
   empty: { color: '#444', textAlign: 'center', padding: '3rem 0' },
+
+  matchupCta: { background: '#0a0500', border: '1px solid #1a1000', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' },
+  matchupCtaText: { fontSize: '0.85rem', color: '#888' },
+  matchupCtaGames: { display: 'flex', gap: '0.4rem', flexWrap: 'wrap' },
+  matchupCtaBtn: { background: '#0d0800', border: '1px solid #2a1800', borderRadius: 4, padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: '#f4701b', fontWeight: 700, textDecoration: 'none' },
+
+  rankingWrap: { background: '#050505', border: '1px solid #111', borderRadius: 10, padding: '1.25rem', marginBottom: '2rem' },
+  rankingHeader: { marginBottom: '1rem' },
+  rankingTitle: { fontWeight: 800, fontSize: '1rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.3rem' },
+  rankingMeta: { color: '#333', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' },
+  liveBadge: { background: '#0a1a0a', border: '1px solid #1a4a1a', color: '#4caf50', fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.1em', padding: '0.15rem 0.5rem', borderRadius: 3 },
+  finalBadge: { background: '#1a1200', border: '1px solid #4a3000', color: '#f4701b', fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.1em', padding: '0.15rem 0.5rem', borderRadius: 3 },
+  refreshBtn: { background: 'transparent', border: 'none', color: '#4da6ff', fontSize: '0.72rem', cursor: 'pointer', padding: 0 },
+  tierRow: { display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '3px solid', paddingLeft: '0.75rem', marginBottom: '0.6rem' },
+  tierTag: { fontWeight: 800, fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', minWidth: 52 },
+  tierPlayers: { display: 'flex', flexWrap: 'wrap', gap: '0.4rem' },
+  rankPlayer: { display: 'flex', alignItems: 'center', gap: '0.3rem', background: '#0a0a0a', border: '1px solid #111', borderRadius: 5, padding: '0.25rem 0.6rem', fontSize: '0.82rem' },
+  mvpStar: { color: '#f59e0b', fontSize: '0.75rem' },
+  impactScore: { color: '#333', fontSize: '0.72rem', marginLeft: 2 },
+  rankingFooter: { marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #111', color: '#444', fontSize: '0.78rem' },
+
   tableWrap: { marginTop: '2rem' },
   teamLabel: { fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' },
