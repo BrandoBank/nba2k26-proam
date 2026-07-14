@@ -93,6 +93,9 @@ export default function Landing() {
         </div>
       </nav>
 
+      {/* 2K27 COUNTDOWN */}
+      <Countdown2K27 />
+
       {/* HERO */}
       <section style={p.hero}>
         <div style={p.heroBg} />
@@ -449,6 +452,69 @@ export default function Landing() {
       </footer>
     </div>
   )
+}
+
+function Countdown2K27() {
+  const RELEASE = new Date('2026-09-04T00:00:00')
+  const EARLY_ACCESS = new Date('2026-08-28T00:00:00')
+  const [now, setNow] = useState(new Date())
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  const target = now < EARLY_ACCESS ? EARLY_ACCESS : RELEASE
+  const isEarlyAccess = now < EARLY_ACCESS
+  const diff = Math.max(0, target - now)
+  const days = Math.floor(diff / 86400000)
+  const hours = Math.floor((diff % 86400000) / 3600000)
+  const mins = Math.floor((diff % 3600000) / 60000)
+  const secs = Math.floor((diff % 60000) / 1000)
+
+  if (diff === 0) return null
+
+  return (
+    <div style={cd.bar}>
+      <div style={cd.inner}>
+        <div style={cd.label}>
+          <span style={cd.badge}>2K27</span>
+          <span style={cd.text}>{isEarlyAccess ? 'Early Access' : 'Release'} drops Sep {isEarlyAccess ? '28' : '4'} — finish your 2K26 business</span>
+        </div>
+        <div style={cd.units}>
+          <Unit n={days} label="days" />
+          <div style={cd.sep}>:</div>
+          <Unit n={hours} label="hrs" />
+          <div style={cd.sep}>:</div>
+          <Unit n={mins} label="min" />
+          <div style={cd.sep}>:</div>
+          <Unit n={secs} label="sec" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Unit({ n, label }) {
+  return (
+    <div style={cd.unit}>
+      <span style={cd.unitN}>{String(n).padStart(2, '0')}</span>
+      <span style={cd.unitL}>{label}</span>
+    </div>
+  )
+}
+
+const cd = {
+  bar: { background: '#0a0500', borderBottom: '1px solid #1a1000' },
+  inner: { maxWidth: 1200, margin: '0 auto', padding: '0.6rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' },
+  label: { display: 'flex', alignItems: 'center', gap: '0.6rem' },
+  badge: { background: colors.orange, color: '#fff', fontSize: '0.65rem', fontWeight: 900, letterSpacing: '0.1em', padding: '0.15rem 0.5rem', borderRadius: 3 },
+  text: { color: '#555', fontSize: '0.78rem' },
+  units: { display: 'flex', alignItems: 'center', gap: '0.25rem' },
+  unit: { display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 36 },
+  unitN: { color: colors.orange, fontWeight: 900, fontSize: '1.1rem', lineHeight: 1, fontVariantNumeric: 'tabular-nums' },
+  unitL: { color: '#333', fontSize: '0.55rem', textTransform: 'uppercase', letterSpacing: '0.08em' },
+  sep: { color: '#333', fontWeight: 700, fontSize: '1rem', marginBottom: 8 },
 }
 
 function CompetitiveEmpty({ label }) {
