@@ -96,28 +96,33 @@ export default function Landing() {
       {/* 2K27 COUNTDOWN */}
       <Countdown2K27 />
 
-      {/* HERO */}
+      {/* HERO + LEADERBOARD */}
       <section style={p.hero}>
         <div style={p.heroBg} />
         <div style={p.heroInner}>
-          <div style={p.heroEyebrow}>
-            <IconBall size={13} color={colors.orange} />
-            <span>NBA 2K26 · PRO-AM TRACKER</span>
+          <div style={p.heroLeft}>
+            <div style={p.heroEyebrow}>
+              <IconBall size={13} color={colors.orange} />
+              <span>NBA 2K26 · PRO-AM TRACKER</span>
+            </div>
+            <h1 style={p.heroH1}>
+              Run the series.<br />
+              <span style={p.heroOrange}>Own the stats.</span>
+            </h1>
+            <p style={p.heroP}>
+              Drop a box score. Get instant tier rankings, career history, and a shareable chart — built for crews that take the game seriously.
+            </p>
+            <div style={p.heroButtons}>
+              <Link to="/leagues" style={p.btnOrange}>
+                View Series <IconArrow size={14} color="#fff" />
+              </Link>
+              {isEditor && (
+                <Link to="/series/new" style={p.btnOutline}>New Series</Link>
+              )}
+            </div>
           </div>
-          <h1 style={p.heroH1}>
-            Run the series.<br />
-            <span style={p.heroOrange}>Own the stats.</span>
-          </h1>
-          <p style={p.heroP}>
-            Drop a box score. Get instant tier rankings, career history, and a shareable chart — built for crews that take the game seriously.
-          </p>
-          <div style={p.heroButtons}>
-            <Link to="/leagues" style={p.btnOrange}>
-              View Series <IconArrow size={14} color="#fff" />
-            </Link>
-            {isEditor && (
-              <Link to="/series/new" style={p.btnOutline}>New Series</Link>
-            )}
+          <div style={p.heroRight}>
+            <AllTimeLeaderboard />
           </div>
         </div>
       </section>
@@ -517,6 +522,110 @@ const cd = {
   sep: { color: '#333', fontWeight: 700, fontSize: '1rem', marginBottom: 8 },
 }
 
+const LB_STATS = [
+  { key: 'career_ppg', label: 'PPG', color: colors.orange },
+  { key: 'career_fg_pct', label: 'FG%', color: colors.statGreen, suffix: '%' },
+  { key: 'career_3p_pct', label: '3P%', color: colors.gold, suffix: '%' },
+  { key: 'career_apg', label: 'APG', color: colors.blue },
+  { key: 'career_rpg', label: 'RPG', color: '#8b5cf6' },
+  { key: 'career_spg', label: 'SPG', color: '#06b6d4' },
+  { key: 'elite_count', label: 'ELITE', color: colors.elite },
+  { key: 'mvp_count', label: 'MVPs', color: colors.gold },
+]
+
+function AllTimeLeaderboard() {
+  const [careers, setCareers] = useState([])
+  const [tab, setTab] = useState('career_ppg')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    supabase.from('career_player_totals').select('*').then(({ data }) => {
+      setCareers(data || [])
+      setLoading(false)
+    })
+    // Refresh every 2 mins
+    const t = setInterval(() => {
+      supabase.from('career_player_totals').select('*').then(({ data }) => { if (data) setCareers(data) })
+    }, 120000)
+    return () => clearInterval(t)
+  }, [])
+
+  const stat = LB_STATS.find(s => s.key === tab) || LB_STATS[0]
+  const minGP = ['career_fg_pct', 'career_3p_pct'].includes(tab) ? 0 : 3
+  const ranked = [...careers]
+    .filter(p => p.total_gp >= minGP && p[tab] != null)
+    .sort((a, b) => Number(b[tab]) - Number(a[tab]))
+    .slice(0, 10)
+
+  return (
+    <div style={lb.wrap}>
+      <div style={lb.header}>
+        <div style={lb.eye}><IconTrophy size={11} color={colors.orange} /><span>ALL-TIME LEADERBOARD</span></div>
+        <Link to="/history" style={lb.histLink}>Full history →</Link>
+      </div>
+      <div style={lb.tabs}>
+        {LB_STATS.map(s => (
+          <button key={s.key} onClick={() => setTab(s.key)}
+            style={{...lb.tab, borderBottomColor: tab === s.key ? s.color : 'transparent', color: tab === s.key ? s.color : '#444'}}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+      {loading ? (
+        <div style={lb.empty}>Loading...</div>
+      ) : ranked.length === 0 ? (
+        <div style={lb.empty}>No data yet — stats populate as series are logged.</div>
+      ) : (
+        <div style={lb.list}>
+          {ranked.map((p, i) => {
+            const val = Number(p[tab])
+            const max = Number(ranked[0][tab])
+            const barPct = max > 0 ? (val / max) * 100 : 0
+            const name = p.display_name || p.gamertag
+            return (
+              <div key={p.player_id} style={lb.row}>
+                <div style={{...lb.rank, color: i === 0 ? colors.gold : i === 1 ? '#aaa' : i === 2 ? '#cd7f32' : '#333'}}>
+                  {i + 1}
+                </div>
+                <div style={lb.info}>
+                  <div style={lb.nameRow}>
+                    <span style={lb.name}>{name}</span>
+                    <span style={{...lb.val, color: stat.color}}>
+                      {val % 1 === 0 ? val : val.toFixed(1)}{stat.suffix || ''}
+                    </span>
+                  </div>
+                  <div style={lb.barTrack}>
+                    <div style={{...lb.barFill, width: `${barPct}%`, background: stat.color}} />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const lb = {
+  wrap: { background: 'rgba(5,5,5,0.9)', border: '1px solid #1a1a1a', borderRadius: 12, padding: '1.25rem', backdropFilter: 'blur(10px)' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' },
+  eye: { display: 'flex', alignItems: 'center', gap: 5, color: colors.orange, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' },
+  histLink: { color: '#333', fontSize: '0.72rem', textDecoration: 'none' },
+  tabs: { display: 'flex', flexWrap: 'wrap', gap: '0.15rem', marginBottom: '1rem', borderBottom: '1px solid #111', paddingBottom: '0.5rem' },
+  tab: { background: 'transparent', border: 'none', borderBottom: '2px solid transparent', color: '#444', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', padding: '0.25rem 0.4rem', cursor: 'pointer', fontFamily: 'inherit' },
+  list: { display: 'flex', flexDirection: 'column', gap: '0.6rem' },
+  row: { display: 'flex', alignItems: 'center', gap: '0.6rem' },
+  rank: { fontSize: '0.75rem', fontWeight: 900, minWidth: 16, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
+  info: { flex: 1 },
+  nameRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.2rem' },
+  name: { color: '#ccc', fontSize: '0.82rem', fontWeight: 600 },
+  val: { fontWeight: 800, fontSize: '0.88rem', fontVariantNumeric: 'tabular-nums' },
+  barTrack: { height: 3, background: '#111', borderRadius: 2, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 2, transition: 'width 0.4s ease' },
+  empty: { color: '#333', fontSize: '0.8rem', textAlign: 'center', padding: '2rem 0', fontStyle: 'italic' },
+}
+
 function CompetitiveEmpty({ label }) {
   return (
     <div style={{ padding: '1.5rem', background: '#080808', border: '1px solid #111', borderRadius: 8, color: '#333', fontSize: '0.8rem', fontStyle: 'italic', textAlign: 'center' }}>
@@ -573,11 +682,13 @@ const p = {
     position: 'absolute', inset: 0, pointerEvents: 'none',
     background: 'radial-gradient(ellipse 80% 60% at 20% 50%, rgba(244,112,27,0.08) 0%, transparent 70%), radial-gradient(ellipse 50% 80% at 80% 20%, rgba(29,110,245,0.06) 0%, transparent 70%)',
   },
-  heroInner: { position: 'relative', maxWidth: 1200, margin: '0 auto', padding: '6rem 1.5rem 5rem' },
+  heroInner: { position: 'relative', maxWidth: 1200, margin: '0 auto', padding: '5rem 1.5rem 4rem', display: 'grid', gridTemplateColumns: '1fr minmax(0, 380px)', gap: '3rem', alignItems: 'center' },
+  heroLeft: {},
+  heroRight: { alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center' },
   heroEyebrow: { display: 'flex', alignItems: 'center', gap: 6, color: colors.orange, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '1.25rem' },
-  heroH1: { fontSize: 'clamp(2.4rem, 6vw, 4rem)', fontWeight: 900, lineHeight: 1.06, margin: '0 0 1.25rem', letterSpacing: '-0.025em', color: '#fff' },
+  heroH1: { fontSize: 'clamp(2rem, 4vw, 3.2rem)', fontWeight: 900, lineHeight: 1.06, margin: '0 0 1.25rem', letterSpacing: '-0.025em', color: '#fff' },
   heroOrange: { color: colors.orange },
-  heroP: { color: '#777', fontSize: 'clamp(0.95rem, 2vw, 1.1rem)', lineHeight: 1.7, maxWidth: 520, margin: '0 0 2.5rem' },
+  heroP: { color: '#777', fontSize: 'clamp(0.9rem, 1.5vw, 1rem)', lineHeight: 1.7, maxWidth: 480, margin: '0 0 2rem' },
   heroButtons: { display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' },
   btnOrange: { display: 'inline-flex', alignItems: 'center', gap: 6, background: colors.orange, color: '#fff', textDecoration: 'none', padding: '0.75rem 1.5rem', borderRadius: 8, fontSize: '0.95rem', fontWeight: 700 },
   btnOutline: { display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', color: '#aaa', textDecoration: 'none', padding: '0.75rem 1.5rem', borderRadius: 8, fontSize: '0.95rem', fontWeight: 600, border: '1px solid #222' },
