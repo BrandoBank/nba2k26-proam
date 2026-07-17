@@ -121,6 +121,40 @@ player_achievements-- milestone badges (earned_at, series_id)
 
 ---
 
+## Security
+
+### Transport & Headers
+- `Strict-Transport-Security` — forces HTTPS, preload eligible
+- `Content-Security-Policy` — allowlists self + Supabase; blocks inline scripts, frames, and unknown origins
+- `X-Frame-Options: DENY` — clickjacking prevention
+- `X-Content-Type-Options: nosniff` — MIME sniffing prevention
+- `Referrer-Policy: strict-origin-when-cross-origin` — no URL leakage to third parties
+- `Permissions-Policy` — camera, mic, geolocation, and payment APIs explicitly disabled
+- Static assets served with `immutable` cache headers (Vite content-hashes filenames)
+
+### Serverless Functions
+| Concern | Measure |
+|---|---|
+| AI endpoint abuse | Rate limited: 10 req/60s (parse), 5 req/60s (rank) per IP |
+| Oversized payloads | Image capped at ~10 MB before reaching Anthropic |
+| Media type injection | `media_type` allowlisted to `image/*` only |
+| Base64 injection | Regex validates only legal base64 characters |
+| Prompt injection via stats | Stat objects stripped to known-safe keys + numeric fields clamped before Claude sees them |
+| UUID tampering | `series_id` validated against UUID regex before use |
+| Player count DoS | `stats` array capped at 20 players |
+| Key exposure | `ANTHROPIC_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` server-side only, never bundled into client JS |
+
+### Database (Supabase RLS)
+- **Public** — `SELECT` on published/complete series only
+- **Authenticated editors** — full CRUD
+- **Anyone** — `INSERT` on `game_matchups` (self-reported defensive assignments, no account required)
+- Service role key used only in Netlify functions, never in the browser bundle
+
+### What's Not Needed Here
+No CSRF tokens — Supabase auth uses `Authorization` headers (not cookies), so there's no cross-site request surface. No SQL injection risk — all DB access goes through the Supabase JS client which parameterizes everything.
+
+---
+
 ## Auth Model
 
 - **Public** — read all published/complete series, stats, rankings, charts

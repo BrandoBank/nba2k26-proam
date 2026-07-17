@@ -1,12 +1,59 @@
 /**
  * rank-series — Netlify serverless function
- * POST { series_id, stats, series_info }
- * Returns { rankings, awards }
  *
- * Calls Anthropic API server-side only. ANTHROPIC_API_KEY never reaches the client.
+ * POST { series_id, stats, series_info }
+ * → { rankings, awards }
+ *
+ * Security:
+ *   - Rate limited: 5 requests / 60s per IP
+ *   - series_id validated as UUID
+ *   - stats array capped at 20 players max
+ *   - stat fields stripped to known-safe keys before forwarding to Claude
+ *   - ANTHROPIC_API_KEY never reaches the client
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+
+// ── Rate limiter ──────────────────────────────────────────────────────────────
+const _rlStore = new Map()
+function _rateLimit(ip, windowMs = 60_000, max = 5) {
+  const now = Date.now()
+  const key = ip || 'unknown'
+  if (!_rlStore.has(key)) { _rlStore.set(key, { count: 1, start: now }); return true }
+  const e = _rlStore.get(key)
+  if (now - e.start > windowMs) { _rlStore.set(key, { count: 1, start: now }); return true }
+  e.count++
+  return e.count <= max
+}
+function _getIp(req) {
+  return req.headers.get('x-nf-client-connection-ip') || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+}
+
+// ── UUID validator ────────────────────────────────────────────────────────────
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// ── Allowed stat keys forwarded to Claude (prevent prompt injection via stat fields) ──
+const SAFE_STAT_KEYS = new Set([
+  'gamertag', 'display_name', 'primary_side', 'gp', 'ppg', 'rpg', 'apg',
+  'spg', 'bpg', 'tovpg', 'fg_pct', 'three_pct', 'total_tpa', 'total_fga',
+  'best_pts', 'is_swing',
+])
+
+function sanitizeStats(stats) {
+  return stats.map(p => {
+    const safe = {}
+    for (const key of SAFE_STAT_KEYS) {
+      if (key in p) safe[key] = p[key]
+    }
+    // Clamp numeric fields to reasonable ranges
+    for (const k of ['gp', 'ppg', 'rpg', 'apg', 'spg', 'bpg', 'tovpg', 'fg_pct', 'three_pct', 'total_tpa', 'total_fga', 'best_pts']) {
+      if (k in safe && typeof safe[k] === 'number') {
+        safe[k] = Math.max(0, Math.min(safe[k], 9999))
+      }
+    }
+    return safe
+  })
+}
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -79,30 +126,41 @@ Respond with STRICT JSON only. No markdown, no code fences, no explanation outsi
 }`
 
 export default async function handler(req, context) {
+  // ── Method guard ────────────────────────────────────────────────────────────
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { 'Content-Type': 'application/json' } })
   }
 
+  // ── Rate limit ──────────────────────────────────────────────────────────────
+  const ip = _getIp(req)
+  if (!_rateLimit(ip)) {
+    return new Response(JSON.stringify({ error: 'Too many requests. Try again in a minute.' }), { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': '60' } })
+  }
+
+  // ── API key ─────────────────────────────────────────────────────────────────
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return new Response(JSON.stringify({ error: 'Server misconfiguration' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
+  }
+
+  // ── Body ────────────────────────────────────────────────────────────────────
   let body
   try {
     body = await req.json()
   } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
   }
 
   const { series_id, stats, series_info } = body
 
+  // ── Input validation ────────────────────────────────────────────────────────
   if (!stats || !Array.isArray(stats) || stats.length === 0) {
-    return new Response(JSON.stringify({ error: 'stats array is required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return new Response(JSON.stringify({ error: 'stats array is required' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+  }
+  if (stats.length > 20) {
+    return new Response(JSON.stringify({ error: 'Too many players (max 20)' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+  }
+  if (series_id && !UUID_RE.test(series_id)) {
+    return new Response(JSON.stringify({ error: 'Invalid series_id format' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
   }
 
   // Build the user message with series context + stats table
@@ -117,8 +175,8 @@ export default async function handler(req, context) {
       : null,
   ].filter(Boolean).join('\n')
 
-  // Format stats for Claude
-  const statsTable = stats.map(p => ({
+  // Sanitize + format stats for Claude
+  const statsTable = sanitizeStats(stats).map(p => ({
     gamertag:      p.gamertag,
     display_name:  p.display_name,
     side:          p.primary_side,

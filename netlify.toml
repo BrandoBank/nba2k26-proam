@@ -14,7 +14,42 @@
   to = "/index.html"
   status = 200
 
+# ── Security headers (applied to all routes) ──────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Prevent clickjacking
+    X-Frame-Options = "DENY"
+    # Stop MIME sniffing
+    X-Content-Type-Options = "nosniff"
+    # Force HTTPS
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    # Referrer info — no leakage to third parties
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # Disable browser features we don't use
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+    # Content Security Policy
+    # - default: self only
+    # - scripts: self + unsafe-inline for Vite HMR in dev (locked down in prod via meta tag)
+    # - connect: self + Supabase + Anthropic (via our own functions only)
+    # - images: self + blob (for html-to-image PNG export) + data URIs
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+# ── HTML — no cache (SPA shell changes with every deploy) ─────────────────────
 [[headers]]
   for = "/index.html"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
+
+# ── Static assets — cache aggressively (Vite hashes filenames) ────────────────
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# ── PWA manifest + icons ──────────────────────────────────────────────────────
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+    Content-Type = "application/manifest+json"
