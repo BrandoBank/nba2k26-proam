@@ -538,6 +538,7 @@ const LB_STATS = [
   { key: 'career_spg', label: 'SPG', color: '#06b6d4' },
   { key: 'elite_count', label: 'ELITE', color: colors.elite },
   { key: 'mvp_count', label: 'MVPs', color: colors.gold },
+  { key: 'g_tier_count', label: 'G TIER', color: colors.gTier },
 ]
 
 function AllTimeLeaderboard() {
@@ -560,7 +561,7 @@ function AllTimeLeaderboard() {
   const stat = LB_STATS.find(s => s.key === tab) || LB_STATS[0]
   const minGP = ['career_fg_pct', 'career_3p_pct'].includes(tab) ? 0 : 3
   const ranked = [...careers]
-    .filter(p => p.total_gp >= minGP && p[tab] != null)
+    .filter(p => p.total_gp >= minGP && p[tab] != null && Number(p[tab]) > 0)
     .sort((a, b) => Number(b[tab]) - Number(a[tab]))
     .slice(0, 10)
 
