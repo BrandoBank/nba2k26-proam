@@ -8,7 +8,7 @@ export default function NewSeries() {
   const navigate = useNavigate()
   const [form, setForm] = useState({
     name: '',
-    our_team_name: 'scooooorbooooord',
+    our_team_name: '',
     opp_team_name: '',
     format: 7,
     storyline: '',
@@ -49,12 +49,15 @@ export default function NewSeries() {
         <label style={s.label}>Series Name
           <input style={s.input} value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="Redraft Series · July" required />
         </label>
-        <label style={s.label}>Our Team Name
-          <input style={s.input} value={form.our_team_name} onChange={e => setForm(f => ({...f, our_team_name: e.target.value}))} required />
-        </label>
-        <label style={s.label}>Opponent Team Name
-          <input style={s.input} value={form.opp_team_name} onChange={e => setForm(f => ({...f, opp_team_name: e.target.value}))} placeholder="HOOPAAAAAAAs" required />
-        </label>
+        <div style={s.teamRow}>
+          <label style={{...s.label, flex: 1}}>Team 1
+            <input style={s.input} value={form.our_team_name} onChange={e => setForm(f => ({...f, our_team_name: e.target.value}))} placeholder="scooooorbooooord" required />
+          </label>
+          <div style={s.vs}>VS</div>
+          <label style={{...s.label, flex: 1}}>Team 2
+            <input style={s.input} value={form.opp_team_name} onChange={e => setForm(f => ({...f, opp_team_name: e.target.value}))} placeholder="HOOPAAAAAAAs" required />
+          </label>
+        </div>
         <label style={s.label}>Format
           <select style={s.input} value={form.format} onChange={e => setForm(f => ({...f, format: e.target.value}))}>
             <option value={3}>Best of 3</option>
@@ -80,6 +83,8 @@ const s = {
   label: { display: 'flex', flexDirection: 'column', gap: '0.35rem', color: '#aaa', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.08em' },
   input: { background: '#0d0d0d', border: '1px solid #2a2a2a', borderRadius: 4, color: '#fff', padding: '0.6rem 0.8rem', fontSize: '0.95rem', outline: 'none', width: '100%' },
   opt: { color: '#555', textTransform: 'none', letterSpacing: 0 },
+  teamRow: { display: 'flex', gap: '0.75rem', alignItems: 'flex-end' },
+  vs: { color: '#333', fontWeight: 900, fontSize: '0.75rem', letterSpacing: '0.1em', paddingBottom: '0.7rem', flexShrink: 0 },
   btn: { background: '#1d6ef5', color: '#fff', border: 'none', borderRadius: 4, padding: '0.75rem', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', marginTop: '0.5rem' },
   error: { color: '#e55', fontSize: '0.85rem' },
   dim: { color: '#555' },
