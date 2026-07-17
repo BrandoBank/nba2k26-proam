@@ -1,20 +1,31 @@
 // Netlify Function: parse-screenshot
 // Accepts a base64 image, calls Claude vision, returns structured box score JSON.
-// API key stays server-side only.
+// Uses extended thinking + JSON prefill for maximum accuracy.
 
 const Anthropic = require('@anthropic-ai/sdk')
 
-const SYSTEM_PROMPT = `You are parsing an NBA 2K26 Pro-Am box score screenshot.
+const SYSTEM_PROMPT = `You are an expert at parsing NBA 2K26 Pro-Am box score screenshots.
 
-The box score shows two teams. Each team has exactly 5 players listed top-to-bottom in position order: PG, SG, SF, PF, C.
+The box score shows two teams. Each team has exactly 5 players listed top-to-bottom: PG, SG, SF, PF, C.
 
-There is also a "YOUR MATCHUP" column showing who each player on the bottom team was defensively matched against.
+The stat columns are (left to right):
+GRADE | PTS | REB | AST | STL | BLK | PF | TO | FGM-FGA | 3PM-3PA | FTM-FTA
 
-Extract ALL of the following and return ONLY valid JSON — no markdown, no explanation:
+The bottom team also has a "YOUR MATCHUP" column showing their defensive assignment.
+
+Your job: extract every stat cell precisely. Take your time on ambiguous characters:
+- The number 1 vs lowercase l vs uppercase I — look at font context
+- 0 vs O — box scores use digits only in stat columns
+- Gamertags may contain numbers, underscores, capitals — copy exactly
+- FG/3P/FT columns show "X/Y" format — split into made (fgm/tpm/ftm) and attempted (fga/tpa/fta)
+- Blank or "--" cells = 0
+- Grade column shows A+, A, A-, B+, B, etc. or null
+
+Return ONLY a valid JSON object matching this exact schema — no markdown, no explanation:
 
 {
   "team_top": {
-    "name": "<team name shown at top of top section>",
+    "name": "<team name>",
     "score": <integer>,
     "players": [
       {
@@ -30,7 +41,7 @@ Extract ALL of the following and return ONLY valid JSON — no markdown, no expl
     ]
   },
   "team_bottom": {
-    "name": "<team name shown at top of bottom section>",
+    "name": "<team name>",
     "score": <integer>,
     "players": [
       {
@@ -42,24 +53,15 @@ Extract ALL of the following and return ONLY valid JSON — no markdown, no expl
         "fgm": <int>, "fga": <int>,
         "tpm": <int>, "tpa": <int>,
         "ftm": <int>, "fta": <int>,
-        "matchup_gamertag": "<gamertag of the opponent they were matched against, from YOUR MATCHUP column, or null>"
+        "matchup_gamertag": "<opponent gamertag from YOUR MATCHUP column, or null>"
       }
     ]
   },
   "total_check": {
-    "team_top_pts_sum": <sum of all top team player pts>,
-    "team_bottom_pts_sum": <sum of all bottom team player pts>
+    "team_top_pts_sum": <sum of top team player pts — must equal team score>,
+    "team_bottom_pts_sum": <sum of bottom team player pts — must equal team score>
   }
-}
-
-Rules:
-- Read gamertags exactly as shown — preserve capitalization, underscores, numbers.
-- If a stat cell is blank or "--", use 0.
-- FGM/FGA: parse the "X/Y" format into separate fgm and fga integers.
-- Same for 3PM/3PA and FTM/FTA.
-- position_slot 1=PG, 2=SG, 3=SF, 4=PF, 5=C based on order in the list.
-- The YOUR MATCHUP column only appears for the bottom team rows.
-- Return ONLY the JSON object. No extra text.`
+}`
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -88,7 +90,11 @@ exports.handler = async (event) => {
   try {
     const message = await client.messages.create({
       model: 'claude-opus-4-6',
-      max_tokens: 2048,
+      max_tokens: 8000,
+      thinking: {
+        type: 'enabled',
+        budget_tokens: 5000,
+      },
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -100,16 +106,24 @@ exports.handler = async (event) => {
             },
             {
               type: 'text',
-              text: 'Parse this NBA 2K26 box score screenshot and return the JSON.',
+              text: 'Parse every stat from this NBA 2K26 box score screenshot. Think carefully through any ambiguous characters before returning the JSON.',
             },
           ],
+        },
+        {
+          // Prefill — forces pure JSON output from token 1
+          role: 'assistant',
+          content: '{',
         },
       ],
     })
 
-    const raw = message.content[0].text.trim()
+    // Find the text block (thinking blocks come first, skip them)
+    const textBlock = message.content.find(b => b.type === 'text')
+    if (!textBlock) throw new Error('No text output from Claude')
 
-    // Strip markdown code blocks if present
+    // Reconstruct full JSON (we prefilled the opening brace)
+    const raw = '{' + textBlock.text.trim()
     const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
     const parsed = JSON.parse(cleaned)
 
