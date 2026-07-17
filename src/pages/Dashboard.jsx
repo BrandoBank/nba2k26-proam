@@ -27,7 +27,7 @@ export default function Dashboard() {
       {/* Header */}
       <div style={s.header}>
         <div>
-          <Link to="/" style={s.logoLink}>NEXT STEP SERIES</Link>
+          <Link to="/" style={s.logoLink}>NEXT UP SERIES</Link>
           <p style={s.sub}>All Series</p>
         </div>
         <div style={s.actions}>

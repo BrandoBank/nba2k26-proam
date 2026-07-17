@@ -1,4 +1,4 @@
-// Design system — Next Step Series
+// Design system — Next Up Series
 // Sporty NBA aesthetic: heavy type, orange/gold/white on black
 
 export const colors = {

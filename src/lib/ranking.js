@@ -1,5 +1,5 @@
 /**
- * Deterministic Impact Score Engine — Next Step Series
+ * Deterministic Impact Score Engine — Next Up Series
  *
  * SCORING WEIGHTS (must sum to ~1.0 before sample size multiplier):
  *   Efficiency (FG%):     0.22  — normalized, 60% = 100 pts

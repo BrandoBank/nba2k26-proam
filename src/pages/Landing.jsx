@@ -80,7 +80,7 @@ export default function Landing() {
         <div style={p.navInner}>
           <Link to="/" style={p.logo}>
             <IconBall size={18} color={colors.orange} />
-            <span>NEXT STEP SERIES</span>
+            <span>NEXT UP SERIES</span>
           </Link>
           <div style={p.navLinks}>
             <Link to="/leagues" style={p.navLink}>Series</Link>
@@ -457,7 +457,7 @@ export default function Landing() {
         <div style={p.footerInner}>
           <div style={p.footerLogo}>
             <IconBall size={15} color={colors.orange} />
-            <span>NEXT STEP SERIES</span>
+            <span>NEXT UP SERIES</span>
           </div>
           <span style={p.footerSub}>NBA 2K26 Pro-Am Stat Tracker</span>
         </div>

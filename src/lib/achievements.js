@@ -1,5 +1,5 @@
 /**
- * Achievement Engine — Next Step Series
+ * Achievement Engine — Next Up Series
  *
  * computeAchievements(careerData, seriesRankings)
  *
