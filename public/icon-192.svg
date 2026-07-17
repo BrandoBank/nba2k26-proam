@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#000"/>
+  <rect width="192" height="192" rx="40" fill="url(#bg)"/>
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="30%" r="80%">
+      <stop offset="0%" stop-color="#1a0800"/>
+      <stop offset="100%" stop-color="#000"/>
+    </radialGradient>
+  </defs>
+  <!-- Ball circle -->
+  <circle cx="96" cy="96" r="52" fill="none" stroke="#f4701b" stroke-width="5"/>
+  <!-- Vertical seam -->
+  <path d="M96 44 Q130 96 96 148" fill="none" stroke="#f4701b" stroke-width="3" opacity="0.6"/>
+  <path d="M96 44 Q62 96 96 148" fill="none" stroke="#f4701b" stroke-width="3" opacity="0.6"/>
+  <!-- Horizontal seam -->
+  <path d="M44 96 Q96 78 148 96" fill="none" stroke="#f4701b" stroke-width="3" opacity="0.6"/>
+  <!-- NSS text -->
+  <text x="96" y="106" text-anchor="middle" fill="#f4701b" font-family="'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="22" letter-spacing="4">NSS</text>
+</svg>

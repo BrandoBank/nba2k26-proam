@@ -2,9 +2,119 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="NSS" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="NBA 2K26 Pro-Am stat tracker — tier rankings, career history, shareable charts" />
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Apple touch icon -->
+    <link rel="apple-touch-icon" href="/icon-192.svg" />
+
     <title>Next Step Series</title>
-    <style>*, *::before, *::after { box-sizing: border-box; } body { margin: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #000; }</style>
+
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+
+      :root {
+        --orange: #f4701b;
+        --orange-glow: rgba(244,112,27,0.15);
+        --gold: #d4a017;
+        --blue: #1d6ef5;
+        --elite: #9333ea;
+        --green: #22c55e;
+        --red: #ef4444;
+        --bg: #000;
+        --surface: #0a0a0a;
+        --surface2: #111;
+        --border: #1a1a1a;
+        --text: #fff;
+        --muted: #555;
+        --dim: #333;
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-top: env(safe-area-inset-top, 0px);
+      }
+
+      html { height: -webkit-fill-available; }
+
+      body {
+        margin: 0;
+        font-family: -apple-system, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+        background: #000;
+        color: #fff;
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        overscroll-behavior: none;
+      }
+
+      /* Prevent text size adjust on orientation change */
+      html { -webkit-text-size-adjust: 100%; }
+
+      /* Smooth scrolling */
+      html { scroll-behavior: smooth; }
+
+      /* Touch feedback — instant */
+      button, a, [role="button"] {
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+      }
+
+      /* Active press effect on all interactive elements */
+      button:active, a:active {
+        transform: scale(0.97);
+        transition: transform 0.08s ease;
+      }
+
+      /* Smooth transitions everywhere */
+      * { transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease; }
+      /* But not layout transitions */
+      *, *::before, *::after { transition: none; }
+
+      button, a {
+        transition: transform 0.08s ease, background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+      }
+
+      /* Pull-to-refresh feel */
+      body { overscroll-behavior-y: contain; }
+
+      /* Scrollbar — dark minimal */
+      ::-webkit-scrollbar { width: 4px; height: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+
+      /* Selection */
+      ::selection { background: rgba(244,112,27,0.3); color: #fff; }
+
+      /* Mobile bottom nav padding */
+      #root { padding-bottom: calc(64px + var(--safe-bottom)); }
+
+      @media (min-width: 900px) {
+        #root { padding-bottom: 0; }
+      }
+
+      /* Input styling */
+      input, textarea, select {
+        font-family: inherit;
+        -webkit-appearance: none;
+        border-radius: 8px;
+      }
+
+      /* Focus rings */
+      :focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+      :focus:not(:focus-visible) { outline: none; }
+
+      /* Prevent zoom on input focus iOS */
+      @media (max-width: 768px) {
+        input, textarea, select { font-size: 16px !important; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

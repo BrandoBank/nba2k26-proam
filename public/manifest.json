@@ -1,0 +1,26 @@
+{
+  "name": "Next Step Series",
+  "short_name": "NSS",
+  "description": "NBA 2K26 Pro-Am stat tracker — tier rankings, series history, career stats",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#f4701b",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["sports", "games"],
+  "screenshots": []
+}

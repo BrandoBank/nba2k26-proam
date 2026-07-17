@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import MobileNav from './components/MobileNav'
 import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
@@ -35,8 +36,10 @@ export default function App() {
         <Route path="/series/:id/accolades" element={<Accolades />} />
         <Route path="/series/:id/chart" element={<SeriesChart />} />
         <Route path="/series/:id/rankings" element={<ProtectedRoute><RankingEditor /></ProtectedRoute>} />
+        <Route path="/series/:id/game/:gameId/edit" element={<ProtectedRoute><GameEntry /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <MobileNav />
     </BrowserRouter>
   )
 }

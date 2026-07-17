@@ -1,0 +1,19 @@
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid #111;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (max-width: 899px) {
+  .mobile-nav {
+    display: flex;
+  }
+}

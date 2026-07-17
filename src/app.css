@@ -1,0 +1,97 @@
+/* ── Mobile-first responsive overrides ───────────────────────────────── */
+
+/* Hide top nav on mobile — use bottom nav instead */
+@media (max-width: 899px) {
+  .desktop-nav { display: none !important; }
+}
+
+/* Hero two-column → single column on mobile */
+@media (max-width: 899px) {
+  .hero-inner {
+    grid-template-columns: 1fr !important;
+    padding: 2.5rem 1.25rem 2rem !important;
+  }
+  .hero-right {
+    display: none !important; /* Leaderboard moves to its own section below on mobile */
+  }
+}
+
+/* Show leaderboard section on mobile (hidden on desktop since it's in hero) */
+.leaderboard-mobile-section {
+  display: none;
+}
+@media (max-width: 899px) {
+  .leaderboard-mobile-section {
+    display: block;
+  }
+}
+@media (min-width: 900px) {
+  .leaderboard-mobile-section {
+    display: none !important;
+  }
+}
+
+/* Touch-friendly tap targets */
+@media (max-width: 899px) {
+  button, a {
+    min-height: 44px;
+  }
+}
+
+/* Card tap feedback */
+@media (hover: none) {
+  a:active, button:active {
+    opacity: 0.75;
+    transform: scale(0.98);
+  }
+}
+
+/* Smooth page transitions feel */
+.page-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Stat table horizontal scroll on mobile */
+@media (max-width: 768px) {
+  .stat-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+/* Game card strip — horizontal scroll on mobile */
+@media (max-width: 768px) {
+  .game-strip {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+  }
+  .game-card { flex-shrink: 0; }
+}
+
+/* Mobile page header */
+.page-header-mobile {
+  display: none;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #111;
+  background: rgba(0,0,0,0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  gap: 8px;
+  min-height: 52px;
+}
+@media (max-width: 899px) {
+  .page-header-mobile { display: flex; }
+  /* Hide text back links on mobile — header handles back nav */
+  .desktop-back { display: none !important; }
+  /* Section padding tighter on mobile */
+  .section-inner-mobile { padding: 2rem 1rem !important; }
+}

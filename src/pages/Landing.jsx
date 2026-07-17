@@ -76,7 +76,7 @@ export default function Landing() {
   return (
     <div style={p.page}>
       {/* NAV */}
-      <nav style={p.nav}>
+      <nav style={p.nav} className="desktop-nav">
         <div style={p.navInner}>
           <Link to="/" style={p.logo}>
             <IconBall size={18} color={colors.orange} />
@@ -99,7 +99,7 @@ export default function Landing() {
       {/* HERO + LEADERBOARD */}
       <section style={p.hero}>
         <div style={p.heroBg} />
-        <div style={p.heroInner}>
+        <div style={p.heroInner} className="hero-inner">
           <div style={p.heroLeft}>
             <div style={p.heroEyebrow}>
               <IconBall size={13} color={colors.orange} />
@@ -121,9 +121,16 @@ export default function Landing() {
               )}
             </div>
           </div>
-          <div style={p.heroRight}>
+          <div style={p.heroRight} className="hero-right">
             <AllTimeLeaderboard />
           </div>
+        </div>
+      </section>
+
+      {/* LEADERBOARD (mobile only — desktop sees it in hero column) */}
+      <section style={{...p.section, background: '#000'}} className="leaderboard-mobile-section">
+        <div style={p.sectionInner}>
+          <AllTimeLeaderboard />
         </div>
       </section>
 
