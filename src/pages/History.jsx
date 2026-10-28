@@ -16,10 +16,13 @@ const TIER_META = {
   G_TIER: { label: 'G',  short: 'G',      color: colors.gTier,  bg: colors.gTierBg },
 }
 
+const RAINBOW = 'linear-gradient(90deg,#f87171,#fb923c,#facc15,#4ade80,#60a5fa,#a78bfa,#f472b6)'
+
 function TierBadge({ tier, size = 'sm' }) {
   const meta = TIER_META[tier]
   if (!meta) return null
   const isLarge = size === 'lg'
+  const isG = tier === 'G_TIER'
   return (
     <span style={{
       display: 'inline-flex',
@@ -28,13 +31,13 @@ function TierBadge({ tier, size = 'sm' }) {
       fontSize: isLarge ? 11 : 9,
       fontWeight: 800,
       letterSpacing: '0.04em',
-      color: meta.color,
-      background: meta.bg,
-      border: `1px solid ${meta.color}33`,
+      background: isG ? RAINBOW : meta.bg,
+      border: isG ? 'none' : `1px solid ${meta.color}33`,
       borderRadius: radius.sm,
-      padding: isLarge ? '3px 8px' : '2px 5px',
+      padding: isG ? (isLarge ? '4px 9px' : '3px 6px') : (isLarge ? '3px 8px' : '2px 5px'),
       minWidth: isLarge ? 40 : 22,
       fontFamily: fonts.display,
+      color: isG ? '#000' : meta.color,
     }}>
       {isLarge ? meta.short : meta.label}
     </span>
@@ -113,7 +116,7 @@ export default function History() {
         ] = await Promise.all([
           supabase.from('career_player_totals').select('*'),
           supabase.from('series').select('*').eq('status', 'complete').order('ended_at', { ascending: false }),
-          supabase.from('series_rankings').select('*'),
+          supabase.from('series_rankings').select('*, players(gamertag,display_name)'),
           supabase.from('player_head_to_head').select('*'),
         ])
         if (e1 || e2 || e3) throw new Error('Failed to load history data.')
@@ -157,23 +160,24 @@ export default function History() {
 
   // ── Tier tracker data ───────────────────────────────────────────────────────
   const { trackerPlayers, trackerSeries, trackerMap } = useMemo(() => {
-    // Sort series by ended_at ascending (chronological left-to-right)
     const trackerSeries = [...seriesList].sort((a, b) =>
       (a.ended_at || '').localeCompare(b.ended_at || '')
     )
-    // Collect unique players from rankings
+    // Only use finalized rankings — tier is what the player finished as, not interim
+    const finalRankings = rankings.filter(r => r.finalized)
     const playerMap = {}
-    for (const r of rankings) {
+    for (const r of finalRankings) {
+      const gamertag = r.players?.gamertag || r.gamertag || ''
+      const display_name = r.players?.display_name || r.display_name || gamertag
       if (!playerMap[r.player_id]) {
-        playerMap[r.player_id] = { player_id: r.player_id, gamertag: r.gamertag, display_name: r.display_name || r.gamertag }
+        playerMap[r.player_id] = { player_id: r.player_id, gamertag, display_name }
       }
     }
     const trackerPlayers = Object.values(playerMap).sort((a, b) =>
       (a.display_name || '').localeCompare(b.display_name || '')
     )
-    // Build map: player_id -> series_id -> tier
     const trackerMap = {}
-    for (const r of rankings) {
+    for (const r of finalRankings) {
       if (!trackerMap[r.player_id]) trackerMap[r.player_id] = {}
       trackerMap[r.player_id][r.series_id] = r.tier
     }
