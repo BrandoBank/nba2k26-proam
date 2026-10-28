@@ -73,7 +73,7 @@ export default function GameEntry() {
       const res = await fetch('/.netlify/functions/parse-screenshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_base64: base64, media_type: file.type }),
+        body: JSON.stringify({ image_base64: base64, media_type: file.type, series_id: seriesId }),
       })
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Parse failed')

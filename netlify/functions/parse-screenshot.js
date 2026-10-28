@@ -1,4 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseAdmin = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+)
+
+// claude-sonnet-5 pricing per million tokens
+const INPUT_COST_PER_M = 3.0
+const OUTPUT_COST_PER_M = 15.0
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'])
 const MAX_B64_CHARS = 14_000_000
@@ -108,6 +119,18 @@ export default async function handler(req) {
     raw = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
 
     const parsed = JSON.parse(raw)
+
+    // Log usage — fire and forget, never block the response
+    const inputTokens = message.usage?.input_tokens || 0
+    const outputTokens = message.usage?.output_tokens || 0
+    const costUsd = (inputTokens / 1_000_000) * INPUT_COST_PER_M + (outputTokens / 1_000_000) * OUTPUT_COST_PER_M
+    supabaseAdmin.from('api_usage').insert({
+      function_name: 'parse-screenshot',
+      tokens_input: inputTokens,
+      tokens_output: outputTokens,
+      estimated_cost_usd: Math.round(costUsd * 100000) / 100000,
+      series_id: body.series_id || null,
+    }).then(() => {}).catch(() => {})
 
     return new Response(JSON.stringify(parsed), {
       status: 200,
