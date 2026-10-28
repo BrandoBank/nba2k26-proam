@@ -21,7 +21,6 @@ const emptyGame = (series) => ({
   our_score: '',
   opp_score: '',
   our_result: 'W',
-  brando_position: 'SG',
   our_players: POSITIONS.map((_, i) => emptyPlayer(i+1)),
   opp_players: POSITIONS.map((_, i) => emptyPlayer(i+1)),
 })
@@ -44,7 +43,6 @@ export default function GameEntry() {
   const fileRef = useRef()
 
   useEffect(() => {
-    if (!isEditor) return
     fetchData()
   }, [seriesId])
 
@@ -183,7 +181,6 @@ export default function GameEntry() {
         our_score: Number(game.our_score),
         opp_score: Number(game.opp_score),
         our_result: game.our_result,
-        brando_position: game.brando_position || null,
         played_at: new Date().toISOString(),
       }).select().single()
       if (gameErr) throw new Error(gameErr.message)
@@ -246,7 +243,6 @@ export default function GameEntry() {
     }))
   }
 
-  if (!isEditor) return <div style={s.page}><p style={s.dim}>Editor access required.</p></div>
   if (!game) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
 
   return (
@@ -296,11 +292,6 @@ export default function GameEntry() {
         </label>
         <label style={s.label}>Their Score
           <input style={s.input} type="number" min={0} value={game.opp_score} onChange={e => setGame(g => ({...g, opp_score: e.target.value}))} />
-        </label>
-        <label style={s.label}>Brando Position
-          <select style={s.input} value={game.brando_position} onChange={e => setGame(g => ({...g, brando_position: e.target.value}))}>
-            {POSITIONS.map(p => <option key={p}>{p}</option>)}
-          </select>
         </label>
       </div>
 

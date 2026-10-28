@@ -48,7 +48,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/series/new" element={<ProtectedRoute><NewSeries /></ProtectedRoute>} />
         <Route path="/series/:id" element={<SeriesDetail />} />
-        <Route path="/series/:id/add-game" element={<ProtectedRoute><GameEntry /></ProtectedRoute>} />
+        <Route path="/series/:id/add-game" element={<GameEntry />} />
         <Route path="/series/:id/game/:gameId/matchup" element={<LogMatchup />} />
         <Route path="/series/:id/accolades" element={<Accolades />} />
         <Route path="/series/:id/chart" element={<SeriesChart />} />
