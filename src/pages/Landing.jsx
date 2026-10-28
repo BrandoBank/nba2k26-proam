@@ -85,6 +85,7 @@ export default function Landing() {
           <div style={p.navLinks}>
             <Link to="/leagues" style={p.navLink}>Series</Link>
             <Link to="/history" style={p.navLink}>History</Link>
+            {isEditor && <Link to="/import" style={p.navLink}>Import</Link>}
             {isEditor
               ? <Link to="/series/new" style={p.navCta}>+ New Series</Link>
               : <Link to="/login" style={p.navCta}>Sign In</Link>
