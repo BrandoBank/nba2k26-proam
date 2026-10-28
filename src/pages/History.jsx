@@ -2,7 +2,8 @@ import { useEffect, useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { colors, fonts, radius, statColor } from '../lib/theme'
-import { IconTrophy, IconChart, IconArrow, IconStar, IconBall } from '../lib/icons'
+import { IconTrophy, IconChart, IconArrow, IconStar, IconBall, IconFlame, IconTarget, IconPass, IconShield } from '../lib/icons'
+import { computeAchievements, ACHIEVEMENT_CATALOGUE } from '../lib/achievements'
 
 // ─── Tier helpers ────────────────────────────────────────────────────────────
 
@@ -43,10 +44,23 @@ function TierBadge({ tier, size = 'sm' }) {
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'leaders',  label: 'ALL-TIME LEADERS' },
-  { id: 'log',      label: 'SERIES LOG' },
-  { id: 'tracker',  label: 'TIER TRACKER' },
+  { id: 'leaders',      label: 'ALL-TIME LEADERS' },
+  { id: 'log',          label: 'SERIES LOG' },
+  { id: 'tracker',      label: 'TIER TRACKER' },
+  { id: 'achievements', label: 'ACHIEVEMENTS' },
+  { id: 'rivalries',    label: 'RIVALRIES' },
 ]
+
+const ACHIEVEMENT_ICONS = {
+  star:   (c) => <IconStar size={16} color={c} filled />,
+  flame:  (c) => <IconFlame size={16} color={c} />,
+  trophy: (c) => <IconTrophy size={16} color={c} />,
+  target: (c) => <IconTarget size={16} color={c} />,
+  pass:   (c) => <IconPass size={16} color={c} />,
+  shield: (c) => <IconShield size={16} color={c} />,
+  ball:   (c) => <IconBall size={16} color={c} />,
+  chart:  (c) => <IconChart size={16} color={c} />,
+}
 
 // ─── Leaders tab columns ──────────────────────────────────────────────────────
 
@@ -78,6 +92,7 @@ export default function History() {
   const [careerStats, setCareerStats] = useState([])
   const [seriesList, setSeriesList] = useState([])
   const [rankings, setRankings] = useState([])
+  const [h2hData, setH2hData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -94,15 +109,18 @@ export default function History() {
           { data: career, error: e1 },
           { data: series, error: e2 },
           { data: rnk,    error: e3 },
+          { data: h2h,    error: e4 },
         ] = await Promise.all([
           supabase.from('career_player_totals').select('*'),
           supabase.from('series').select('*').eq('status', 'complete').order('ended_at', { ascending: false }),
           supabase.from('series_rankings').select('*'),
+          supabase.from('player_head_to_head').select('*'),
         ])
         if (e1 || e2 || e3) throw new Error('Failed to load history data.')
         setCareerStats(career || [])
         setSeriesList(series || [])
         setRankings(rnk || [])
+        setH2hData(h2h || [])
       } catch (err) {
         setError(err.message)
       }
@@ -130,6 +148,12 @@ export default function History() {
       setSortDir('desc')
     }
   }
+
+  // ── Computed achievements ───────────────────────────────────────────────────
+  const achievements = useMemo(() => {
+    if (!careerStats.length && !rankings.length) return []
+    return computeAchievements(careerStats, rankings)
+  }, [careerStats, rankings])
 
   // ── Tier tracker data ───────────────────────────────────────────────────────
   const { trackerPlayers, trackerSeries, trackerMap } = useMemo(() => {
@@ -216,6 +240,12 @@ export default function History() {
           series={trackerSeries}
           map={trackerMap}
         />
+      )}
+      {tab === 'achievements' && (
+        <AchievementsTab achievements={achievements} />
+      )}
+      {tab === 'rivalries' && (
+        <RivalriesTab h2h={h2hData} />
       )}
     </div>
   )
@@ -414,6 +444,161 @@ function TierTrackerTab({ players, series, map }) {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── ACHIEVEMENTS TAB ────────────────────────────────────────────────────────
+
+function AchievementsTab({ achievements }) {
+  if (achievements.length === 0) {
+    return (
+      <div style={s.tabContent}>
+        <p style={s.dim}>No achievements earned yet. Play more series.</p>
+      </div>
+    )
+  }
+
+  // Group by player
+  const byPlayer = {}
+  for (const a of achievements) {
+    const key = a.gamertag
+    if (!byPlayer[key]) byPlayer[key] = { gamertag: key, positive: [], negative: [] }
+    if (a.type === 'negative') byPlayer[key].negative.push(a)
+    else byPlayer[key].positive.push(a)
+  }
+  const players = Object.values(byPlayer).sort((a, b) =>
+    (b.positive.length + b.negative.length) - (a.positive.length + a.negative.length)
+  )
+
+  return (
+    <div style={s.tabContent}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {players.map(p => (
+          <div key={p.gamertag} style={s.achCard}>
+            <div style={s.achHeader}>
+              <span style={s.achName}>{p.gamertag}</span>
+              <span style={s.achCount}>{p.positive.length + p.negative.length} badge{p.positive.length + p.negative.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div style={s.achBadges}>
+              {p.positive.map(a => (
+                <div key={a.achievement} style={{ ...s.achBadge, ...s.achBadgePos }} title={a.description}>
+                  <span style={s.achBadgeIcon}>
+                    {ACHIEVEMENT_ICONS[a.icon_key]?.(colors.orange) || '🏆'}
+                  </span>
+                  <span style={s.achBadgeLabel}>{a.label}</span>
+                </div>
+              ))}
+              {p.negative.map(a => (
+                <div key={a.achievement} style={{ ...s.achBadge, ...s.achBadgeNeg }} title={a.description}>
+                  <span style={s.achBadgeIcon}>
+                    {ACHIEVEMENT_ICONS[a.icon_key]?.(colors.gTier) || '💀'}
+                  </span>
+                  <span style={{ ...s.achBadgeLabel, color: colors.gTier }}>{a.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── RIVALRIES TAB ───────────────────────────────────────────────────────────
+
+function RivalriesTab({ h2h }) {
+  const [focusPlayer, setFocusPlayer] = useState('')
+
+  if (h2h.length === 0) {
+    return (
+      <div style={s.tabContent}>
+        <p style={s.dim}>No head-to-head records yet. Rivalries form after series with cross-team matchups.</p>
+      </div>
+    )
+  }
+
+  // Build unique player list from all entries
+  const playerSet = new Set()
+  for (const row of h2h) {
+    playerSet.add(row.player_a)
+    playerSet.add(row.player_b)
+  }
+  const players = [...playerSet].sort()
+
+  // Filter to pairings involving focusPlayer (or show all)
+  const filtered = focusPlayer
+    ? h2h.filter(r => r.player_a === focusPlayer || r.player_b === focusPlayer)
+    : h2h
+
+  // Deduplicate: keep only A < B alphabetically to avoid showing both A vs B and B vs A
+  const seen = new Set()
+  const deduped = filtered.filter(r => {
+    const key = [r.player_a, r.player_b].sort().join('|')
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  // Sort by total games played desc
+  const sorted = [...deduped].sort((a, b) => (b.games_shared || 0) - (a.games_shared || 0))
+
+  return (
+    <div style={s.tabContent}>
+      {/* Player filter */}
+      <div style={s.controls}>
+        <div style={s.controlGroup}>
+          <label style={s.controlLabel}>Player</label>
+          <select
+            value={focusPlayer}
+            onChange={e => setFocusPlayer(e.target.value)}
+            style={s.selectInput}
+          >
+            <option value="">All Rivalries</option>
+            {players.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {sorted.length === 0 && (
+        <p style={s.dim}>No records for this player yet.</p>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {sorted.map((row, i) => {
+          const pA = row.player_a
+          const pB = row.player_b
+          const winsA = row.player_a_wins || 0
+          const winsB = row.player_a_losses || 0
+          const total = row.games_shared || 0
+          const pctA = total > 0 ? winsA / total : 0.5
+          const dominant = winsA > winsB ? pA : winsB > winsA ? pB : null
+
+          return (
+            <div key={i} style={s.rivalCard}>
+              <div style={s.rivalPlayers}>
+                <span style={{ ...s.rivalName, color: winsA > winsB ? colors.orange : colors.textSecondary }}>{pA}</span>
+                <span style={s.rivalVs}>VS</span>
+                <span style={{ ...s.rivalName, color: winsB > winsA ? colors.orange : colors.textSecondary }}>{pB}</span>
+              </div>
+              {/* Win bar */}
+              <div style={s.rivalBar}>
+                <div style={{ ...s.rivalBarFill, width: `${pctA * 100}%`, background: colors.orange }} />
+              </div>
+              <div style={s.rivalRecord}>
+                <span style={s.rivalWins}>{winsA}W</span>
+                <span style={s.rivalGP}>{total} games</span>
+                <span style={s.rivalWins}>{winsB}W</span>
+              </div>
+              {dominant && (
+                <div style={s.rivalDominant}>
+                  {dominant} leads this rivalry
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -751,5 +936,133 @@ const s = {
   trackerEmpty: {
     color: colors.textDim,
     fontSize: 12,
+  },
+
+  // Achievements
+  achCard: {
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.lg,
+    padding: '14px 16px',
+  },
+  achHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  achName: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: colors.textPrimary,
+  },
+  achCount: {
+    fontSize: 11,
+    color: colors.textMuted,
+    letterSpacing: '0.04em',
+  },
+  achBadges: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  achBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    padding: '4px 10px',
+    borderRadius: radius.md,
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: '0.03em',
+  },
+  achBadgePos: {
+    background: `${colors.orange}15`,
+    border: `1px solid ${colors.orange}44`,
+    color: colors.textSecondary,
+  },
+  achBadgeNeg: {
+    background: `${colors.gTier}15`,
+    border: `1px solid ${colors.gTier}44`,
+    color: colors.textSecondary,
+  },
+  achBadgeIcon: {
+    display: 'flex',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  achBadgeLabel: {
+    color: colors.textSecondary,
+  },
+
+  // Rivalries
+  rivalCard: {
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.lg,
+    padding: '14px 16px',
+  },
+  rivalPlayers: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  rivalName: {
+    fontSize: 14,
+    fontWeight: 700,
+    flex: 1,
+  },
+  rivalVs: {
+    fontSize: 10,
+    fontWeight: 800,
+    color: colors.textMuted,
+    letterSpacing: '0.1em',
+    padding: '0 12px',
+  },
+  rivalBar: {
+    height: 4,
+    background: `${colors.border}`,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  rivalBarFill: {
+    height: '100%',
+    borderRadius: 2,
+    transition: 'width 0.3s ease',
+  },
+  rivalRecord: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: 12,
+  },
+  rivalWins: {
+    fontWeight: 700,
+    color: colors.textSecondary,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  rivalGP: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  rivalDominant: {
+    marginTop: 6,
+    fontSize: 11,
+    color: colors.orange,
+    fontWeight: 600,
+    letterSpacing: '0.03em',
+  },
+
+  selectInput: {
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.sm,
+    padding: '4px 10px',
+    fontSize: 12,
+    color: colors.textSecondary,
+    cursor: 'pointer',
+    fontFamily: fonts.display,
   },
 }

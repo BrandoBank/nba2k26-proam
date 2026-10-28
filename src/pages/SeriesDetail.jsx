@@ -4,6 +4,149 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { computeImpactScores } from '../lib/ranking'
 
+// ─── Series Predictions Widget ────────────────────────────────────────────────
+function PredictionsWidget({ seriesId, seriesStatus, players, ourTeam, oppTeam }) {
+  const [predictions, setPredictions] = useState([])
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ gamertag: '', winner: '', mvp_id: '', length: '' })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [loadingPreds, setLoadingPreds] = useState(true)
+
+  useEffect(() => {
+    supabase.from('series_predictions')
+      .select('*, players(gamertag, display_name)')
+      .eq('series_id', seriesId)
+      .then(({ data }) => {
+        setPredictions(data || [])
+        setLoadingPreds(false)
+      })
+  }, [seriesId, saved])
+
+  async function submitPrediction(e) {
+    e.preventDefault()
+    if (!form.gamertag.trim() || !form.winner) return
+    setSaving(true)
+    await supabase.from('series_predictions').upsert({
+      series_id: seriesId,
+      predictor_gamertag: form.gamertag.trim(),
+      predicted_winner: form.winner,
+      predicted_mvp_player_id: form.mvp_id || null,
+      predicted_series_length: form.length ? parseInt(form.length) : null,
+    }, { onConflict: 'series_id,predictor_gamertag' })
+    setSaving(false)
+    setSaved(v => !v)
+    setShowForm(false)
+    setForm({ gamertag: '', winner: '', mvp_id: '', length: '' })
+  }
+
+  if (loadingPreds) return null
+
+  return (
+    <div style={ps.wrap}>
+      <div style={ps.header}>
+        <div style={ps.title}>
+          <span style={ps.titleIcon}>🔮</span>
+          PREDICTIONS
+          <span style={ps.count}>{predictions.length}</span>
+        </div>
+        {seriesStatus === 'in_progress' && (
+          <button onClick={() => setShowForm(v => !v)} style={ps.submitBtn}>
+            {showForm ? 'Cancel' : 'Lock In Pick'}
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <form onSubmit={submitPrediction} style={ps.form}>
+          <input
+            placeholder="Your gamertag"
+            value={form.gamertag}
+            onChange={e => setForm(f => ({ ...f, gamertag: e.target.value }))}
+            style={ps.input}
+            required
+          />
+          <div style={ps.row}>
+            <select
+              value={form.winner}
+              onChange={e => setForm(f => ({ ...f, winner: e.target.value }))}
+              style={ps.select}
+              required
+            >
+              <option value="">Pick winner...</option>
+              <option value="our">{ourTeam || 'Team 1'}</option>
+              <option value="opp">{oppTeam || 'Team 2'}</option>
+            </select>
+            <select
+              value={form.length}
+              onChange={e => setForm(f => ({ ...f, length: e.target.value }))}
+              style={ps.select}
+            >
+              <option value="">Series length...</option>
+              {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>In {n}</option>)}
+            </select>
+          </div>
+          <select
+            value={form.mvp_id}
+            onChange={e => setForm(f => ({ ...f, mvp_id: e.target.value }))}
+            style={ps.select}
+          >
+            <option value="">Pick MVP (optional)...</option>
+            {players.map(p => (
+              <option key={p.player_id} value={p.player_id}>{p.gamertag}</option>
+            ))}
+          </select>
+          <button type="submit" disabled={saving} style={ps.lockBtn}>
+            {saving ? 'Locking in...' : 'Lock In Pick 🔒'}
+          </button>
+        </form>
+      )}
+
+      {predictions.length > 0 && (
+        <div style={ps.list}>
+          {predictions.map(p => {
+            const mvpName = p.players?.gamertag
+            const winnerLabel = p.predicted_winner === 'our' ? (ourTeam || 'Team 1') : (oppTeam || 'Team 2')
+            return (
+              <div key={p.id} style={ps.predRow}>
+                <span style={ps.predWho}>{p.predictor_gamertag}</span>
+                <span style={ps.predPick}>{winnerLabel}</span>
+                {p.predicted_series_length && <span style={ps.predDetail}>in {p.predicted_series_length}</span>}
+                {mvpName && <span style={ps.predMvp}>MVP: {mvpName}</span>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {predictions.length === 0 && !showForm && (
+        <p style={ps.empty}>No predictions yet. Be the first.</p>
+      )}
+    </div>
+  )
+}
+
+const ps = {
+  wrap: { background: '#050505', border: '1px solid #111', borderRadius: 10, padding: '1rem 1.25rem', marginBottom: '2rem' },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' },
+  title: { display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800, fontSize: '0.82rem', letterSpacing: '0.1em', color: '#fff' },
+  titleIcon: { fontSize: '0.9rem' },
+  count: { background: '#111', borderRadius: 10, padding: '0.1rem 0.5rem', fontSize: '0.7rem', color: '#666', fontWeight: 600 },
+  submitBtn: { background: 'transparent', border: '1px solid #f4701b', color: '#f4701b', borderRadius: 4, padding: '0.3rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.05em' },
+  form: { display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem', background: '#0a0500', border: '1px solid #1a1000', borderRadius: 8, padding: '0.75rem' },
+  input: { background: '#000', border: '1px solid #222', borderRadius: 4, padding: '0.45rem 0.75rem', color: '#fff', fontSize: '0.85rem', fontFamily: 'inherit' },
+  row: { display: 'flex', gap: '0.5rem' },
+  select: { flex: 1, background: '#000', border: '1px solid #222', borderRadius: 4, padding: '0.45rem 0.75rem', color: '#fff', fontSize: '0.85rem', fontFamily: 'inherit', cursor: 'pointer' },
+  lockBtn: { background: '#1a0d00', border: '1px solid #f4701b', color: '#f4701b', borderRadius: 4, padding: '0.5rem', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' },
+  list: { display: 'flex', flexDirection: 'column', gap: '0.35rem' },
+  predRow: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.6rem', background: '#0a0a0a', borderRadius: 5, flexWrap: 'wrap' },
+  predWho: { fontWeight: 700, color: '#fff', fontSize: '0.82rem', minWidth: 80 },
+  predPick: { background: '#0a1a2a', border: '1px solid #1a3a4a', borderRadius: 3, padding: '0.1rem 0.5rem', color: '#4da6ff', fontSize: '0.75rem', fontWeight: 700 },
+  predDetail: { color: '#555', fontSize: '0.72rem' },
+  predMvp: { background: '#1a1000', border: '1px solid #4a3000', borderRadius: 3, padding: '0.1rem 0.5rem', color: '#f59e0b', fontSize: '0.72rem', fontWeight: 600 },
+  empty: { color: '#333', fontSize: '0.8rem', margin: 0 },
+}
+
 const TIER_ORDER = ['ELITE', 'STRONG', 'SOLID', 'G_TIER']
 const TIER_COLORS = { ELITE: '#9333ea', STRONG: '#2563eb', SOLID: '#16a34a', G_TIER: '#dc2626' }
 
@@ -173,6 +316,17 @@ export default function SeriesDetail() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Predictions */}
+      {games.length >= 0 && (
+        <PredictionsWidget
+          seriesId={id}
+          seriesStatus={series.status}
+          players={stats}
+          ourTeam={series.our_team_name}
+          oppTeam={series.opp_team_name}
+        />
       )}
 
       {/* Live Rankings */}
