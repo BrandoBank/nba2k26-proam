@@ -9,7 +9,8 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
 export default async function handler(req, context) {
@@ -41,6 +42,13 @@ export default async function handler(req, context) {
     return new Response(JSON.stringify({ error: 'Max 50 series per import' }), { status: 400 })
   }
 
+  // Use the user's own token for inserts (RLS allows authenticated users)
+  const supabaseUser = createClient(
+    process.env.VITE_SUPABASE_URL,
+    process.env.VITE_SUPABASE_ANON_KEY,
+    { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
   const logs = []
   const errors = []
   let seriesCreated = 0, gamesCreated = 0, statsCreated = 0
@@ -59,12 +67,12 @@ export default async function handler(req, context) {
     // Upsert players
     const playerMap = {}
     for (const gtag of allGamertags) {
-      const { data: existing } = await supabaseAdmin
+      const { data: existing } = await supabaseUser
         .from('players').select('id').eq('gamertag', gtag).maybeSingle()
       if (existing) {
         playerMap[gtag] = existing.id
       } else {
-        const { data: created, error } = await supabaseAdmin
+        const { data: created, error } = await supabaseUser
           .from('players').insert({ gamertag: gtag, display_name: gtag }).select('id').single()
         if (error) { logs.push(`  ⚠ Player ${gtag}: ${error.message}`); continue }
         playerMap[gtag] = created.id
@@ -118,12 +126,11 @@ export default async function handler(req, context) {
           game_id: game.id,
           player_id: pid,
           side: stat.side,
-          position_slot: ['PG','SG','SF','PF','C'].indexOf(stat.position) + 1 || null,
-          pts: stat.pts ?? null, reb: stat.reb ?? null, ast: stat.ast ?? null,
-          stl: stat.stl ?? null, blk: stat.blk ?? null, tov: stat.tov ?? null,
-          fgm: stat.fgm ?? null, fga: stat.fga ?? null,
-          tpm: stat.tpm ?? null, tpa: stat.tpa ?? null,
-          ftm: stat.ftm ?? null, fta: stat.fta ?? null,
+          pts: stat.pts ?? 0, reb: stat.reb ?? 0, ast: stat.ast ?? 0,
+          stl: stat.stl ?? 0, blk: stat.blk ?? 0, tov: stat.tov ?? 0,
+          fgm: stat.fgm ?? 0, fga: stat.fga ?? 0,
+          tpm: stat.tpm ?? 0, tpa: stat.tpa ?? 0,
+          ftm: stat.ftm ?? 0, fta: stat.fta ?? 0,
           grade: stat.grade ?? null,
         })
       }

@@ -280,11 +280,11 @@ export default function SeriesDetail() {
       {games.length > 0 && (
         <div style={s.gameStrip}>
           {games.map(g => (
-            <div key={g.id} style={{...s.gameCard, borderLeftColor: g.our_result === 'W' ? '#4caf50' : '#e53935'}}>
-              <div style={s.gameLabel}>G{g.game_number} <span style={{color: g.our_result === 'W' ? '#4caf50' : '#e53935'}}>{g.our_result}</span></div>
+            <div key={g.id} style={{...s.gameCard, borderLeftColor: '#333'}}>
+              <div style={s.gameLabel}>G{g.game_number}</div>
               <div style={s.gameScore}>{g.our_score} — {g.opp_score}</div>
               <div style={s.gameMargin}>
-                {g.our_result === 'W' ? '+' : ''}{g.our_score - g.opp_score}
+                {Math.abs(g.our_score - g.opp_score)}
               </div>
               {g.brando_position && <div style={s.gameBuild}>B: {g.brando_position}</div>}
               <Link to={`/series/${id}/game/${g.id}/matchup`} style={s.matchupLink}>log matchup</Link>
@@ -361,7 +361,7 @@ export default function SeriesDetail() {
                   {players.map(r => (
                     <div key={r.player_id} style={s.rankPlayer}>
                       {r.is_mvp && <span style={s.mvpStar}>★</span>}
-                      <span style={{color: r.primary_side === 'our' ? '#4da6ff' : '#ff6b6b', fontWeight: 700}}>
+                      <span style={{color: '#fff', fontWeight: 700}}>
                         {r.display_name || r.gamertag}
                       </span>
                       <span style={s.impactScore}>{Number(r.impact_score || 0).toFixed(1)}</span>
@@ -387,9 +387,9 @@ export default function SeriesDetail() {
       {/* Stats table */}
       {stats.length > 0 && (
         <div style={s.tableWrap}>
-          <StatsTable players={ourStats} teamName={series.our_team_name} side="our" />
+          <StatsTable players={ourStats} teamName={series.our_team_name || 'Team A'} />
           {oppStats.length > 0 && (
-            <StatsTable players={oppStats} teamName={series.opp_team_name} side="opp" />
+            <StatsTable players={oppStats} teamName={series.opp_team_name || 'Team B'} />
           )}
         </div>
       )}
@@ -415,10 +415,10 @@ function StatCell({ value, type }) {
   return <td style={s.td}>{value ?? '—'}</td>
 }
 
-function StatsTable({ players, teamName, side }) {
+function StatsTable({ players, teamName }) {
   return (
     <div style={{marginBottom: '2rem'}}>
-      <div style={{...s.teamLabel, color: side === 'our' ? '#4da6ff' : '#ff6b6b'}}>{teamName}</div>
+      <div style={{...s.teamLabel, color: '#aaa'}}>{teamName}</div>
       <div style={{overflowX: 'auto'}}>
         <table style={s.table}>
           <thead>

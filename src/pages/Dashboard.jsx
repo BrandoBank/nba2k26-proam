@@ -72,28 +72,30 @@ export default function Dashboard() {
 }
 
 function SeriesCard({ s }) {
-  const isWin = s.our_wins > s.opp_wins
+  const teamA = s.our_team_name || 'Team A'
+  const teamB = s.opp_team_name || 'Team B'
+  const record = `${s.our_wins ?? 0}–${s.opp_wins ?? 0}`
   return (
     <Link to={`/series/${s.id}`} style={c.card}>
       <div style={c.top}>
         <div>
           <div style={c.name}>{s.name}</div>
-          <div style={c.teams}>{s.our_team_name} <span style={c.vs}>vs</span> {s.opp_team_name}</div>
+          <div style={c.teams}>{teamA} <span style={c.vs}>vs</span> {teamB}</div>
         </div>
         <div style={{
           ...c.badge,
-          background: s.status === 'complete' ? (isWin ? '#0d2a0d' : '#2a0d0d') : '#0a1a2a',
-          color: s.status === 'complete' ? (isWin ? '#4caf50' : '#e53935') : '#4da6ff',
-          border: `1px solid ${s.status === 'complete' ? (isWin ? '#1a4a1a' : '#4a1a1a') : '#1a3a5a'}`,
+          background: s.status === 'complete' ? '#111' : '#0a1a2a',
+          color: s.status === 'complete' ? '#aaa' : '#4da6ff',
+          border: `1px solid ${s.status === 'complete' ? '#222' : '#1a3a5a'}`,
         }}>
-          {s.status === 'complete' ? (s.result_label || (isWin ? 'W' : 'L')) : 'LIVE'}
+          {s.status === 'complete' ? (s.result_label || record) : 'LIVE'}
         </div>
       </div>
       {s.storyline && <p style={c.story}>{s.storyline}</p>}
       <div style={c.score}>
-        <span style={{color: '#fff', fontWeight: 800, fontSize: '1.4rem'}}>{s.our_wins}</span>
+        <span style={{color: '#fff', fontWeight: 800, fontSize: '1.4rem'}}>{s.our_wins ?? 0}</span>
         <span style={{color: '#333', margin: '0 0.4rem', fontSize: '1rem'}}>–</span>
-        <span style={{color: '#555', fontWeight: 700, fontSize: '1.4rem'}}>{s.opp_wins}</span>
+        <span style={{color: '#fff', fontWeight: 800, fontSize: '1.4rem'}}>{s.opp_wins ?? 0}</span>
       </div>
     </Link>
   )

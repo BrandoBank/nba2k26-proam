@@ -403,10 +403,8 @@ function SeriesLogTab({ series, rankings }) {
       )}
       <div style={s.logList}>
         {series.map(ser => {
-          const isWin = (ser.our_wins || 0) > (ser.opp_wins || 0)
-          const isTie = (ser.our_wins || 0) === (ser.opp_wins || 0)
-          const resultColor = isWin ? colors.statGreen : isTie ? colors.statGold : colors.statRed
           const resultLabel = ser.result_label || `${ser.our_wins || 0}–${ser.opp_wins || 0}`
+          const resultColor = '#aaa'
           const mvp = mvpMap[ser.id]
           const date = ser.ended_at
             ? new Date(ser.ended_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -418,9 +416,9 @@ function SeriesLogTab({ series, rankings }) {
                 <div style={s.logLeft}>
                   <div style={s.logName}>{ser.name || 'Untitled Series'}</div>
                   <div style={s.logTeams}>
-                    <span style={{ color: colors.teamOur }}>{ser.our_team_name || 'Us'}</span>
+                    <span style={{ color: '#aaa' }}>{ser.our_team_name || 'Team A'}</span>
                     <span style={s.logVs}>vs</span>
-                    <span style={{ color: colors.teamOpp }}>{ser.opp_team_name || 'Them'}</span>
+                    <span style={{ color: '#aaa' }}>{ser.opp_team_name || 'Team B'}</span>
                   </div>
                   {mvp && (
                     <div style={s.logMvp}>
