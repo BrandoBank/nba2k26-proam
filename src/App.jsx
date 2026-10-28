@@ -21,9 +21,25 @@ function ProtectedRoute({ children }) {
   return children
 }
 
+import { useEffect } from 'react'
+import { supabase } from './lib/supabase'
+
+function RecoveryRedirect() {
+  useEffect(() => {
+    // When Supabase drops a recovery token in the hash, redirect to /login to handle it
+    supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        window.location.replace('/login' + window.location.hash)
+      }
+    })
+  }, [])
+  return null
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <RecoveryRedirect />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/leagues" element={<Dashboard />} />

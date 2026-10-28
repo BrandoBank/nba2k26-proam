@@ -1,14 +1,41 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 
 export default function Login() {
   const { signIn } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isRecovery, setIsRecovery] = useState(false)
+  const [recovered, setRecovered] = useState(false)
+
+  // Detect Supabase password recovery token in the URL hash
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash.includes('type=recovery') || hash.includes('type=email')) {
+      // Supabase auto-handles the hash and sets the session
+      supabase.auth.onAuthStateChange((event) => {
+        if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
+      })
+    }
+  }, [])
+
+  async function handleSetPassword(e) {
+    e.preventDefault()
+    if (newPassword.length < 8) { setError('Password must be at least 8 characters.'); return }
+    setError('')
+    setLoading(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setLoading(false)
+    if (error) { setError(error.message); return }
+    setRecovered(true)
+    setTimeout(() => navigate('/'), 1500)
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -18,6 +45,36 @@ export default function Login() {
     setLoading(false)
     if (error) setError(error.message)
     else navigate('/')
+  }
+
+  if (isRecovery) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <h1 style={styles.title}>NEXT UP SERIES</h1>
+          <p style={styles.sub}>Set New Password</p>
+          {recovered ? (
+            <p style={{ color: '#4caf50', fontSize: '0.9rem' }}>Password set! Redirecting...</p>
+          ) : (
+            <form onSubmit={handleSetPassword} style={styles.form}>
+              <input
+                type="password"
+                placeholder="New password (min 8 chars)"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                required
+                style={styles.input}
+                autoFocus
+              />
+              <button type="submit" disabled={loading} style={styles.btn}>
+                {loading ? 'Saving...' : 'Set Password'}
+              </button>
+              {error && <p style={styles.error}>{error}</p>}
+            </form>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
