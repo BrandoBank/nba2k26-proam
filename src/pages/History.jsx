@@ -70,7 +70,7 @@ const ACHIEVEMENT_ICONS = {
 
 const COLUMNS = [
   { key: 'display_name', label: 'PLAYER',  numeric: false, colorType: null },
-  { key: 'career_gp',    label: 'GP',      numeric: true,  colorType: null },
+  { key: 'total_gp',     label: 'GP',      numeric: true,  colorType: null },
   { key: 'career_ppg',   label: 'PPG',     numeric: true,  colorType: null },
   { key: 'career_rpg',   label: 'RPG',     numeric: true,  colorType: null },
   { key: 'career_apg',   label: 'APG',     numeric: true,  colorType: 'apg' },
@@ -147,7 +147,7 @@ export default function History() {
 
   // ── Sorted leaders ──────────────────────────────────────────────────────────
   const sortedLeaders = useMemo(() => {
-    let rows = careerStats.filter(p => (p.career_gp || 0) >= minGP)
+    let rows = careerStats.filter(p => (p.total_gp || 0) >= minGP)
     rows = [...rows].sort((a, b) => {
       const av = a[sortKey] ?? -Infinity
       const bv = b[sortKey] ?? -Infinity
