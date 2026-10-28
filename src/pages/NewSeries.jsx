@@ -3,6 +3,13 @@ import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
+function autoSeriesName(format) {
+  const now = new Date()
+  const month = now.toLocaleString('en-US', { month: 'short' })
+  const day = now.getDate()
+  return `${month} ${day} · BO${format}`
+}
+
 export default function NewSeries() {
   const { isEditor } = useAuth()
   const navigate = useNavigate()
@@ -12,7 +19,8 @@ export default function NewSeries() {
     opp_team_name: '',
     format: 7,
     storyline: '',
-    drafted_by: '',
+    drafter_1: '',
+    drafter_2: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -23,15 +31,23 @@ export default function NewSeries() {
     e.preventDefault()
     setError('')
     setSaving(true)
+
+    const fmt = Number(form.format)
+    const name = form.name.trim() || autoSeriesName(fmt)
+
+    const d1 = form.drafter_1.trim()
+    const d2 = form.drafter_2.trim()
+    const drafted_by = d1 && d2 ? `${d1} vs ${d2}` : (d1 || d2 || null)
+
     const { data, error } = await supabase
       .from('series')
       .insert({
-        name: form.name.trim(),
+        name,
         our_team_name: form.our_team_name.trim(),
         opp_team_name: form.opp_team_name.trim(),
-        format: Number(form.format),
+        format: fmt,
         storyline: form.storyline.trim() || null,
-        drafted_by: form.drafted_by.trim() || null,
+        drafted_by,
         status: 'in_progress',
         started_at: new Date().toISOString(),
       })
@@ -43,21 +59,23 @@ export default function NewSeries() {
     navigate(`/series/${data.id}`)
   }
 
+  const namePlaceholder = autoSeriesName(form.format)
+
   return (
     <div style={s.page}>
       <Link to="/" style={s.back}>← Back</Link>
       <h1 style={s.title}>New Series</h1>
       <form onSubmit={handleSubmit} style={s.form}>
-        <label style={s.label}>Series Name
-          <input style={s.input} value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="Redraft Series · July" required />
+        <label style={s.label}>Series Name <span style={s.opt}>(optional — auto-fills with date)</span>
+          <input style={s.input} value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder={namePlaceholder} />
         </label>
         <div style={s.teamRow}>
           <label style={{...s.label, flex: 1}}>Team 1
-            <input style={s.input} value={form.our_team_name} onChange={e => setForm(f => ({...f, our_team_name: e.target.value}))} placeholder="scooooorbooooord" required />
+            <input style={s.input} value={form.our_team_name} onChange={e => setForm(f => ({...f, our_team_name: e.target.value}))} placeholder="Team name" required />
           </label>
           <div style={s.vs}>VS</div>
           <label style={{...s.label, flex: 1}}>Team 2
-            <input style={s.input} value={form.opp_team_name} onChange={e => setForm(f => ({...f, opp_team_name: e.target.value}))} placeholder="HOOPAAAAAAAs" required />
+            <input style={s.input} value={form.opp_team_name} onChange={e => setForm(f => ({...f, opp_team_name: e.target.value}))} placeholder="Team name" required />
           </label>
         </div>
         <label style={s.label}>Format
@@ -67,9 +85,14 @@ export default function NewSeries() {
             <option value={7}>Best of 7</option>
           </select>
         </label>
-        <label style={s.label}>Who Drafted? <span style={s.opt}>(optional — gamertag of whoever picked the teams)</span>
-          <input style={s.input} value={form.drafted_by} onChange={e => setForm(f => ({...f, drafted_by: e.target.value}))} placeholder="e.g. BrandoBank" />
-        </label>
+        <div style={s.label}>
+          Draft <span style={s.opt}>(optional — the two players who drafted)</span>
+          <div style={s.teamRow}>
+            <input style={{...s.input, flex: 1}} value={form.drafter_1} onChange={e => setForm(f => ({...f, drafter_1: e.target.value}))} placeholder="Drafter 1" />
+            <div style={s.vs}>VS</div>
+            <input style={{...s.input, flex: 1}} value={form.drafter_2} onChange={e => setForm(f => ({...f, drafter_2: e.target.value}))} placeholder="Drafter 2" />
+          </div>
+        </div>
         <label style={s.label}>Storyline <span style={s.opt}>(optional)</span>
           <textarea style={{...s.input, height: 70, resize: 'vertical'}} value={form.storyline} onChange={e => setForm(f => ({...f, storyline: e.target.value}))} placeholder="Series narrative for the banner..." />
         </label>
@@ -90,7 +113,7 @@ const s = {
   opt: { color: '#555', textTransform: 'none', letterSpacing: 0 },
   teamRow: { display: 'flex', gap: '0.75rem', alignItems: 'flex-end' },
   vs: { color: '#333', fontWeight: 900, fontSize: '0.75rem', letterSpacing: '0.1em', paddingBottom: '0.7rem', flexShrink: 0 },
-  btn: { background: '#1d6ef5', color: '#fff', border: 'none', borderRadius: 4, padding: '0.75rem', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', marginTop: '0.5rem' },
+  btn: { background: '#1a1a1a', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '0.75rem', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', marginTop: '0.5rem' },
   error: { color: '#e55', fontSize: '0.85rem' },
   dim: { color: '#555' },
 }
