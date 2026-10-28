@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { colors, fonts, radius, statColor } from '../lib/theme'
 import { IconTrophy, IconChart, IconArrow, IconStar, IconBall, IconFlame, IconTarget, IconPass, IconShield } from '../lib/icons'
 import { computeAchievements, ACHIEVEMENT_CATALOGUE } from '../lib/achievements'
+import { computeImpactScores } from '../lib/ranking'
 
 // ─── Tier helpers ────────────────────────────────────────────────────────────
 
@@ -95,6 +96,7 @@ export default function History() {
   const [careerStats, setCareerStats] = useState([])
   const [seriesList, setSeriesList] = useState([])
   const [rankings, setRankings] = useState([])
+  const [allSeriesStats, setAllSeriesStats] = useState([])
   const [h2hData, setH2hData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -113,16 +115,19 @@ export default function History() {
           { data: series, error: e2 },
           { data: rnk,    error: e3 },
           { data: h2h,    error: e4 },
+          { data: sStats, error: e5 },
         ] = await Promise.all([
           supabase.from('career_player_totals').select('*'),
           supabase.from('series').select('*').eq('status', 'complete').order('ended_at', { ascending: false }),
           supabase.from('series_rankings').select('*, players(gamertag,display_name)'),
           supabase.from('player_head_to_head').select('*'),
+          supabase.from('series_player_stats').select('*'),
         ])
         if (e1 || e2 || e3) throw new Error('Failed to load history data.')
         setCareerStats(career || [])
         setSeriesList(series || [])
         setRankings(rnk || [])
+        setAllSeriesStats(sStats || [])
         setH2hData(h2h || [])
       } catch (err) {
         setError(err.message)
@@ -163,26 +168,55 @@ export default function History() {
     const trackerSeries = [...seriesList].sort((a, b) =>
       (a.ended_at || '').localeCompare(b.ended_at || '')
     )
-    // Only use finalized rankings — tier is what the player finished as, not interim
+
+    // Series that have finalized rankings
     const finalRankings = rankings.filter(r => r.finalized)
+    const finalizedSeriesIds = new Set(finalRankings.map(r => r.series_id))
+
+    // Auto-compute tiers for series without finalized rankings
+    const autoRankings = []
+    const statsBySeries = {}
+    for (const s of allSeriesStats) {
+      if (!statsBySeries[s.series_id]) statsBySeries[s.series_id] = []
+      statsBySeries[s.series_id].push(s)
+    }
+    for (const [seriesId, stats] of Object.entries(statsBySeries)) {
+      if (finalizedSeriesIds.has(seriesId)) continue
+      const computed = computeImpactScores(stats)
+      for (const r of computed) {
+        autoRankings.push({ ...r, series_id: seriesId, auto: true })
+      }
+    }
+
+    const allRankings = [
+      ...finalRankings.map(r => ({
+        player_id: r.player_id,
+        gamertag: r.players?.gamertag || r.gamertag || '',
+        display_name: r.players?.display_name || r.display_name || r.players?.gamertag || r.gamertag || '',
+        series_id: r.series_id,
+        tier: r.tier,
+      })),
+      ...autoRankings,
+    ]
+
     const playerMap = {}
-    for (const r of finalRankings) {
-      const gamertag = r.players?.gamertag || r.gamertag || ''
-      const display_name = r.players?.display_name || r.display_name || gamertag
+    for (const r of allRankings) {
       if (!playerMap[r.player_id]) {
-        playerMap[r.player_id] = { player_id: r.player_id, gamertag, display_name }
+        playerMap[r.player_id] = { player_id: r.player_id, gamertag: r.gamertag || '', display_name: r.display_name || r.gamertag || '' }
       }
     }
     const trackerPlayers = Object.values(playerMap).sort((a, b) =>
       (a.display_name || '').localeCompare(b.display_name || '')
     )
     const trackerMap = {}
-    for (const r of finalRankings) {
+    for (const r of allRankings) {
       if (!trackerMap[r.player_id]) trackerMap[r.player_id] = {}
-      trackerMap[r.player_id][r.series_id] = r.tier
+      if (!trackerMap[r.player_id][r.series_id]) {
+        trackerMap[r.player_id][r.series_id] = { tier: r.tier, auto: r.auto || false }
+      }
     }
     return { trackerPlayers, trackerSeries, trackerMap }
-  }, [seriesList, rankings])
+  }, [seriesList, rankings, allSeriesStats])
 
   if (loading) return (
     <div style={s.page}>
@@ -462,7 +496,7 @@ function TierTrackerTab({ players, series, map }) {
   return (
     <div style={s.tabContent}>
       <p style={s.trackerNote}>
-        Each cell shows tier per series. Columns = series (oldest to newest).
+        Each cell shows finishing tier per series. Bright = finalized by editor · Dim = auto-computed from stats.
       </p>
       <div style={s.trackerWrap}>
         <table style={s.trackerTable}>
@@ -483,10 +517,14 @@ function TierTrackerTab({ players, series, map }) {
                   {p.display_name || p.gamertag}
                 </td>
                 {series.map(ser => {
-                  const tier = map[p.player_id]?.[ser.id]
+                  const entry = map[p.player_id]?.[ser.id]
+                  const tier = entry?.tier
+                  const auto = entry?.auto
                   return (
                     <td key={ser.id} style={s.trackerCell}>
-                      {tier ? <TierBadge tier={tier} size="sm" /> : <span style={s.trackerEmpty}>–</span>}
+                      {tier
+                        ? <span style={{ opacity: auto ? 0.55 : 1 }}><TierBadge tier={tier} size="sm" /></span>
+                        : <span style={s.trackerEmpty}>–</span>}
                     </td>
                   )
                 })}
