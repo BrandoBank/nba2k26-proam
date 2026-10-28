@@ -349,8 +349,53 @@ function SeriesLogTab({ series, rankings }) {
     return m
   }, [rankings])
 
+  // Build draft frequency
+  const draftStats = useMemo(() => {
+    const counts = {}
+    for (const ser of series) {
+      if (!ser.drafted_by) continue
+      if (!counts[ser.drafted_by]) counts[ser.drafted_by] = { name: ser.drafted_by, count: 0, lastAt: null }
+      counts[ser.drafted_by].count++
+      if (!counts[ser.drafted_by].lastAt || ser.created_at > counts[ser.drafted_by].lastAt) {
+        counts[ser.drafted_by].lastAt = ser.created_at
+      }
+    }
+    return Object.values(counts).sort((a, b) => b.count - a.count)
+  }, [series])
+
+  // Who should draft next — least recent drafter with fewest drafts
+  const nextDrafter = useMemo(() => {
+    if (draftStats.length === 0) return null
+    const minCount = Math.min(...draftStats.map(d => d.count))
+    const candidates = draftStats.filter(d => d.count === minCount)
+    // Among tied candidates, pick the one who drafted least recently
+    candidates.sort((a, b) => (a.lastAt || '').localeCompare(b.lastAt || ''))
+    return candidates[0]
+  }, [draftStats])
+
   return (
     <div style={s.tabContent}>
+      {/* Draft rotation widget */}
+      {draftStats.length > 0 && (
+        <div style={s.draftWrap}>
+          <div style={s.draftHeader}>
+            <span style={s.draftTitle}>🎯 DRAFT ROTATION</span>
+            {nextDrafter && (
+              <span style={s.draftNext}>Next up: <strong style={{ color: colors.orange }}>{nextDrafter.name}</strong></span>
+            )}
+          </div>
+          <div style={s.draftGrid}>
+            {draftStats.map((d, i) => (
+              <div key={d.name} style={{ ...s.draftCard, ...(i === 0 ? s.draftCardTop : {}) }}>
+                <span style={s.draftRank}>#{i + 1}</span>
+                <span style={s.draftName}>{d.name}</span>
+                <span style={s.draftCount}>{d.count} draft{d.count !== 1 ? 's' : ''}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {series.length === 0 && (
         <div style={s.empty}>
           <p style={s.dim}>No completed series yet.</p>
@@ -382,6 +427,9 @@ function SeriesLogTab({ series, rankings }) {
                       <IconTrophy size={12} color={colors.gold} />
                       <span style={{ color: colors.gold }}>MVP: {mvp}</span>
                     </div>
+                  )}
+                  {ser.drafted_by && (
+                    <div style={s.logDraft}>🎯 Drafted by {ser.drafted_by}</div>
                   )}
                 </div>
                 <div style={s.logRight}>
@@ -848,6 +896,69 @@ const s = {
     fontSize: 11,
     color: colors.gold,
     marginTop: 2,
+  },
+  logDraft: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  // Draft rotation
+  draftWrap: {
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.lg,
+    padding: '12px 16px',
+    marginBottom: 16,
+  },
+  draftHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  draftTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    color: colors.textMuted,
+  },
+  draftNext: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  draftGrid: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  draftCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    background: colors.bg,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.md,
+    padding: '4px 10px',
+    fontSize: 12,
+  },
+  draftCardTop: {
+    borderColor: `${colors.orange}55`,
+    background: `${colors.orange}08`,
+  },
+  draftRank: {
+    fontSize: 10,
+    color: colors.textMuted,
+    fontWeight: 700,
+  },
+  draftName: {
+    fontWeight: 700,
+    color: colors.textPrimary,
+  },
+  draftCount: {
+    fontSize: 11,
+    color: colors.textMuted,
   },
   logRight: {
     display: 'flex',

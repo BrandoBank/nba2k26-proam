@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 import { colors } from '../lib/theme'
 import { IconShield, IconArrow, IconPlus } from '../lib/icons'
 
@@ -8,6 +9,7 @@ const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4', 'OT']
 
 export default function LogMatchup() {
   const { id: seriesId, gameId } = useParams()
+  const { isEditor } = useAuth()
   const [series, setSeries] = useState(null)
   const [game, setGame] = useState(null)
   const [players, setPlayers] = useState([])
@@ -24,6 +26,8 @@ export default function LogMatchup() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [existingOwner, setExistingOwner] = useState(null) // gamertag who originally submitted
+  const [editingLocked, setEditingLocked] = useState(false) // true when someone else owns the matchup
 
   // Gamertag autocomplete
   const [gtagQuery, setGtagQuery] = useState('')
@@ -56,13 +60,22 @@ export default function LogMatchup() {
     setMyGtagConfirmed(true)
     setError('')
 
-    // Pre-fill if they already have a matchup
+    // Pre-fill if they already have a matchup; enforce ownership
     const existing = existingMatchups.find(m => m.defender_player_id === found.id)
     if (existing) {
       const oppP = players.find(p => p.id === existing.offensive_player_id)
       if (oppP) setPrimaryMatchup(oppP.gamertag)
       if (existing.quarter_switches) setSwitches(existing.quarter_switches)
       setSaved(false)
+
+      const owner = existing.submitted_by_gamertag
+      setExistingOwner(owner)
+      // Lock if submitted by a different gamertag and user is not an editor
+      const isMine = owner && owner.toLowerCase() === found.gamertag.toLowerCase()
+      setEditingLocked(!isMine && !isEditor)
+    } else {
+      setExistingOwner(null)
+      setEditingLocked(false)
     }
   }
 
@@ -85,6 +98,7 @@ export default function LogMatchup() {
   }
 
   async function handleSave() {
+    if (editingLocked) { setError('You cannot overwrite another player\'s matchup.'); return }
     if (!primaryMatchup.trim()) { setError('Select who you guarded to start.'); return }
     setSaving(true)
     setError('')
@@ -264,6 +278,13 @@ export default function LogMatchup() {
               </button>
             </div>
 
+            {editingLocked && (
+              <div style={s.lockedBanner}>
+                🔒 This matchup was already submitted by <strong>{existingOwner}</strong>.
+                Only that player or an editor can change it.
+              </div>
+            )}
+
             {error && <p style={s.error}>{error}</p>}
 
             {saved ? (
@@ -273,11 +294,11 @@ export default function LogMatchup() {
                   Back to series <IconArrow size={12} color={colors.orange} />
                 </Link>
               </div>
-            ) : (
+            ) : !editingLocked ? (
               <button style={s.btnOrange} onClick={handleSave} disabled={saving}>
-                {saving ? 'Saving...' : 'Save Matchup'}
+                {saving ? 'Saving...' : existingOwner ? 'Update Matchup' : 'Save Matchup'}
               </button>
-            )}
+            ) : null}
           </div>
 
           <button style={s.switchUser} onClick={() => { setMyGtagConfirmed(false); setMyGamertag(''); setGtagQuery('') }}>
@@ -324,6 +345,7 @@ const s = {
   addSwitchBtn: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: '1px dashed #2a2a2a', borderRadius: 6, color: colors.orange, fontSize: '0.82rem', fontWeight: 600, padding: '0.4rem 0.8rem', cursor: 'pointer', marginTop: '0.75rem' },
   removeBtn: { background: 'transparent', border: 'none', color: '#444', fontSize: '1.1rem', cursor: 'pointer', padding: '0.2rem 0.4rem' },
   btnOrange: { background: colors.orange, color: '#fff', border: 'none', borderRadius: 7, padding: '0.7rem 1.5rem', fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer', marginTop: '1rem' },
+  lockedBanner: { background: 'rgba(220,38,38,0.08)', border: '1px solid #4a1a1a', borderRadius: 6, padding: '0.75rem 1rem', color: '#f87171', fontSize: '0.85rem', marginTop: '1rem' },
   successBanner: { background: 'rgba(22,163,74,0.08)', border: '1px solid #1a4a1a', borderRadius: 6, padding: '0.75rem 1rem', color: '#4caf50', fontSize: '0.88rem', marginTop: '1rem', display: 'flex', alignItems: 'center', flexWrap: 'wrap' },
   switchUser: { background: 'transparent', border: 'none', color: '#333', fontSize: '0.8rem', cursor: 'pointer', padding: 0, marginTop: '0.5rem' },
   defaultNote: { color: '#2a2a2a', fontSize: '0.78rem', marginTop: '2rem', lineHeight: 1.6, borderTop: '1px solid #0f0f0f', paddingTop: '1rem' },

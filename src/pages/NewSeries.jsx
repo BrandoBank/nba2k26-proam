@@ -12,6 +12,7 @@ export default function NewSeries() {
     opp_team_name: '',
     format: 7,
     storyline: '',
+    drafted_by: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -30,6 +31,7 @@ export default function NewSeries() {
         opp_team_name: form.opp_team_name.trim(),
         format: Number(form.format),
         storyline: form.storyline.trim() || null,
+        drafted_by: form.drafted_by.trim() || null,
         status: 'in_progress',
         started_at: new Date().toISOString(),
       })
@@ -64,6 +66,9 @@ export default function NewSeries() {
             <option value={5}>Best of 5</option>
             <option value={7}>Best of 7</option>
           </select>
+        </label>
+        <label style={s.label}>Who Drafted? <span style={s.opt}>(optional — gamertag of whoever picked the teams)</span>
+          <input style={s.input} value={form.drafted_by} onChange={e => setForm(f => ({...f, drafted_by: e.target.value}))} placeholder="e.g. BrandoBank" />
         </label>
         <label style={s.label}>Storyline <span style={s.opt}>(optional)</span>
           <textarea style={{...s.input, height: 70, resize: 'vertical'}} value={form.storyline} onChange={e => setForm(f => ({...f, storyline: e.target.value}))} placeholder="Series narrative for the banner..." />
