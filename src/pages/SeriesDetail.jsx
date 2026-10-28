@@ -251,30 +251,30 @@ export default function SeriesDetail() {
         </div>
       </div>
 
-      {/* Editor controls */}
-      {isEditor && (
-        <div style={s.controls}>
-          <button onClick={() => navigate(`/series/${id}/add-game`)} style={s.btnPrimary} disabled={seriesOver && series.status !== 'complete'}>
+      {/* Controls — Add Game open to all, editor-only actions gated */}
+      <div style={s.controls}>
+        {series.status !== 'complete' && (
+          <button onClick={() => navigate(`/series/${id}/add-game`)} style={s.btnPrimary}>
             + Add Game
           </button>
-          {series.status === 'in_progress' && seriesOver && (
-            <button onClick={markComplete} style={s.btnSuccess}>Mark Complete & Publish</button>
-          )}
-          {series.status === 'complete' && (
-            <button onClick={togglePublish} style={s.btnGhost}>
-              {series.published ? 'Unpublish' : 'Publish'}
-            </button>
-          )}
-          <Link to={`/series/${id}/chart`} style={s.btnPrimary}>View Chart</Link>
-          {isEditor && <Link to={`/series/${id}/rankings`} style={s.btnSuccess}>Edit Rankings</Link>}
-          <Link to={`/series/${id}/accolades`} style={s.btnGhost}>Accolades</Link>
-          <button onClick={() => {
-            const url = `${window.location.origin}/series/${id}`
-            navigator.clipboard.writeText(url)
-            alert('Share link copied!')
-          }} style={s.btnGhost}>Copy Share Link</button>
-        </div>
-      )}
+        )}
+        {isEditor && series.status === 'in_progress' && seriesOver && (
+          <button onClick={markComplete} style={s.btnSuccess}>Mark Complete & Publish</button>
+        )}
+        {isEditor && series.status === 'complete' && (
+          <button onClick={togglePublish} style={s.btnGhost}>
+            {series.published ? 'Unpublish' : 'Publish'}
+          </button>
+        )}
+        <Link to={`/series/${id}/chart`} style={s.btnPrimary}>View Chart</Link>
+        {isEditor && <Link to={`/series/${id}/rankings`} style={s.btnSuccess}>Edit Rankings</Link>}
+        <Link to={`/series/${id}/accolades`} style={s.btnGhost}>Accolades</Link>
+        <button onClick={() => {
+          const url = `${window.location.origin}/series/${id}`
+          navigator.clipboard.writeText(url)
+          alert('Share link copied!')
+        }} style={s.btnGhost}>Copy Share Link</button>
+      </div>
 
       {/* Game cards */}
       {games.length > 0 && (
@@ -298,7 +298,7 @@ export default function SeriesDetail() {
 
       {games.length === 0 && (
         <div style={s.empty}>
-          No games yet.{isEditor ? ' Add the first game above.' : ''}
+          No games yet. Add the first game above.
         </div>
       )}
 
