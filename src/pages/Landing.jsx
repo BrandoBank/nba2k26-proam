@@ -1,543 +1,299 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { colors } from '../lib/theme'
-import {
-  IconBall, IconFlame, IconTarget, IconThree,
-  IconPass, IconShield, IconReb, IconTrophy,
-  IconArrow, IconStar
-} from '../lib/icons'
+import { IconBall, IconFlame, IconTrophy, IconShield, IconStar } from '../lib/icons'
+
+const RAINBOW = 'linear-gradient(90deg,#f87171,#fb923c,#facc15,#4ade80,#60a5fa,#a78bfa,#f472b6)'
+const OR = colors.orange
+const VICE = 'linear-gradient(135deg,#7c3aed,#db2777,#f97316)'
+const NEON_P = '#a855f7'
+const NEON_P_GLOW = 'rgba(168,85,247,0.18)'
+
+// ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Landing() {
   const { isEditor } = useAuth()
-  const [leaders, setLeaders] = useState(null)
+  const [activeSeries, setActiveSeries] = useState([])
   const [recentSeries, setRecentSeries] = useState([])
+  const [careers, setCareers] = useState([])
+  const [rankings, setRankings] = useState([])
   const [hotStreaks, setHotStreaks] = useState([])
-  const [clutchLeaders, setClutchLeaders] = useState([])
-  const [consistencyData, setConsistencyData] = useState([])
+  const [coldList, setColdList] = useState([])
+  const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function fetchStats() {
-      const [{ data: careers }, { data: series }, { data: rankings }, { data: clutch }, { data: consistency }] = await Promise.all([
-        supabase.from('career_player_totals').select('*'),
+    async function fetchAll() {
+      const [
+        { data: active },
+        { data: recent },
+        { data: career },
+        { data: rnk },
+        { data: cmts },
+      ] = await Promise.all([
+        supabase.from('series').select('*').eq('status', 'in_progress').order('started_at', { ascending: false }),
         supabase.from('series').select('*').eq('status', 'complete').order('ended_at', { ascending: false }).limit(3),
+        supabase.from('career_player_totals').select('*'),
         supabase.from('series_rankings').select('*, players(gamertag,display_name), series(name,ended_at)').eq('finalized', true).order('series(ended_at)', { ascending: true }),
-        supabase.from('clutch_game_stats').select('*').order('clutch_ppg', { ascending: false }).limit(5),
-        supabase.from('player_consistency').select('*').order('consistency_score', { ascending: false }).limit(10),
+        supabase.from('series_comments').select('*').order('created_at', { ascending: false }).limit(30),
       ])
 
-      if (careers && careers.length > 0) {
-        const withGP = careers.filter(p => p.total_gp >= 3)
-        const withFG = careers.filter(p => p.career_fga >= 10)
-        const withThree = careers.filter(p => p.career_tpa >= 5)
+      setActiveSeries(active || [])
+      setRecentSeries(recent || [])
+      setCareers(career || [])
+      setComments(cmts || [])
 
-        setLeaders({
-          scorer: maxBy(withGP, 'career_ppg'),
-          shooter: maxBy(withFG, 'career_fg_pct'),
-          threePoint: maxBy(withThree, 'career_3p_pct'),
-          playmaker: maxBy(withGP, 'career_apg'),
-          rebounder: maxBy(withGP, 'career_rpg'),
-          lockdown: maxBy(withGP, 'career_spg'),
-          mvpLeader: maxBy(careers, 'mvp_count'),
-          eliteLeader: maxBy(careers, 'elite_count'),
-          // Hall of shame
-          worstShooter: withFG.length ? withFG.reduce((w, c) => Number(c.career_fg_pct) < Number(w.career_fg_pct) ? c : w, withFG[0]) : null,
-          mostTov: maxBy(withGP, 'career_tovpg'),
-          gTierLeader: maxBy(careers, 'g_tier_count'),
-        })
-      }
-      setRecentSeries(series || [])
-      setClutchLeaders(clutch || [])
-      setConsistencyData(consistency || [])
-
-      // Compute hot streaks: consecutive ELITE finishes per player
-      if (rankings && rankings.length > 0) {
+      // Hot streaks: consecutive ELITE finishes
+      if (rnk?.length > 0) {
         const byPlayer = {}
-        rankings.forEach(r => {
+        rnk.forEach(r => {
           const gtag = r.players?.gamertag
           if (!gtag) return
-          if (!byPlayer[gtag]) byPlayer[gtag] = { gamertag: gtag, display_name: r.players?.display_name, streaks: [] }
-          byPlayer[gtag].streaks.push(r.tier)
+          if (!byPlayer[gtag]) byPlayer[gtag] = { gamertag: gtag, display_name: r.players?.display_name, tiers: [] }
+          byPlayer[gtag].tiers.push(r.tier)
         })
         const streaks = Object.values(byPlayer).map(p => {
           let cur = 0, max = 0
-          p.streaks.forEach(t => { if (t === 'ELITE') { cur++; max = Math.max(max, cur) } else cur = 0 })
-          return { ...p, currentStreak: cur, maxStreak: max }
-        }).filter(p => p.maxStreak >= 2).sort((a, b) => b.currentStreak - a.currentStreak || b.maxStreak - a.maxStreak)
-        setHotStreaks(streaks.slice(0, 4))
+          p.tiers.forEach(t => { if (t === 'ELITE') { cur++; max = Math.max(max, cur) } else cur = 0 })
+          // Ice cold: last tier was G_TIER after being STRONG or ELITE
+          const last = p.tiers[p.tiers.length - 1]
+          const prev = p.tiers[p.tiers.length - 2]
+          const iceCold = last === 'G_TIER' && (prev === 'STRONG' || prev === 'ELITE')
+          return { ...p, currentStreak: cur, maxStreak: max, iceCold }
+        })
+        setHotStreaks(streaks.filter(p => p.currentStreak >= 2).sort((a, b) => b.currentStreak - a.currentStreak).slice(0, 4))
+        setColdList(streaks.filter(p => p.iceCold).slice(0, 3))
       }
+      setRankings(rnk || [])
       setLoading(false)
     }
-    fetchStats()
+    fetchAll()
   }, [])
 
+  const leaders = computeLeaders(careers)
+
   return (
-    <div style={p.page}>
+    <div style={s.page}>
       {/* NAV */}
-      <nav style={p.nav} className="desktop-nav">
-        <div style={p.navInner}>
-          <Link to="/" style={p.logo}>
-            <IconBall size={18} color={colors.orange} />
-            <span>NEXT UP SERIES</span>
-          </Link>
-          <div style={p.navLinks}>
-            <Link to="/leagues" style={p.navLink}>Series</Link>
-            <Link to="/history" style={p.navLink}>History</Link>
-            {isEditor && <Link to="/import" style={p.navLink}>Import</Link>}
-            {isEditor
-              ? <Link to="/series/new" style={p.navCta}>+ New Series</Link>
-              : <Link to="/login" style={p.navCta}>Sign In</Link>
-            }
-          </div>
+      <nav style={s.nav}>
+        <Link to="/" style={s.logo}>
+          <IconBall size={16} color={OR} />
+          <span>NEXT UP</span>
+        </Link>
+        <div style={s.navRight}>
+          <Link to="/leagues" style={s.navLink}>Series</Link>
+          <Link to="/history" style={s.navLink}>History</Link>
+          {isEditor && <Link to="/series/new" style={s.navCta}>+ New</Link>}
         </div>
       </nav>
 
       {/* 2K27 COUNTDOWN */}
-      <Countdown2K27 />
+      <Countdown />
 
-      {/* HERO + LEADERBOARD */}
-      <section style={p.hero}>
-        <div style={p.heroBg} />
-        <div style={p.heroInner} className="hero-inner">
-          <div style={p.heroLeft}>
-            <div style={p.heroEyebrow}>
-              <IconBall size={13} color={colors.orange} />
-              <span>NBA 2K26 · PRO-AM TRACKER</span>
-            </div>
-            <h1 style={p.heroH1}>
-              Run the series.<br />
-              <span style={p.heroOrange}>Own the stats.</span>
-            </h1>
-            <p style={p.heroP}>
-              Drop a box score. Get instant tier rankings, career history, and a shareable chart — built for crews that take the game seriously.
-            </p>
-            <div style={p.heroButtons}>
-              <Link to="/leagues" style={p.btnOrange}>
-                View Series <IconArrow size={14} color="#fff" />
-              </Link>
-              {isEditor && (
-                <Link to="/series/new" style={p.btnOutline}>New Series</Link>
-              )}
-            </div>
+      {/* COMMENT TICKER */}
+      {comments.length > 0 && <CommentTicker comments={comments} />}
+
+      {/* ACTIVE SERIES */}
+      {activeSeries.length > 0 && (
+        <section style={s.activeSection}>
+          <div style={s.sectionLabel}>
+            <span style={s.pulse} />
+            <span style={{color: '#ef4444', fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.16em', textShadow: '0 0 8px #ef4444'}}>LIVE</span>
           </div>
-          <div style={p.heroRight} className="hero-right">
-            <AllTimeLeaderboard />
+          <div style={s.activeGrid}>
+            {activeSeries.map(ser => <ActiveSeriesCard key={ser.id} series={ser} />)}
           </div>
-        </div>
+        </section>
+      )}
+
+      {/* ALL-TIME LEADERBOARD */}
+      <section style={s.section}>
+        <AllTimeLeaderboard />
       </section>
 
-      {/* LEADERBOARD (mobile only — desktop sees it in hero column) */}
-      <section style={{...p.section, background: '#000'}} className="leaderboard-mobile-section">
-        <div style={p.sectionInner}>
-          <AllTimeLeaderboard />
-        </div>
-      </section>
-
-      {/* SUPERLATIVES DASHBOARD */}
-      <section style={p.section}>
-        <div style={p.sectionInner}>
-          <div style={p.sectionHeader}>
-            <div style={p.sectionEye}>
-              <IconFlame size={13} color={colors.orange} />
-              <span>LEAGUE LEADERS</span>
-            </div>
-            <h2 style={p.sectionH2}>Who's Running the League</h2>
+      {/* CULTURE BADGES: HOT + COLD */}
+      {(hotStreaks.length > 0 || coldList.length > 0) && (
+        <section style={{...s.section, background: 'linear-gradient(135deg,#06000f,#0a0008)'}}>
+          <div style={s.badgeRow}>
+            {hotStreaks.length > 0 && (
+              <div style={s.badgeGroup}>
+                <div style={s.badgeLabel}><IconFlame size={12} color={OR} /><span>ON FIRE</span></div>
+                {hotStreaks.map(p => (
+                  <div key={p.gamertag} style={s.badgeCard}>
+                    <span style={s.badgeName}>{p.display_name || p.gamertag}</span>
+                    <span style={{color: OR, fontWeight: 800, fontSize: '0.8rem'}}>{p.currentStreak}× ELITE</span>
+                    <span style={{fontSize: '1rem'}}>🔥</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {coldList.length > 0 && (
+              <div style={s.badgeGroup}>
+                <div style={{...s.badgeLabel, color: '#60a5fa'}}><IconShield size={12} color="#60a5fa" /><span style={{color:'#60a5fa'}}>ICE COLD</span></div>
+                {coldList.map(p => (
+                  <div key={p.gamertag} style={s.badgeCard}>
+                    <span style={s.badgeName}>{p.display_name || p.gamertag}</span>
+                    <span style={{color: '#60a5fa', fontWeight: 800, fontSize: '0.8rem'}}>dropped to G TIER</span>
+                    <span style={{fontSize: '1rem'}}>❄️</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+        </section>
+      )}
 
-          {loading ? (
-            <div style={p.loadingGrid}>
-              {[...Array(6)].map((_, i) => <StatCardSkeleton key={i} />)}
-            </div>
-          ) : !leaders ? (
-            <div style={p.emptyStats}>
-              <IconBall size={32} color={colors.border} />
-              <p style={p.emptyText}>Stats populate here once series are logged.</p>
-              {isEditor && <Link to="/series/new" style={p.btnOrange}>Start First Series</Link>}
-            </div>
-          ) : (
-            <div style={p.statGrid}>
-              <StatCard
-                icon={<IconFlame size={20} color={colors.orange} />}
-                label="Top Scorer"
-                accent={colors.orange}
-                player={leaders.scorer}
-                stat={`${leaders.scorer?.career_ppg} PPG`}
-                sub="Career scoring average"
-              />
-              <StatCard
-                icon={<IconTarget size={20} color={colors.statGreen} />}
-                label="Most Efficient"
-                accent={colors.statGreen}
-                player={leaders.shooter}
-                stat={`${leaders.shooter?.career_fg_pct}% FG`}
-                sub="Best field goal percentage"
-              />
-              <StatCard
-                icon={<IconThree size={20} color={colors.gold} />}
-                label="Best from Three"
-                accent={colors.gold}
-                player={leaders.threePoint}
-                stat={`${leaders.threePoint?.career_3p_pct}% 3P`}
-                sub="Best three-point percentage"
-              />
-              <StatCard
-                icon={<IconPass size={20} color={colors.blue} />}
-                label="Top Playmaker"
-                accent={colors.blue}
-                player={leaders.playmaker}
-                stat={`${leaders.playmaker?.career_apg} APG`}
-                sub="Career assists per game"
-              />
-              <StatCard
-                icon={<IconReb size={20} color="#8b5cf6" />}
-                label="Glass Cleaner"
-                accent="#8b5cf6"
-                player={leaders.rebounder}
-                stat={`${leaders.rebounder?.career_rpg} RPG`}
-                sub="Career rebounds per game"
-              />
-              <StatCard
-                icon={<IconShield size={20} color="#06b6d4" />}
-                label="Lockdown"
-                accent="#06b6d4"
-                player={leaders.lockdown}
-                stat={`${leaders.lockdown?.career_spg} SPG`}
-                sub="Steals per game"
-              />
-              <StatCard
-                icon={<IconTrophy size={20} color={colors.gold} />}
-                label="MVP Count"
-                accent={colors.gold}
-                player={leaders.mvpLeader}
-                stat={`${leaders.mvpLeader?.mvp_count} MVP${leaders.mvpLeader?.mvp_count !== 1 ? 's' : ''}`}
-                sub="Series MVP awards"
-              />
-              <StatCard
-                icon={<IconStar size={20} color={colors.elite} filled />}
-                label="Most ELITE Finishes"
-                accent={colors.elite}
-                player={leaders.eliteLeader}
-                stat={`${leaders.eliteLeader?.elite_count}× ELITE`}
-                sub="Elite tier appearances"
-              />
-            </div>
-          )}
-        </div>
-      </section>
+      {/* LEAGUE LEADERS */}
+      {leaders && (
+        <section style={s.section}>
+          <div style={s.sectionHead}>
+            <span style={s.eyebrow}><IconTrophy size={11} color={OR} />LEAGUE LEADERS</span>
+            <h2 style={s.h2}>Who's Running the Lobby</h2>
+          </div>
+          <div style={s.leadersGrid}>
+            {[
+              { label: 'Top Scorer', value: leaders.scorer ? `${leaders.scorer.career_ppg} PPG` : '—', name: leaders.scorer?.display_name || leaders.scorer?.gamertag, color: OR },
+              { label: 'Best Shooter', value: leaders.shooter ? `${leaders.shooter.career_fg_pct}% FG` : '—', name: leaders.shooter?.display_name || leaders.shooter?.gamertag, color: colors.statGreen },
+              { label: 'From Deep', value: leaders.threePoint ? `${leaders.threePoint.career_3p_pct}% 3P` : '—', name: leaders.threePoint?.display_name || leaders.threePoint?.gamertag, color: colors.gold },
+              { label: 'Playmaker', value: leaders.playmaker ? `${leaders.playmaker.career_apg} APG` : '—', name: leaders.playmaker?.display_name || leaders.playmaker?.gamertag, color: '#60a5fa' },
+              { label: 'Glass', value: leaders.rebounder ? `${leaders.rebounder.career_rpg} RPG` : '—', name: leaders.rebounder?.display_name || leaders.rebounder?.gamertag, color: '#a78bfa' },
+              { label: 'Lockdown', value: leaders.lockdown ? `${leaders.lockdown.career_spg} SPG` : '—', name: leaders.lockdown?.display_name || leaders.lockdown?.gamertag, color: '#06b6d4' },
+              { label: 'MVP', value: leaders.mvp ? `${leaders.mvp.mvp_count}×` : '—', name: leaders.mvp?.display_name || leaders.mvp?.gamertag, color: colors.gold },
+              { label: 'Most ELITE', value: leaders.elite ? `${leaders.elite.elite_count}×` : '—', name: leaders.elite?.display_name || leaders.elite?.gamertag, color: colors.elite },
+            ].map(l => (
+              <div key={l.label} style={s.leaderCard}>
+                <div style={{...s.leaderLabel, color: l.color}}>{l.label}</div>
+                <div style={{...s.leaderStat, color: l.color}}>{l.value}</div>
+                <div style={s.leaderName}>{l.name || '—'}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* HALL OF SHAME */}
-      {leaders && (leaders.worstShooter || leaders.mostTov || leaders.gTierLeader) && (
-        <section style={{...p.section, background: '#050000'}}>
-          <div style={p.sectionInner}>
-            <div style={p.sectionHeader}>
-              <div style={{...p.sectionEye, color: colors.gTier}}>
-                <IconFlame size={13} color={colors.gTier} />
-                <span>BOTTOM OF THE LOBBY</span>
+      {leaders && (
+        <section style={{...s.section, background: 'linear-gradient(135deg,#0f0000,#07000a)'}}>
+          <div style={s.sectionHead}>
+            <span style={{...s.eyebrow, color: colors.gTier}}><IconFlame size={11} color={colors.gTier} /><span style={{color:colors.gTier}}>BOTTOM OF THE LOBBY</span></span>
+            <h2 style={s.h2}>Who's Getting Exposed</h2>
+          </div>
+          <div style={s.leadersGrid}>
+            {[
+              { label: 'Most G Tier', value: leaders.gTier ? `${leaders.gTier.g_tier_count}×` : '—', name: leaders.gTier?.display_name || leaders.gTier?.gamertag, color: colors.gTier },
+              { label: 'Worst Shooter', value: leaders.worstShooter ? `${leaders.worstShooter.career_fg_pct}% FG` : '—', name: leaders.worstShooter?.display_name || leaders.worstShooter?.gamertag, color: colors.gTier },
+              { label: 'Turnover King', value: leaders.tov ? `${leaders.tov.career_tovpg} TOV/G` : '—', name: leaders.tov?.display_name || leaders.tov?.gamertag, color: colors.gTier },
+            ].map(l => (
+              <div key={l.label} style={{...s.leaderCard, borderColor: '#1a0000'}}>
+                <div style={{...s.leaderLabel, color: l.color}}>{l.label}</div>
+                <div style={{...s.leaderStat, color: l.color}}>{l.value}</div>
+                <div style={s.leaderName}>{l.name || '—'}</div>
               </div>
-              <h2 style={p.sectionH2}>Who's Getting Exposed</h2>
-            </div>
-            <div style={p.statGrid}>
-              {leaders.gTierLeader && leaders.gTierLeader.g_tier_count > 0 && (
-                <StatCard
-                  icon={<IconFlame size={20} color={colors.gTier} />}
-                  label="Most G Tier Finishes"
-                  accent={colors.gTier}
-                  player={leaders.gTierLeader}
-                  stat={`${leaders.gTierLeader.g_tier_count}× G TIER`}
-                  sub="Series finished in G Tier"
-                />
-              )}
-              {leaders.worstShooter && (
-                <StatCard
-                  icon={<IconTarget size={20} color={colors.gTier} />}
-                  label="Worst Shooter"
-                  accent={colors.gTier}
-                  player={leaders.worstShooter}
-                  stat={`${leaders.worstShooter.career_fg_pct}% FG`}
-                  sub="Lowest career field goal %"
-                />
-              )}
-              {leaders.mostTov && (
-                <StatCard
-                  icon={<IconPass size={20} color={colors.gTier} />}
-                  label="Turnover Machine"
-                  accent={colors.gTier}
-                  player={leaders.mostTov}
-                  stat={`${leaders.mostTov.career_tovpg} TOV/G`}
-                  sub="Most turnovers per game"
-                />
-              )}
-            </div>
+            ))}
           </div>
         </section>
       )}
 
       {/* RECENT SERIES */}
       {recentSeries.length > 0 && (
-        <section style={{...p.section, background: '#000'}}>
-          <div style={p.sectionInner}>
-            <div style={p.sectionHeader}>
-              <div style={p.sectionEye}>
-                <IconBall size={13} color={colors.orange} />
-                <span>RECENT ACTION</span>
-              </div>
-              <h2 style={p.sectionH2}>Latest Series</h2>
-            </div>
-            <div style={p.recentGrid}>
-              {recentSeries.map(s => {
-                const win = s.our_wins > s.opp_wins
-                return (
-                  <Link key={s.id} to={`/series/${s.id}`} style={p.recentCard}>
-                    <div style={{...p.recentBar, background: win ? colors.statGreen : colors.statRed}} />
-                    <div style={p.recentContent}>
-                      <div style={p.recentName}>{s.name}</div>
-                      <div style={p.recentMatchup}>{s.our_team_name} vs {s.opp_team_name}</div>
-                      {s.storyline && <div style={p.recentStory}>{s.storyline}</div>}
-                      <div style={p.recentBottom}>
-                        <span style={p.recentScore}>{s.our_wins}–{s.opp_wins}</span>
-                        <span style={{...p.recentResult, color: win ? colors.statGreen : colors.statRed}}>
-                          {s.result_label || (win ? 'W' : 'L')}
-                        </span>
-                      </div>
+        <section style={s.section}>
+          <div style={s.sectionHead}>
+            <span style={s.eyebrow}><IconBall size={11} color={OR} />RECENT ACTION</span>
+            <h2 style={s.h2}>Last Series</h2>
+          </div>
+          <div style={s.recentGrid}>
+            {recentSeries.map(ser => {
+              const w = ser.our_wins > ser.opp_wins
+              return (
+                <Link key={ser.id} to={`/series/${ser.id}`} style={s.recentCard}>
+                  <div style={{...s.recentAccent, background: w ? colors.statGreen : colors.statRed}} />
+                  <div style={s.recentBody}>
+                    <div style={s.recentName}>{ser.name}</div>
+                    <div style={s.recentTeams}>{ser.our_team_name} <span style={{color:'#2a2a2a'}}>vs</span> {ser.opp_team_name}</div>
+                    {ser.storyline && <div style={s.recentStory}>{ser.storyline}</div>}
+                    <div style={s.recentBottom}>
+                      <span style={s.recentScore}>{ser.our_wins}–{ser.opp_wins}</span>
+                      <span style={{color: w ? colors.statGreen : colors.statRed, fontWeight: 800, fontSize: '0.75rem', letterSpacing: '0.06em'}}>
+                        {ser.result_label || (w ? 'W' : 'L')}
+                      </span>
                     </div>
-                  </Link>
-                )
-              })}
-            </div>
-            <div style={p.allLink}>
-              <Link to="/leagues" style={p.allLinkA}>
-                View all series <IconArrow size={13} color={colors.orange} />
-              </Link>
-            </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+          <div style={{textAlign:'right', marginTop:'1rem'}}>
+            <Link to="/leagues" style={{color: OR, fontSize: '0.8rem', textDecoration: 'none', fontWeight: 700}}>All series →</Link>
           </div>
         </section>
       )}
 
-      {/* HOT STREAKS */}
-      <section style={{...p.section, background: '#000'}}>
-        <div style={p.sectionInner}>
-          <div style={p.sectionHeader}>
-            <div style={{...p.sectionEye, color: colors.orange}}><IconFlame size={13} color={colors.orange} /><span>HOT STREAKS</span></div>
-            <h2 style={p.sectionH2}>Consecutive ELITE Finishes</h2>
-            <p style={p.sectionDesc}>Who's locked in. Back-to-back ELITE series means you're running the league — not just having one good night.</p>
-          </div>
-          {hotStreaks.length === 0 ? (
-            <CompetitiveEmpty label="Hot streak data populates after 2+ completed series with finalized rankings." />
-          ) : (
-            <div style={p.streakGrid}>
-              {hotStreaks.map((pl, i) => (
-                <div key={pl.gamertag} style={p.streakCard}>
-                  <div style={{...p.streakRank, color: i === 0 ? colors.orange : '#444'}}>#{i+1}</div>
-                  <div style={p.streakName}>{pl.display_name || pl.gamertag}</div>
-                  <div style={p.streakBadge}>
-                    <span style={{color: colors.elite, fontWeight: 900, fontSize: '1.3rem'}}>{pl.currentStreak}</span>
-                    <span style={{color: '#444', fontSize: '0.72rem', marginLeft: 4}}>consecutive ELITE</span>
-                  </div>
-                  {pl.maxStreak > pl.currentStreak && <div style={p.streakMax}>Career best: {pl.maxStreak} in a row</div>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* CLUTCH + CONSISTENCY */}
-      <section style={{...p.section, background: '#050505'}}>
-        <div style={p.sectionInner}>
-          <div style={p.twoCol}>
-            <div style={p.twoColHalf}>
-              <div style={p.sectionHeader}>
-                <div style={{...p.sectionEye, color: '#f59e0b'}}><IconFlame size={13} color="#f59e0b" /><span>CLUTCH GENE</span></div>
-                <h2 style={{...p.sectionH2, fontSize: '1.3rem'}}>When It Matters Most</h2>
-                <p style={p.sectionDesc}>Performance in deciding games (G5, G6, G7). This is where legacies are made or exposed.</p>
-              </div>
-              {clutchLeaders.length === 0 ? (
-                <CompetitiveEmpty label="Clutch stats unlock after series go to G5+." />
-              ) : (
-                <div style={p.listCard}>
-                  {clutchLeaders.slice(0,5).map((pl, i) => (
-                    <div key={pl.gamertag} style={p.listRow}>
-                      <span style={{color: '#333', fontSize: '0.75rem', minWidth: 18}}>#{i+1}</span>
-                      <span style={p.listName}>{pl.gamertag}</span>
-                      <span style={{color: '#f59e0b', fontWeight: 700, fontSize: '0.88rem'}}>{pl.clutch_ppg} PPG</span>
-                      <span style={{color: '#444', fontSize: '0.75rem'}}>{pl.clutch_fg_pct ? `${pl.clutch_fg_pct}% FG` : ''}</span>
-                      <span style={{color: '#333', fontSize: '0.72rem'}}>{pl.clutch_wins}W</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={p.twoColHalf}>
-              <div style={p.sectionHeader}>
-                <div style={{...p.sectionEye, color: '#06b6d4'}}><IconTarget size={13} color="#06b6d4" /><span>CONSISTENCY</span></div>
-                <h2 style={{...p.sectionH2, fontSize: '1.3rem'}}>Show Up Every Night</h2>
-                <p style={p.sectionDesc}>Who delivers the same output regardless of matchup or game situation. High variance = unreliable.</p>
-              </div>
-              {consistencyData.length === 0 ? (
-                <CompetitiveEmpty label="Consistency scores need 2+ games in a series." />
-              ) : (
-                <div style={p.listCard}>
-                  {consistencyData.slice(0,5).map((pl, i) => (
-                    <div key={`${pl.gamertag}-${pl.series_id}`} style={p.listRow}>
-                      <span style={{color: '#333', fontSize: '0.75rem', minWidth: 18}}>#{i+1}</span>
-                      <span style={p.listName}>{pl.gamertag}</span>
-                      <span style={{color: '#06b6d4', fontWeight: 700, fontSize: '0.88rem'}}>{pl.consistency_score}%</span>
-                      <span style={{color: '#444', fontSize: '0.75rem'}}>{pl.ppg} PPG avg</span>
-                      <span style={{color: '#333', fontSize: '0.72rem'}}>±{pl.pts_stddev}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* COMPETITIVE FEATURES EXPLAINER */}
-      <section style={{...p.section, background: '#000', borderBottom: '1px solid #0f0f0f'}}>
-        <div style={p.sectionInner}>
-          <div style={p.sectionHeader}>
-            <div style={p.sectionEye}><IconTrophy size={13} color={colors.orange} /><span>COMPETITIVE FEATURES</span></div>
-            <h2 style={p.sectionH2}>Built for the Serious Ones</h2>
-          </div>
-          <div style={p.featureGrid}>
-            {[
-              { label: 'Hot Streak', color: colors.orange, desc: 'Back-to-back ELITE finishes tracked across every series. Who\'s on a run right now.' },
-              { label: 'Rival Record', color: colors.blue, desc: 'Head-to-head W/L when specific players are on opposite sides. Who owns who.' },
-              { label: 'Clutch Gene', color: '#f59e0b', desc: 'G5/G6/G7 performance only. Separate stats for when the series is on the line.' },
-              { label: 'Consistency Badge', color: '#06b6d4', desc: 'Standard deviation of your output. High variance means you\'re unreliable. Low = locked in.' },
-              { label: 'Pretender Flag', color: colors.gTier, desc: 'SOLID or lower on the winning team. Your ring doesn\'t mean you earned it.' },
-              { label: 'Series Predictions', color: colors.gold, desc: 'Before each series, pick the winner, MVP, and length. Track who calls it right.' },
-              { label: 'Per-Game MVP', color: colors.elite, desc: 'Auto-awarded after every game. Separate from series MVP — shows who peaked.' },
-              { label: 'Achievement Badges', color: colors.statGreen, desc: '50% Club, MVP Dynasty, Iron Man, G Tier Regular and more. Milestone tracking.' },
-            ].map(f => (
-              <div key={f.label} style={p.featureItem}>
-                <div style={{...p.featureDot, background: f.color}} />
-                <div>
-                  <div style={{...p.featureLabel, color: f.color}}>{f.label}</div>
-                  <div style={p.featureDesc}>{f.desc}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section style={{...p.section, background: '#050505'}}>
-        <div style={p.sectionInner}>
-          <div style={p.sectionHeader}>
-            <div style={p.sectionEye}>
-              <IconBall size={13} color={colors.orange} />
-              <span>HOW IT WORKS</span>
-            </div>
-            <h2 style={p.sectionH2}>From Screenshot to Rankings</h2>
-          </div>
-          <div style={p.stepsGrid}>
-            {[
-              { n: '01', title: 'Drop the Box Score', desc: 'Screenshot your 2K box score and drag it in. AI reads every stat automatically.' },
-              { n: '02', title: 'Verify & Save', desc: 'Confirm the parsed stats. Team totals must reconcile before anything saves.' },
-              { n: '03', title: 'Log Your Matchup', desc: 'Each player logs who they guarded. Rankings factor in defensive assignment difficulty.' },
-              { n: '04', title: 'Get the Rankings', desc: 'Impact-weighted tier list — ELITE down to G TIER — generated every series.' },
-            ].map(step => (
-              <div key={step.n} style={p.step}>
-                <div style={p.stepN}>{step.n}</div>
-                <h3 style={p.stepTitle}>{step.title}</h3>
-                <p style={p.stepDesc}>{step.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* COMMENT BOX */}
+      <CommentBox onPost={c => setComments(prev => [c, ...prev])} />
 
       {/* FOOTER */}
-      <footer style={p.footer}>
-        <div style={p.footerInner}>
-          <div style={p.footerLogo}>
-            <IconBall size={15} color={colors.orange} />
-            <span>NEXT UP SERIES</span>
+      <footer style={s.footer}>
+        <div style={s.footerTop}>
+          <div style={s.footerLogo}><IconBall size={14} color={OR} /><span>NEXT UP</span></div>
+          <div style={s.footerLinks}>
+            <Link to="/leagues" style={s.footerLink}>Series</Link>
+            <Link to="/history" style={s.footerLink}>History</Link>
+            {isEditor && <Link to="/import" style={s.footerLink}>Import</Link>}
           </div>
-          <span style={p.footerSub}>NBA 2K26 Pro-Am Stat Tracker</span>
         </div>
+        <div style={s.footerHow}>
+          <div style={s.howTitle}>HOW IT WORKS</div>
+          <div style={s.howSteps}>
+            {[
+              ['01', 'Drop your box score screenshot after each game'],
+              ['02', 'AI parses every stat — verify and save'],
+              ['03', 'Log who you guarded and which quarters'],
+              ['04', 'Rankings generate automatically each series'],
+            ].map(([n, t]) => (
+              <div key={n} style={s.howStep}>
+                <span style={s.howN}>{n}</span>
+                <span style={s.howT}>{t}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={s.footerSub}>NBA 2K27 Pro-Am Stat Tracker · Built for crews that take the game seriously</div>
       </footer>
     </div>
   )
 }
 
-function Countdown2K27() {
-  const RELEASE = new Date('2026-09-04T00:00:00')
-  const EARLY_ACCESS = new Date('2026-08-28T00:00:00')
-  const [now, setNow] = useState(new Date())
+// ─── Active Series Card ───────────────────────────────────────────────────────
 
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(t)
-  }, [])
-
-  const target = now < EARLY_ACCESS ? EARLY_ACCESS : RELEASE
-  const isEarlyAccess = now < EARLY_ACCESS
-  const diff = Math.max(0, target - now)
-  const days = Math.floor(diff / 86400000)
-  const hours = Math.floor((diff % 86400000) / 3600000)
-  const mins = Math.floor((diff % 3600000) / 60000)
-  const secs = Math.floor((diff % 60000) / 1000)
-
-  if (diff === 0) return null
-
+function ActiveSeriesCard({ series: ser }) {
+  const pct = ser.format ? Math.max(ser.our_wins, ser.opp_wins) / Math.ceil(ser.format / 2) * 100 : 0
   return (
-    <div style={cd.bar}>
-      <div style={cd.inner}>
-        <div style={cd.label}>
-          <span style={cd.badge}>2K27</span>
-          <span style={cd.text}>{isEarlyAccess ? 'Early Access' : 'Release'} drops Sep {isEarlyAccess ? '28' : '4'} — finish your 2K26 business</span>
-        </div>
-        <div style={cd.units}>
-          <Unit n={days} label="days" />
-          <div style={cd.sep}>:</div>
-          <Unit n={hours} label="hrs" />
-          <div style={cd.sep}>:</div>
-          <Unit n={mins} label="min" />
-          <div style={cd.sep}>:</div>
-          <Unit n={secs} label="sec" />
-        </div>
+    <Link to={`/series/${ser.id}`} style={s.activeCard}>
+      <div style={s.activeName}>{ser.name}</div>
+      <div style={s.activeMatchup}>{ser.our_team_name} <span style={{color:'#333'}}>vs</span> {ser.opp_team_name}</div>
+      <div style={s.activeScore}>
+        <span style={s.activeNum}>{ser.our_wins}</span>
+        <span style={s.activeDash}>–</span>
+        <span style={s.activeNum}>{ser.opp_wins}</span>
       </div>
-    </div>
+      <div style={s.activeBarWrap}>
+        <div style={{...s.activeBar, width: `${pct}%`}} />
+      </div>
+      <div style={s.activeFormat}>BO{ser.format} · Game {(ser.our_wins || 0) + (ser.opp_wins || 0) + 1} next</div>
+    </Link>
   )
 }
 
-function Unit({ n, label }) {
-  return (
-    <div style={cd.unit}>
-      <span style={cd.unitN}>{String(n).padStart(2, '0')}</span>
-      <span style={cd.unitL}>{label}</span>
-    </div>
-  )
-}
-
-const cd = {
-  bar: { background: '#0a0500', borderBottom: '1px solid #1a1000' },
-  inner: { maxWidth: 1200, margin: '0 auto', padding: '0.6rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' },
-  label: { display: 'flex', alignItems: 'center', gap: '0.6rem' },
-  badge: { background: colors.orange, color: '#fff', fontSize: '0.65rem', fontWeight: 900, letterSpacing: '0.1em', padding: '0.15rem 0.5rem', borderRadius: 3 },
-  text: { color: '#555', fontSize: '0.78rem' },
-  units: { display: 'flex', alignItems: 'center', gap: '0.25rem' },
-  unit: { display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 36 },
-  unitN: { color: colors.orange, fontWeight: 900, fontSize: '1.1rem', lineHeight: 1, fontVariantNumeric: 'tabular-nums' },
-  unitL: { color: '#333', fontSize: '0.55rem', textTransform: 'uppercase', letterSpacing: '0.08em' },
-  sep: { color: '#333', fontWeight: 700, fontSize: '1rem', marginBottom: 8 },
-}
-
-const RAINBOW = 'linear-gradient(90deg,#f87171,#fb923c,#facc15,#4ade80,#60a5fa,#a78bfa,#f472b6)'
+// ─── All-Time Leaderboard ─────────────────────────────────────────────────────
 
 const LB_STATS = [
-  { key: 'career_ppg', label: 'PPG', color: colors.orange },
+  { key: 'career_ppg', label: 'PPG', color: OR },
   { key: 'career_fg_pct', label: 'FG%', color: colors.statGreen, suffix: '%' },
   { key: 'career_3p_pct', label: '3P%', color: colors.gold, suffix: '%' },
-  { key: 'career_apg', label: 'APG', color: colors.blue },
-  { key: 'career_rpg', label: 'RPG', color: '#8b5cf6' },
+  { key: 'career_apg', label: 'APG', color: '#60a5fa' },
+  { key: 'career_rpg', label: 'RPG', color: '#a78bfa' },
   { key: 'career_spg', label: 'SPG', color: '#06b6d4' },
   { key: 'elite_count', label: 'ELITE', color: colors.elite },
   { key: 'mvp_count', label: 'MVPs', color: colors.gold },
@@ -547,92 +303,63 @@ const LB_STATS = [
 function AllTimeLeaderboard() {
   const [careers, setCareers] = useState([])
   const [tab, setTab] = useState('career_ppg')
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.from('career_player_totals').select('*').then(({ data }) => {
-      setCareers(data || [])
-      setLoading(false)
-    })
-    // Refresh every 2 mins
-    const t = setInterval(() => {
-      supabase.from('career_player_totals').select('*').then(({ data }) => { if (data) setCareers(data) })
-    }, 120000)
-    return () => clearInterval(t)
+    supabase.from('career_player_totals').select('*').then(({ data }) => setCareers(data || []))
   }, [])
 
   const stat = LB_STATS.find(s => s.key === tab) || LB_STATS[0]
-  const minGP = ['career_fg_pct', 'career_3p_pct'].includes(tab) ? 0 : 3
   const ranked = [...careers]
-    .filter(p => p.total_gp >= minGP && p[tab] != null && Number(p[tab]) > 0)
+    .filter(p => p.total_gp >= (['career_fg_pct','career_3p_pct'].includes(tab) ? 0 : 3) && Number(p[tab]) > 0)
     .sort((a, b) => Number(b[tab]) - Number(a[tab]))
     .slice(0, 10)
 
   return (
     <div style={lb.wrap}>
       <div style={lb.header}>
-        <div style={lb.eye}><IconTrophy size={11} color={colors.orange} /><span>ALL-TIME LEADERBOARD</span></div>
-        <Link to="/history" style={lb.histLink}>Full history →</Link>
+        <div style={lb.title}><IconTrophy size={12} color={OR} /><span>ALL-TIME LEADERBOARD</span></div>
+        <Link to="/history" style={lb.more}>Full history →</Link>
       </div>
       <div style={lb.tabs}>
-        {LB_STATS.map(s => {
-          const isActive = tab === s.key
-          const isRainbow = s.rainbow && isActive
+        {LB_STATS.map(st => {
+          const active = tab === st.key
+          const isRainbow = st.rainbow && active
           return (
-            <button key={s.key} onClick={() => setTab(s.key)}
-              style={{
-                ...lb.tab,
-                borderBottomColor: isRainbow ? 'transparent' : isActive ? s.color : 'transparent',
-                color: isActive ? (isRainbow ? 'transparent' : s.color) : '#444',
-                ...(isRainbow ? {
-                  background: RAINBOW,
-                  WebkitBackgroundClip: 'text',
-                  backgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  borderBottom: '2px solid',
-                  borderImageSlice: 1,
-                  borderImageSource: RAINBOW,
-                } : {}),
-              }}>
-              {s.label}
+            <button key={st.key} onClick={() => setTab(st.key)} style={{
+              ...lb.tab,
+              color: active ? (isRainbow ? 'transparent' : st.color) : '#333',
+              borderBottomColor: isRainbow ? 'transparent' : active ? st.color : 'transparent',
+              ...(isRainbow ? { background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', borderBottom: '2px solid', borderImageSlice: 1, borderImageSource: RAINBOW } : {}),
+            }}>
+              {st.label}
             </button>
           )
         })}
       </div>
-      {loading ? (
-        <div style={lb.empty}>Loading...</div>
-      ) : ranked.length === 0 ? (
-        <div style={lb.empty}>No data yet — stats populate as series are logged.</div>
+      {ranked.length === 0 ? (
+        <div style={lb.empty}>Stats populate as series are logged.</div>
       ) : (
         <div style={lb.list}>
           {ranked.map((p, i) => {
             const val = Number(p[tab])
             const max = Number(ranked[0][tab])
-            const barPct = max > 0 ? (val / max) * 100 : 0
+            const pct = max > 0 ? (val / max) * 100 : 0
             const name = p.display_name || p.gamertag
+            const rankColor = i === 0 ? colors.gold : i === 1 ? '#aaa' : i === 2 ? '#cd7f32' : '#2a2a2a'
             return (
               <div key={p.player_id} style={lb.row}>
-                <div style={{...lb.rank, color: i === 0 ? colors.gold : i === 1 ? '#aaa' : i === 2 ? '#cd7f32' : '#333'}}>
-                  {i + 1}
-                </div>
+                <span style={{...lb.rank, color: rankColor}}>{i + 1}</span>
                 <div style={lb.info}>
                   <div style={lb.nameRow}>
                     <span style={lb.name}>{name}</span>
-                    <span style={{
-                      ...lb.val,
-                      ...(stat.rainbow ? {
-                        background: RAINBOW,
-                        WebkitBackgroundClip: 'text',
-                        backgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        color: 'transparent',
-                      } : { color: stat.color }),
-                    }}>
+                    <span style={stat.rainbow ? {
+                      ...lb.val, background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                    } : {...lb.val, color: stat.color}}>
                       {val % 1 === 0 ? val : val.toFixed(1)}{stat.suffix || ''}
                     </span>
                   </div>
-                  <div style={lb.barTrack}>
-                    <div style={{...lb.barFill, width: `${barPct}%`, background: stat.rainbow ? RAINBOW : stat.color}} />
+                  <div style={lb.track}>
+                    <div style={{...lb.fill, width: `${pct}%`, background: stat.rainbow ? RAINBOW : stat.color}} />
                   </div>
                 </div>
               </div>
@@ -644,157 +371,290 @@ function AllTimeLeaderboard() {
   )
 }
 
-const lb = {
-  wrap: { background: 'rgba(5,5,5,0.9)', border: '1px solid #1a1a1a', borderRadius: 12, padding: '1.25rem', backdropFilter: 'blur(10px)' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' },
-  eye: { display: 'flex', alignItems: 'center', gap: 5, color: colors.orange, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' },
-  histLink: { color: '#333', fontSize: '0.72rem', textDecoration: 'none' },
-  tabs: { display: 'flex', flexWrap: 'wrap', gap: '0.15rem', marginBottom: '1rem', borderBottom: '1px solid #111', paddingBottom: '0.5rem' },
-  tab: { background: 'transparent', border: 'none', borderBottom: '2px solid transparent', color: '#444', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', padding: '0.25rem 0.4rem', cursor: 'pointer', fontFamily: 'inherit' },
-  list: { display: 'flex', flexDirection: 'column', gap: '0.6rem' },
-  row: { display: 'flex', alignItems: 'center', gap: '0.6rem' },
-  rank: { fontSize: '0.75rem', fontWeight: 900, minWidth: 16, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
-  info: { flex: 1 },
-  nameRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.2rem' },
-  name: { color: '#ccc', fontSize: '0.82rem', fontWeight: 600 },
-  val: { fontWeight: 800, fontSize: '0.88rem', fontVariantNumeric: 'tabular-nums' },
-  barTrack: { height: 3, background: '#111', borderRadius: 2, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 2, transition: 'width 0.4s ease' },
-  empty: { color: '#333', fontSize: '0.8rem', textAlign: 'center', padding: '2rem 0', fontStyle: 'italic' },
-}
+// ─── Comment Ticker ───────────────────────────────────────────────────────────
 
-function CompetitiveEmpty({ label }) {
-  return (
-    <div style={{ padding: '1.5rem', background: '#080808', border: '1px solid #111', borderRadius: 8, color: '#333', fontSize: '0.8rem', fontStyle: 'italic', textAlign: 'center' }}>
-      {label}
-    </div>
-  )
-}
+function CommentTicker({ comments }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let frame
+    function scroll() {
+      if (!el) return
+      el.scrollLeft += 0.5
+      if (el.scrollLeft >= el.scrollWidth / 2) el.scrollLeft = 0
+      frame = requestAnimationFrame(scroll)
+    }
+    frame = requestAnimationFrame(scroll)
+    return () => cancelAnimationFrame(frame)
+  }, [comments])
 
-function StatCard({ icon, label, accent, player, stat, sub }) {
-  if (!player) return <StatCardSkeleton label={label} />
-  const name = player.display_name || player.gamertag
+  const doubled = [...comments, ...comments]
+
   return (
-    <Link to={`/leagues`} style={{...c.card, '--accent': accent}}>
-      <div style={{...c.cardTop, borderLeftColor: accent}}>
-        <div style={c.cardIcon}>{icon}</div>
-        <div style={{...c.cardLabel, color: accent}}>{label}</div>
+    <div style={tk.wrap}>
+      <div style={tk.tag}>LOBBY TALK</div>
+      <div ref={ref} style={tk.track}>
+        {doubled.map((c, i) => (
+          <div key={i} style={tk.chip}>
+            <span style={tk.who}>{c.gamertag}</span>
+            <span style={tk.sep}>·</span>
+            <span style={tk.text}>{c.content}</span>
+          </div>
+        ))}
       </div>
-      <div style={c.cardPlayer}>{name}</div>
-      <div style={{...c.cardStat, color: accent}}>{stat}</div>
-      <div style={c.cardSub}>{sub}</div>
-    </Link>
-  )
-}
-
-function StatCardSkeleton({ label } = {}) {
-  return (
-    <div style={c.skeleton}>
-      <div style={c.skeletonBar} />
-      <div style={{...c.skeletonLine, width: '60%'}} />
-      <div style={{...c.skeletonLine, width: '40%', height: 24, marginTop: 8}} />
     </div>
   )
 }
+
+// ─── Comment Box ─────────────────────────────────────────────────────────────
+
+function CommentBox({ onPost }) {
+  const [gtag, setGtag] = useState('')
+  const [text, setText] = useState('')
+  const [posting, setPosting] = useState(false)
+  const [done, setDone] = useState(false)
+  const [players, setPlayers] = useState([])
+  const [showDrop, setShowDrop] = useState(false)
+
+  useEffect(() => {
+    supabase.from('players').select('gamertag,display_name').order('gamertag').then(({ data }) => setPlayers(data || []))
+  }, [])
+
+  const filtered = gtag.length >= 1
+    ? players.filter(p => p.gamertag.toLowerCase().includes(gtag.toLowerCase())).slice(0, 5)
+    : []
+
+  async function post() {
+    if (!gtag.trim() || !text.trim()) return
+    setPosting(true)
+    const { data, error } = await supabase.from('series_comments').insert({
+      gamertag: gtag.trim(),
+      content: text.trim().slice(0, 200),
+    }).select().single()
+    setPosting(false)
+    if (!error && data) {
+      onPost(data)
+      setText('')
+      setDone(true)
+      setTimeout(() => setDone(false), 3000)
+    }
+  }
+
+  return (
+    <section style={{...s.section, background: 'linear-gradient(135deg,#06000f,#0a0008)'}}>
+      <div style={s.sectionHead}>
+        <span style={s.eyebrow}>💬 LOBBY TALK</span>
+        <h2 style={s.h2}>Drop a Comment</h2>
+      </div>
+      <div style={cb.wrap}>
+        <div style={{position:'relative'}}>
+          <input
+            style={cb.input}
+            placeholder="Your gamertag..."
+            value={gtag}
+            onChange={e => { setGtag(e.target.value); setShowDrop(true) }}
+            onBlur={() => setTimeout(() => setShowDrop(false), 150)}
+            autoComplete="off"
+          />
+          {showDrop && filtered.length > 0 && (
+            <div style={cb.drop}>
+              {filtered.map(p => (
+                <div key={p.gamertag} style={cb.dropItem} onMouseDown={() => { setGtag(p.gamertag); setShowDrop(false) }}>
+                  {p.gamertag}
+                  {p.display_name && p.display_name !== p.gamertag && <span style={{color:'#444', marginLeft:6}}>({p.display_name})</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <textarea
+          style={cb.textarea}
+          placeholder="Say something about last night's series... (200 chars max)"
+          value={text}
+          onChange={e => setText(e.target.value.slice(0, 200))}
+          rows={2}
+        />
+        <div style={cb.footer}>
+          <span style={cb.count}>{text.length}/200</span>
+          {done ? (
+            <span style={{color: colors.statGreen, fontSize: '0.82rem', fontWeight: 700}}>Posted ✓</span>
+          ) : (
+            <button style={cb.btn} onClick={post} disabled={posting || !gtag.trim() || !text.trim()}>
+              {posting ? 'Posting...' : 'Post'}
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Countdown ───────────────────────────────────────────────────────────────
+
+function Countdown() {
+  const TARGET = new Date('2026-09-04T00:00:00')
+  const [now, setNow] = useState(new Date())
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t) }, [])
+  const diff = Math.max(0, TARGET - now)
+  if (diff === 0) return null
+  const d = Math.floor(diff / 86400000)
+  const h = Math.floor((diff % 86400000) / 3600000)
+  const m = Math.floor((diff % 3600000) / 60000)
+  const sec = Math.floor((diff % 60000) / 1000)
+  return (
+    <div style={cd.bar}>
+      <span style={cd.badge}>2K27</span>
+      <span style={cd.label}>drops Sep 4 — finish your 2K26 business</span>
+      <div style={cd.clock}>
+        {[[d,'d'],[h,'h'],[m,'m'],[sec,'s']].map(([n,l]) => (
+          <span key={l} style={cd.unit}><b style={cd.n}>{String(n).padStart(2,'0')}</b><span style={cd.l}>{l}</span></span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function maxBy(arr, key) {
-  if (!arr || arr.length === 0) return null
-  return arr.reduce((best, cur) => (Number(cur[key] || 0) > Number(best[key] || 0) ? cur : best), arr[0])
+  if (!arr?.length) return null
+  return arr.reduce((b, c) => Number(c[key]||0) > Number(b[key]||0) ? c : b, arr[0])
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────
+function computeLeaders(careers) {
+  if (!careers?.length) return null
+  const withGP = careers.filter(p => p.total_gp >= 3)
+  const withFG = careers.filter(p => p.career_fga >= 10)
+  const withThree = careers.filter(p => p.career_tpa >= 5)
+  return {
+    scorer: maxBy(withGP, 'career_ppg'),
+    shooter: maxBy(withFG, 'career_fg_pct'),
+    threePoint: maxBy(withThree, 'career_3p_pct'),
+    playmaker: maxBy(withGP, 'career_apg'),
+    rebounder: maxBy(withGP, 'career_rpg'),
+    lockdown: maxBy(withGP, 'career_spg'),
+    mvp: maxBy(careers, 'mvp_count'),
+    elite: maxBy(careers, 'elite_count'),
+    gTier: maxBy(careers, 'g_tier_count'),
+    worstShooter: withFG.length ? withFG.reduce((w,c) => Number(c.career_fg_pct) < Number(w.career_fg_pct) ? c : w, withFG[0]) : null,
+    tov: maxBy(withGP, 'career_tovpg'),
+  }
+}
 
-const p = {
-  page: { minHeight: '100vh', background: '#000', color: '#fff', fontFamily: "'Segoe UI', system-ui, sans-serif" },
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
-  nav: { position: 'sticky', top: 0, zIndex: 200, background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(16px)', borderBottom: '1px solid #111' },
-  navInner: { maxWidth: 1200, margin: '0 auto', padding: '0 1.5rem', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  logo: { display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', fontWeight: 900, fontSize: '0.9rem', letterSpacing: '0.16em', color: '#fff' },
-  navLinks: { display: 'flex', alignItems: 'center', gap: '0.25rem' },
-  navLink: { color: '#666', textDecoration: 'none', fontSize: '0.85rem', padding: '0.4rem 0.75rem', borderRadius: 6 },
-  navCta: { background: colors.orange, color: '#fff', textDecoration: 'none', fontSize: '0.82rem', fontWeight: 700, padding: '0.45rem 1rem', borderRadius: 6, marginLeft: '0.5rem' },
+const s = {
+  page: { minHeight: '100vh', background: '#000', color: '#fff', fontFamily: "'Segoe UI', system-ui, sans-serif", paddingBottom: 80 },
 
-  hero: { position: 'relative', overflow: 'hidden', borderBottom: '1px solid #111' },
-  heroBg: {
-    position: 'absolute', inset: 0, pointerEvents: 'none',
-    background: 'radial-gradient(ellipse 80% 60% at 20% 50%, rgba(244,112,27,0.08) 0%, transparent 70%), radial-gradient(ellipse 50% 80% at 80% 20%, rgba(29,110,245,0.06) 0%, transparent 70%)',
-  },
-  heroInner: { position: 'relative', maxWidth: 1200, margin: '0 auto', padding: '5rem 1.5rem 4rem', display: 'grid', gridTemplateColumns: '1fr minmax(0, 380px)', gap: '3rem', alignItems: 'center' },
-  heroLeft: {},
-  heroRight: { alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center' },
-  heroEyebrow: { display: 'flex', alignItems: 'center', gap: 6, color: colors.orange, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '1.25rem' },
-  heroH1: { fontSize: 'clamp(2rem, 4vw, 3.2rem)', fontWeight: 900, lineHeight: 1.06, margin: '0 0 1.25rem', letterSpacing: '-0.025em', color: '#fff' },
-  heroOrange: { color: colors.orange },
-  heroP: { color: '#777', fontSize: 'clamp(0.9rem, 1.5vw, 1rem)', lineHeight: 1.7, maxWidth: 480, margin: '0 0 2rem' },
-  heroButtons: { display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' },
-  btnOrange: { display: 'inline-flex', alignItems: 'center', gap: 6, background: colors.orange, color: '#fff', textDecoration: 'none', padding: '0.75rem 1.5rem', borderRadius: 8, fontSize: '0.95rem', fontWeight: 700 },
-  btnOutline: { display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', color: '#aaa', textDecoration: 'none', padding: '0.75rem 1.5rem', borderRadius: 8, fontSize: '0.95rem', fontWeight: 600, border: '1px solid #222' },
+  nav: { position: 'sticky', top: 0, zIndex: 200, background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(16px)', borderBottom: `1px solid rgba(168,85,247,0.2)`, boxShadow: `0 1px 24px rgba(168,85,247,0.06)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem', height: 52 },
+  logo: { display: 'flex', alignItems: 'center', gap: 7, textDecoration: 'none', fontWeight: 900, fontSize: '1rem', letterSpacing: '0.22em', color: '#fff', textShadow: `0 0 20px ${NEON_P_GLOW}` },
+  navRight: { display: 'flex', alignItems: 'center', gap: '0.25rem' },
+  navLink: { color: '#555', textDecoration: 'none', fontSize: '0.82rem', padding: '0.4rem 0.6rem' },
+  navCta: { background: VICE, color: '#fff', textDecoration: 'none', fontSize: '0.78rem', fontWeight: 800, padding: '0.4rem 0.9rem', borderRadius: 6, marginLeft: '0.25rem', letterSpacing: '0.04em' },
 
-  section: { background: '#050505', borderBottom: '1px solid #0f0f0f' },
-  sectionInner: { maxWidth: 1200, margin: '0 auto', padding: '4rem 1.5rem' },
-  sectionHeader: { marginBottom: '2.5rem' },
-  sectionEye: { display: 'flex', alignItems: 'center', gap: 6, color: colors.orange, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '0.6rem' },
-  sectionH2: { fontSize: 'clamp(1.4rem, 3vw, 2rem)', fontWeight: 800, margin: 0, color: '#fff', letterSpacing: '-0.01em' },
-  sectionDesc: { color: '#444', fontSize: '0.85rem', lineHeight: 1.65, margin: '0.75rem 0 0' },
+  activeSection: { padding: '1rem 1rem 0' },
+  sectionLabel: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: '0.75rem' },
+  pulse: { width: 7, height: 7, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 8px #ef4444', animation: 'pulse 1.5s infinite' },
 
-  streakGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' },
-  streakCard: { background: '#080808', border: '1px solid #111', borderRadius: 10, padding: '1.25rem' },
-  streakRank: { fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '0.4rem' },
-  streakName: { fontWeight: 800, fontSize: '1rem', color: '#fff', marginBottom: '0.5rem' },
-  streakBadge: { display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: '0.3rem' },
-  streakMax: { color: '#333', fontSize: '0.72rem', marginTop: '0.4rem' },
+  activeGrid: { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
+  activeCard: { display: 'block', background: 'linear-gradient(135deg,#060010,#0a0018)', border: `1px solid rgba(168,85,247,0.25)`, boxShadow: `0 0 24px rgba(168,85,247,0.08)`, borderRadius: 12, padding: '1rem 1.25rem', textDecoration: 'none', color: 'inherit' },
+  activeName: { fontWeight: 900, fontSize: '0.95rem', color: '#fff', marginBottom: '0.2rem', letterSpacing: '0.04em' },
+  activeMatchup: { color: '#555', fontSize: '0.75rem', marginBottom: '0.75rem' },
+  activeScore: { display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' },
+  activeNum: { fontWeight: 900, fontSize: '2.4rem', color: '#fff', lineHeight: 1, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 30px ${NEON_P_GLOW}` },
+  activeDash: { color: '#2a2a2a', fontWeight: 900, fontSize: '1.5rem' },
+  activeBarWrap: { height: 3, background: '#1a1a1a', borderRadius: 2, marginBottom: '0.5rem', overflow: 'hidden' },
+  activeBar: { height: '100%', background: VICE, borderRadius: 2, transition: 'width 0.6s ease', boxShadow: `0 0 8px ${NEON_P}` },
+  activeFormat: { color: '#444', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' },
 
-  twoCol: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '3rem' },
-  twoColHalf: {},
-  listCard: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
-  listRow: { display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.75rem', background: '#080808', border: '1px solid #111', borderRadius: 6 },
-  listName: { flex: 1, fontWeight: 700, fontSize: '0.88rem', color: '#fff' },
+  section: { padding: '1.5rem 1rem', borderBottom: `1px solid rgba(168,85,247,0.06)`, background: '#000' },
+  sectionHead: { marginBottom: '1.25rem' },
+  eyebrow: { display: 'inline-flex', alignItems: 'center', gap: 5, color: NEON_P, fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '0.4rem' },
+  h2: { fontSize: '1.3rem', fontWeight: 900, margin: 0, letterSpacing: '0.02em', textTransform: 'uppercase' },
 
-  featureGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' },
-  featureItem: { display: 'flex', gap: '0.85rem', alignItems: 'flex-start', padding: '1rem', background: '#050505', border: '1px solid #111', borderRadius: 8 },
-  featureDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 5 },
-  featureLabel: { fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.3rem' },
-  featureDesc: { color: '#444', fontSize: '0.8rem', lineHeight: 1.6 },
+  badgeRow: { display: 'flex', flexDirection: 'column', gap: '1.25rem' },
+  badgeGroup: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+  badgeLabel: { display: 'flex', alignItems: 'center', gap: 5, color: OR, fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: '0.25rem' },
+  badgeCard: { display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'linear-gradient(135deg,#080808,#0c0010)', border: `1px solid rgba(168,85,247,0.15)`, borderRadius: 8, padding: '0.6rem 0.9rem' },
+  badgeName: { flex: 1, fontWeight: 700, fontSize: '0.9rem', color: '#fff' },
 
-  statGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 1, background: '#111', border: '1px solid #111', borderRadius: 12, overflow: 'hidden' },
-  loadingGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 1, background: '#111', border: '1px solid #111', borderRadius: 12, overflow: 'hidden' },
-  emptyStats: { textAlign: 'center', padding: '4rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' },
-  emptyText: { color: '#444', fontSize: '0.9rem', margin: 0 },
+  leadersGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1, background: 'rgba(168,85,247,0.08)', border: `1px solid rgba(168,85,247,0.12)`, borderRadius: 10, overflow: 'hidden' },
+  leaderCard: { background: '#000', padding: '0.9rem 1rem', border: '0 solid transparent' },
+  leaderLabel: { fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '0.3rem' },
+  leaderStat: { fontSize: '1.5rem', fontWeight: 900, lineHeight: 1, marginBottom: '0.2rem', letterSpacing: '-0.02em' },
+  leaderName: { color: '#555', fontSize: '0.75rem', fontWeight: 600 },
 
-  recentGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' },
-  recentCard: { display: 'flex', background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 10, overflow: 'hidden', textDecoration: 'none', color: 'inherit' },
-  recentBar: { width: 4, flexShrink: 0 },
-  recentContent: { padding: '1rem 1.25rem', flex: 1 },
-  recentName: { fontWeight: 700, fontSize: '0.95rem', color: '#fff', marginBottom: '0.2rem' },
-  recentMatchup: { color: '#444', fontSize: '0.75rem', marginBottom: '0.5rem' },
-  recentStory: { color: '#666', fontSize: '0.8rem', lineHeight: 1.5, marginBottom: '0.75rem', fontStyle: 'italic' },
+  recentGrid: { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
+  recentCard: { display: 'flex', background: 'linear-gradient(135deg,#070010,#0a0a0a)', border: `1px solid rgba(168,85,247,0.12)`, borderRadius: 10, overflow: 'hidden', textDecoration: 'none', color: 'inherit' },
+  recentAccent: { width: 4, flexShrink: 0 },
+  recentBody: { padding: '0.9rem 1rem', flex: 1 },
+  recentName: { fontWeight: 800, fontSize: '0.9rem', color: '#fff', marginBottom: '0.15rem', letterSpacing: '0.02em' },
+  recentTeams: { color: '#333', fontSize: '0.72rem', marginBottom: '0.5rem' },
+  recentStory: { color: '#555', fontSize: '0.78rem', lineHeight: 1.5, marginBottom: '0.5rem', fontStyle: 'italic' },
   recentBottom: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  recentScore: { fontWeight: 800, fontSize: '1.2rem', color: '#fff' },
-  recentResult: { fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.08em' },
-  allLink: { marginTop: '1.5rem', textAlign: 'right' },
-  allLinkA: { display: 'inline-flex', alignItems: 'center', gap: 5, color: colors.orange, textDecoration: 'none', fontSize: '0.85rem', fontWeight: 600 },
+  recentScore: { fontWeight: 900, fontSize: '1.2rem', color: '#fff', fontVariantNumeric: 'tabular-nums' },
 
-  stepsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '2rem' },
-  step: {},
-  stepN: { fontSize: '2.5rem', fontWeight: 900, color: '#1a1a1a', lineHeight: 1, marginBottom: '0.75rem', fontVariantNumeric: 'tabular-nums' },
-  stepTitle: { fontWeight: 800, fontSize: '1rem', color: '#fff', margin: '0 0 0.5rem' },
-  stepDesc: { color: '#555', fontSize: '0.85rem', lineHeight: 1.65, margin: 0 },
-
-  footer: { borderTop: '1px solid #0f0f0f', background: '#000' },
-  footerInner: { maxWidth: 1200, margin: '0 auto', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' },
-  footerLogo: { display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: '0.75rem', letterSpacing: '0.15em', color: '#333' },
-  footerSub: { color: '#2a2a2a', fontSize: '0.75rem' },
+  footer: { background: '#050005', borderTop: `1px solid rgba(168,85,247,0.12)`, padding: '2rem 1rem 1.5rem' },
+  footerTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' },
+  footerLogo: { display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900, fontSize: '0.85rem', letterSpacing: '0.22em', color: '#333' },
+  footerLinks: { display: 'flex', gap: '1rem' },
+  footerLink: { color: '#333', textDecoration: 'none', fontSize: '0.78rem' },
+  footerHow: { marginBottom: '1.5rem' },
+  howTitle: { color: 'rgba(168,85,247,0.3)', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '0.75rem' },
+  howSteps: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+  howStep: { display: 'flex', gap: '0.75rem', alignItems: 'flex-start' },
+  howN: { color: NEON_P, fontSize: '0.65rem', fontWeight: 900, fontVariantNumeric: 'tabular-nums', minWidth: 18 },
+  howT: { color: '#2a2a2a', fontSize: '0.78rem', lineHeight: 1.5 },
+  footerSub: { color: '#1a1a1a', fontSize: '0.68rem' },
 }
 
-const c = {
-  card: { display: 'block', background: '#000', padding: '1.25rem 1.5rem', textDecoration: 'none', color: 'inherit', borderLeft: '3px solid transparent', transition: 'background 0.15s' },
-  cardTop: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.75rem', borderLeft: '0px' },
-  cardIcon: { opacity: 0.9 },
-  cardLabel: { fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' },
-  cardPlayer: { fontWeight: 800, fontSize: '1.05rem', color: '#fff', marginBottom: '0.3rem' },
-  cardStat: { fontWeight: 900, fontSize: '1.5rem', lineHeight: 1, marginBottom: '0.3rem', letterSpacing: '-0.02em' },
-  cardSub: { color: '#444', fontSize: '0.75rem' },
-  skeleton: { background: '#000', padding: '1.25rem 1.5rem', borderLeft: '3px solid #111' },
-  skeletonBar: { height: 12, background: '#111', borderRadius: 4, marginBottom: 12, width: '45%' },
-  skeletonLine: { height: 16, background: '#0d0d0d', borderRadius: 4, marginBottom: 6 },
+const tk = {
+  wrap: { display: 'flex', alignItems: 'center', background: 'linear-gradient(90deg,#0a0018,#08000f)', borderBottom: `1px solid rgba(168,85,247,0.2)`, overflow: 'hidden', height: 36 },
+  tag: { color: NEON_P, fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.14em', padding: '0 0.75rem', whiteSpace: 'nowrap', borderRight: `1px solid rgba(168,85,247,0.2)`, height: '100%', display: 'flex', alignItems: 'center', flexShrink: 0, textShadow: `0 0 12px ${NEON_P}` },
+  track: { display: 'flex', alignItems: 'center', gap: '2rem', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1, userSelect: 'none' },
+  chip: { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, padding: '0 0.5rem' },
+  who: { color: NEON_P, fontSize: '0.72rem', fontWeight: 700 },
+  sep: { color: '#2a2a2a', fontSize: '0.65rem' },
+  text: { color: '#555', fontSize: '0.72rem' },
+}
+
+const lb = {
+  wrap: { background: 'linear-gradient(135deg,#070010,#080808)', border: `1px solid rgba(168,85,247,0.15)`, boxShadow: `0 0 32px rgba(168,85,247,0.05)`, borderRadius: 12, overflow: 'hidden' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.9rem 1rem 0.5rem' },
+  title: { display: 'flex', alignItems: 'center', gap: 5, color: NEON_P, fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' },
+  more: { color: '#444', fontSize: '0.7rem', textDecoration: 'none' },
+  tabs: { display: 'flex', padding: '0 0.5rem', borderBottom: `1px solid rgba(168,85,247,0.1)`, overflowX: 'auto', scrollbarWidth: 'none' },
+  tab: { background: 'none', border: 'none', borderBottom: '2px solid transparent', color: '#333', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', padding: '0.4rem 0.5rem', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
+  list: { padding: '0.5rem 0.75rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+  row: { display: 'flex', alignItems: 'center', gap: '0.5rem' },
+  rank: { fontSize: '0.7rem', fontWeight: 900, minWidth: 14, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
+  info: { flex: 1 },
+  nameRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.15rem' },
+  name: { color: '#ccc', fontSize: '0.82rem', fontWeight: 600 },
+  val: { fontWeight: 800, fontSize: '0.85rem', fontVariantNumeric: 'tabular-nums' },
+  track: { height: 2, background: 'rgba(168,85,247,0.08)', borderRadius: 1, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: 1, transition: 'width 0.4s' },
+  empty: { color: '#2a2a2a', fontSize: '0.78rem', textAlign: 'center', padding: '2rem', fontStyle: 'italic' },
+}
+
+const cb = {
+  wrap: { display: 'flex', flexDirection: 'column', gap: '0.6rem' },
+  input: { background: '#0a000f', border: `1px solid rgba(168,85,247,0.2)`, borderRadius: 8, color: '#fff', padding: '0.65rem 0.9rem', fontSize: '0.9rem', outline: 'none', width: '100%', boxSizing: 'border-box' },
+  drop: { position: 'absolute', top: '100%', left: 0, right: 0, background: '#0e0018', border: `1px solid rgba(168,85,247,0.2)`, borderRadius: 6, zIndex: 50, overflow: 'hidden' },
+  dropItem: { padding: '0.5rem 0.8rem', cursor: 'pointer', fontSize: '0.85rem', color: '#ccc', borderBottom: `1px solid rgba(168,85,247,0.08)` },
+  textarea: { background: '#0a000f', border: `1px solid rgba(168,85,247,0.15)`, borderRadius: 8, color: '#ccc', padding: '0.65rem 0.9rem', fontSize: '0.85rem', outline: 'none', width: '100%', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 },
+  footer: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  count: { color: '#333', fontSize: '0.72rem' },
+  btn: { background: VICE, color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1.25rem', fontSize: '0.85rem', fontWeight: 800, cursor: 'pointer', letterSpacing: '0.04em' },
+}
+
+const cd = {
+  bar: { background: 'linear-gradient(90deg,#06000f,#0a000a)', borderBottom: `1px solid rgba(168,85,247,0.2)`, display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 1rem', flexWrap: 'wrap' },
+  badge: { background: VICE, color: '#fff', fontSize: '0.6rem', fontWeight: 900, letterSpacing: '0.1em', padding: '0.15rem 0.5rem', borderRadius: 3 },
+  label: { color: '#444', fontSize: '0.72rem', flex: 1 },
+  clock: { display: 'flex', gap: '0.4rem', alignItems: 'center' },
+  unit: { display: 'flex', alignItems: 'baseline', gap: 1 },
+  n: { color: NEON_P, fontWeight: 900, fontSize: '0.9rem', fontVariantNumeric: 'tabular-nums', textShadow: `0 0 10px ${NEON_P}` },
+  l: { color: '#333', fontSize: '0.55rem' },
 }
