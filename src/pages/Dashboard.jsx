@@ -75,12 +75,16 @@ function SeriesCard({ s }) {
   const teamA = s.our_team_name || 'Team A'
   const teamB = s.opp_team_name || 'Team B'
   const record = `${s.our_wins ?? 0}–${s.opp_wins ?? 0}`
+  const dateStr = s.started_at
+    ? new Date(s.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null
   return (
     <Link to={`/series/${s.id}`} style={c.card}>
       <div style={c.top}>
         <div>
           <div style={c.name}>{s.name}</div>
           <div style={c.teams}>{teamA} <span style={c.vs}>vs</span> {teamB}</div>
+          {dateStr && <div style={c.date}>{dateStr}</div>}
         </div>
         <div style={{
           ...c.badge,
@@ -123,6 +127,7 @@ const c = {
   top: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.6rem', gap: '0.75rem' },
   name: { fontWeight: 700, fontSize: '0.95rem', color: '#fff', marginBottom: '0.2rem' },
   teams: { color: '#444', fontSize: '0.78rem' },
+  date: { color: '#333', fontSize: '0.72rem', marginTop: '0.15rem' },
   vs: { color: '#2a2a2a', margin: '0 0.3rem' },
   badge: { fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: 4, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' },
   story: { color: '#555', fontSize: '0.8rem', lineHeight: 1.5, margin: '0 0 0.75rem', fontStyle: 'italic' },

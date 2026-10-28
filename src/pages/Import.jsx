@@ -27,8 +27,8 @@ Return ONLY valid JSON — no markdown fences, no commentary. Match this EXACT s
   "series": [
     {
       "name": "Series Name · Context",
-      "our_team_name": "Team name",
-      "opp_team_name": "Opponent team name",
+      "our_team_name": "Team A",
+      "opp_team_name": "Team B",
       "format": 7,
       "our_wins": 4,
       "opp_wins": 2,
