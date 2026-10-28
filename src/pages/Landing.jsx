@@ -530,6 +530,8 @@ const cd = {
   sep: { color: '#333', fontWeight: 700, fontSize: '1rem', marginBottom: 8 },
 }
 
+const RAINBOW = 'linear-gradient(90deg,#f87171,#fb923c,#facc15,#4ade80,#60a5fa,#a78bfa,#f472b6)'
+
 const LB_STATS = [
   { key: 'career_ppg', label: 'PPG', color: colors.orange },
   { key: 'career_fg_pct', label: 'FG%', color: colors.statGreen, suffix: '%' },
@@ -539,7 +541,7 @@ const LB_STATS = [
   { key: 'career_spg', label: 'SPG', color: '#06b6d4' },
   { key: 'elite_count', label: 'ELITE', color: colors.elite },
   { key: 'mvp_count', label: 'MVPs', color: colors.gold },
-  { key: 'g_tier_count', label: 'G TIER', color: colors.gTier },
+  { key: 'g_tier_count', label: 'G TIER', color: colors.gTier, rainbow: true },
 ]
 
 function AllTimeLeaderboard() {
@@ -573,12 +575,29 @@ function AllTimeLeaderboard() {
         <Link to="/history" style={lb.histLink}>Full history →</Link>
       </div>
       <div style={lb.tabs}>
-        {LB_STATS.map(s => (
-          <button key={s.key} onClick={() => setTab(s.key)}
-            style={{...lb.tab, borderBottomColor: tab === s.key ? s.color : 'transparent', color: tab === s.key ? s.color : '#444'}}>
-            {s.label}
-          </button>
-        ))}
+        {LB_STATS.map(s => {
+          const isActive = tab === s.key
+          const isRainbow = s.rainbow && isActive
+          return (
+            <button key={s.key} onClick={() => setTab(s.key)}
+              style={{
+                ...lb.tab,
+                borderBottomColor: isRainbow ? 'transparent' : isActive ? s.color : 'transparent',
+                color: isActive ? (isRainbow ? 'transparent' : s.color) : '#444',
+                ...(isRainbow ? {
+                  background: RAINBOW,
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  borderBottom: '2px solid',
+                  borderImageSlice: 1,
+                  borderImageSource: RAINBOW,
+                } : {}),
+              }}>
+              {s.label}
+            </button>
+          )
+        })}
       </div>
       {loading ? (
         <div style={lb.empty}>Loading...</div>
@@ -599,12 +618,21 @@ function AllTimeLeaderboard() {
                 <div style={lb.info}>
                   <div style={lb.nameRow}>
                     <span style={lb.name}>{name}</span>
-                    <span style={{...lb.val, color: stat.color}}>
+                    <span style={{
+                      ...lb.val,
+                      ...(stat.rainbow ? {
+                        background: RAINBOW,
+                        WebkitBackgroundClip: 'text',
+                        backgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        color: 'transparent',
+                      } : { color: stat.color }),
+                    }}>
                       {val % 1 === 0 ? val : val.toFixed(1)}{stat.suffix || ''}
                     </span>
                   </div>
                   <div style={lb.barTrack}>
-                    <div style={{...lb.barFill, width: `${barPct}%`, background: stat.color}} />
+                    <div style={{...lb.barFill, width: `${barPct}%`, background: stat.rainbow ? RAINBOW : stat.color}} />
                   </div>
                 </div>
               </div>
