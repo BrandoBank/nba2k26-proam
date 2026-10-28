@@ -26,7 +26,7 @@ function normalizePct(pct) {
   return Math.min(100, Math.max(0, (pct / 60) * 100))
 }
 
-export function computeImpactScores(playerStats) {
+export function computeImpactScores(playerStats, defensiveDeltas = {}) {
   if (!playerStats || playerStats.length === 0) return []
 
   const players = playerStats.map(p => ({ ...p }))
@@ -94,6 +94,11 @@ export function computeImpactScores(playerStats) {
     if (p.primary_side === 'our') {
       impact += 3
     }
+
+    // Matchup defensive delta bonus (±8 max, only if matchup data exists)
+    const defDelta = defensiveDeltas[p.player_id] ?? 0
+    impact += defDelta
+    p.defensive_delta = defDelta
 
     // Clamp to [0, 100]
     p.impact_score = Math.min(100, Math.max(0, Math.round(impact * 10) / 10))
@@ -185,12 +190,75 @@ export function computeImpactScores(playerStats) {
 
     if ((p.gp || 0) < maxGP) notes.push(`limited to ${p.gp} of ${maxGP} games`)
 
+    if ((p.defensive_delta || 0) >= 4) notes.push(`locked down their matchup (-${Math.abs(p.defensive_delta).toFixed(1)} pts vs avg)`)
+    else if ((p.defensive_delta || 0) <= -4) notes.push(`matchup went off (+${Math.abs(p.defensive_delta).toFixed(1)} pts vs avg)`)
+
     p.impact_note_prompt = notes.length > 0
       ? notes.slice(0, 2).join(' and ') + '.'
       : `contributed ${p.ppg || 0} PPG over ${p.gp} games.`
   }
 
   return players
+}
+
+/**
+ * Compute defensive deltas from matchup data.
+ *
+ * For each defender, compare the points their assigned matchup scored in games
+ * they were guarding them vs that opponent's overall series average.
+ *   delta > 0 → held them below average (good defense)
+ *   delta < 0 → gave up more than average (bad defense)
+ *
+ * Returns a map: { player_id → defensiveDelta (clamped to [-8, +8]) }
+ *
+ * @param {Array} matchups    - rows from game_matchups: { game_id, defender_player_id, offensive_player_id }
+ * @param {Array} gameStats   - rows from game_stats:   { game_id, player_id, pts, ... }
+ * @param {Array} seriesStats - rows from series_player_stats: { player_id, ppg }
+ */
+export function computeDefensiveDeltas(matchups, gameStats, seriesStats) {
+  if (!matchups?.length || !gameStats?.length || !seriesStats?.length) return {}
+
+  // Index series average PPG by player_id
+  const seriesAvg = {}
+  for (const s of seriesStats) {
+    seriesAvg[s.player_id] = s.ppg || 0
+  }
+
+  // Index game stats by game_id + player_id for quick lookup
+  const gameStatMap = {}
+  for (const gs of gameStats) {
+    gameStatMap[`${gs.game_id}:${gs.player_id}`] = gs
+  }
+
+  // Aggregate per defender: sum of (opp_avg - opp_actual) across guarded games
+  const defenderAccum = {}   // { defender_player_id: { totalDelta, count } }
+  for (const m of matchups) {
+    const { game_id, defender_player_id, offensive_player_id } = m
+    if (!defender_player_id || !offensive_player_id) continue
+
+    const oppAvg = seriesAvg[offensive_player_id]
+    const oppGame = gameStatMap[`${game_id}:${offensive_player_id}`]
+    if (oppAvg == null || !oppGame) continue
+
+    const delta = oppAvg - (oppGame.pts || 0)   // positive = held below average
+
+    if (!defenderAccum[defender_player_id]) {
+      defenderAccum[defender_player_id] = { totalDelta: 0, count: 0 }
+    }
+    defenderAccum[defender_player_id].totalDelta += delta
+    defenderAccum[defender_player_id].count += 1
+  }
+
+  // Compute average delta per defender and clamp to [-8, +8]
+  const result = {}
+  for (const [playerId, { totalDelta, count }] of Object.entries(defenderAccum)) {
+    const avgDelta = totalDelta / count
+    // Scale: every 5 pts held below/above average = ~4 impact points
+    const bonus = Math.min(8, Math.max(-8, (avgDelta / 5) * 4))
+    result[playerId] = Math.round(bonus * 10) / 10
+  }
+
+  return result
 }
 
 // Tier label helpers for UI use

@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { colors } from '../lib/theme'
-import { computeImpactScores } from '../lib/ranking'
+import { computeImpactScores, computeDefensiveDeltas } from '../lib/ranking'
 import { IconStar, IconTrophy, IconFlame } from '../lib/icons'
 
 const TIERS = ['ELITE', 'STRONG', 'SOLID', 'G_TIER']
@@ -26,10 +26,14 @@ export default function RankingEditor() {
   useEffect(() => { if (isEditor) fetchData() }, [seriesId, isEditor])
 
   async function fetchData() {
-    const [{ data: ser }, { data: sts }, { data: existing }] = await Promise.all([
+    const [{ data: ser }, { data: sts }, { data: existing }, { data: matchups }, { data: gStats }] = await Promise.all([
       supabase.from('series').select('*').eq('id', seriesId).single(),
       supabase.from('series_player_stats').select('*').eq('series_id', seriesId),
       supabase.from('series_rankings').select('*, players(gamertag,display_name)').eq('series_id', seriesId),
+      supabase.from('game_matchups').select('game_id,defender_player_id,offensive_player_id')
+        .in('game_id', (await supabase.from('games').select('id').eq('series_id', seriesId)).data?.map(g => g.id) || []),
+      supabase.from('game_stats').select('game_id,player_id,pts')
+        .in('game_id', (await supabase.from('games').select('id').eq('series_id', seriesId)).data?.map(g => g.id) || []),
     ])
     setSeries(ser)
     setStats(sts || [])
@@ -50,8 +54,9 @@ export default function RankingEditor() {
         finalized: r.finalized,
       })))
     } else if (sts && sts.length > 0) {
-      // Run deterministic engine
-      const computed = computeImpactScores(sts)
+      // Run deterministic engine with matchup defensive deltas
+      const defDeltas = computeDefensiveDeltas(matchups || [], gStats || [], sts)
+      const computed = computeImpactScores(sts, defDeltas)
       setRows(computed.map(p => ({
         player_id: p.player_id,
         gamertag: p.gamertag,
