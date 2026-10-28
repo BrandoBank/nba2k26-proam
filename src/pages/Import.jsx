@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
@@ -61,124 +61,35 @@ Return ONLY valid JSON — no markdown fences, no commentary. Match this EXACT s
   ]
 }`
 
-// ─── Import logic ────────────────────────────────────────────────────────────
+// ─── Import logic — calls server function with service role key ───────────────
 
 async function runImport(payload, onLog) {
-  const errors = []
-  let seriesCreated = 0
-  let gamesCreated = 0
-  let statsCreated = 0
-
-  for (const serData of payload.series) {
-    onLog(`→ Importing series: ${serData.name}`)
-
-    // 1. Collect all gamertags from this series
-    const allGamertags = new Set()
-    for (const game of (serData.games || [])) {
-      for (const stat of (game.stats || [])) {
-        if (stat.gamertag) allGamertags.add(stat.gamertag)
-      }
-    }
-
-    // 2. Ensure all players exist (upsert by gamertag)
-    const playerMap = {}
-    for (const gtag of allGamertags) {
-      const { data: existing } = await supabase
-        .from('players').select('id, gamertag').eq('gamertag', gtag).maybeSingle()
-      if (existing) {
-        playerMap[gtag] = existing.id
-      } else {
-        const { data: created, error } = await supabase
-          .from('players').insert({ gamertag: gtag, display_name: gtag }).select('id').single()
-        if (error) { onLog(`  ⚠ Could not create player ${gtag}: ${error.message}`); continue }
-        playerMap[gtag] = created.id
-        onLog(`  + Created player: ${gtag}`)
-      }
-    }
-
-    // 3. Create series
-    const { data: series, error: serErr } = await supabase.from('series').insert({
-      name: serData.name,
-      our_team_name: serData.our_team_name || 'Team 1',
-      opp_team_name: serData.opp_team_name || 'Team 2',
-      format: serData.format || 7,
-      our_wins: serData.our_wins || 0,
-      opp_wins: serData.opp_wins || 0,
-      result_label: serData.result_label || null,
-      storyline: serData.storyline || null,
-      drafted_by: serData.drafted_by || null,
-      status: serData.status || 'complete',
-      published: serData.status === 'complete',
-      started_at: serData.started_at || null,
-      ended_at: serData.ended_at || null,
-    }).select('id').single()
-
-    if (serErr) { onLog(`  ✗ Series insert failed: ${serErr.message}`); errors.push(serErr.message); continue }
-    seriesCreated++
-    onLog(`  ✓ Series created (${series.id.slice(0, 8)}...)`)
-
-    // 4. Create games + stats
-    for (const gameData of (serData.games || [])) {
-      const { data: game, error: gameErr } = await supabase.from('games').insert({
-        series_id: series.id,
-        game_number: gameData.game_number,
-        our_score: gameData.our_score,
-        opp_score: gameData.opp_score,
-        our_result: gameData.our_result,
-      }).select('id').single()
-
-      if (gameErr) { onLog(`  ✗ Game ${gameData.game_number} insert failed: ${gameErr.message}`); continue }
-      gamesCreated++
-
-      // Insert stats
-      const statRows = []
-      for (const stat of (gameData.stats || [])) {
-        const pid = playerMap[stat.gamertag]
-        if (!pid) { onLog(`  ⚠ Unknown player in stats: ${stat.gamertag}`); continue }
-        statRows.push({
-          game_id: game.id,
-          player_id: pid,
-          side: stat.side,
-          position_slot: ['PG','SG','SF','PF','C'].indexOf(stat.position) + 1 || null,
-          pts: stat.pts ?? null,
-          reb: stat.reb ?? null,
-          ast: stat.ast ?? null,
-          stl: stat.stl ?? null,
-          blk: stat.blk ?? null,
-          tov: stat.tov ?? null,
-          fgm: stat.fgm ?? null,
-          fga: stat.fga ?? null,
-          tpm: stat.tpm ?? null,
-          tpa: stat.tpa ?? null,
-          ftm: stat.ftm ?? null,
-          fta: stat.fta ?? null,
-          grade: stat.grade ?? null,
-        })
-      }
-
-      if (statRows.length > 0) {
-        const { error: statErr } = await supabase.from('game_stats').insert(statRows)
-        if (statErr) { onLog(`  ✗ Stats insert for Game ${gameData.game_number}: ${statErr.message}`) }
-        else { statsCreated += statRows.length }
-      }
-    }
-
-    // 5. Set MVP if provided
-    if (serData.mvp_gamertag && playerMap[serData.mvp_gamertag]) {
-      await supabase.from('series_rankings').upsert({
-        series_id: series.id,
-        player_id: playerMap[serData.mvp_gamertag],
-        gamertag: serData.mvp_gamertag,
-        tier: 'ELITE',
-        is_mvp: true,
-        finalized: false,
-      }, { onConflict: 'series_id,player_id' })
-    }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) {
+    onLog('✗ Not authenticated. Please sign in and try again.')
+    return { errors: ['not authenticated'] }
   }
 
-  onLog(`\n✅ Done — ${seriesCreated} series, ${gamesCreated} games, ${statsCreated} stat rows`)
-  if (errors.length > 0) onLog(`⚠ ${errors.length} error(s) — check above`)
-  return { seriesCreated, gamesCreated, statsCreated, errors }
+  onLog(`Sending ${payload.series.length} series to server...`)
+
+  const res = await fetch('/.netlify/functions/import-history', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ series: payload.series }),
+  })
+
+  const data = await res.json()
+
+  if (!res.ok) {
+    onLog(`✗ Server error: ${data.error || res.statusText}`)
+    return { errors: [data.error] }
+  }
+
+  for (const line of (data.logs || [])) onLog(line)
+  return data
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
