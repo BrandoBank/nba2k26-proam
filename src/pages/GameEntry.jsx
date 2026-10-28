@@ -158,74 +158,21 @@ export default function GameEntry() {
     setSaveError('')
 
     try {
-      // 1. Create/find any new players
-      const allRows = [...game.our_players, ...game.opp_players]
-      const playerMap = {}
-      for (const row of allRows) {
-        if (!row.gamertag.trim()) continue
-        const existing = allPlayers.find(p => p.gamertag.toLowerCase() === row.gamertag.toLowerCase())
-        if (existing) { playerMap[row.gamertag] = existing.id; continue }
-        // Create new player
-        const { data: newP, error } = await supabase.from('players')
-          .insert({ gamertag: row.gamertag.trim(), default_position: POSITIONS[row.slot - 1] })
-          .select().single()
-        if (error) throw new Error(`Failed to create player ${row.gamertag}: ${error.message}`)
-        playerMap[row.gamertag] = newP.id
-        setAllPlayers(prev => [...prev, newP])
-      }
-
-      // 2. Insert game row
-      const { data: gameRow, error: gameErr } = await supabase.from('games').insert({
-        series_id: seriesId,
-        game_number: Number(game.game_number),
-        our_score: Number(game.our_score),
-        opp_score: Number(game.opp_score),
-        our_result: game.our_result,
-        played_at: new Date().toISOString(),
-      }).select().single()
-      if (gameErr) throw new Error(gameErr.message)
-
-      // 3. Insert game_stats rows
-      const statsRows = [
-        ...game.our_players.filter(p => p.gamertag.trim()).map(p => ({
-          game_id: gameRow.id, player_id: playerMap[p.gamertag], side: 'our',
-          grade: p.grade || null,
-          pts: +p.pts, reb: +p.reb, ast: +p.ast, stl: +p.stl, blk: +p.blk,
-          fouls: +p.fouls, tov: +p.tov, fgm: +p.fgm, fga: +p.fga,
-          tpm: +p.tpm, tpa: +p.tpa, ftm: +p.ftm, fta: +p.fta,
-        })),
-        ...game.opp_players.filter(p => p.gamertag.trim()).map(p => ({
-          game_id: gameRow.id, player_id: playerMap[p.gamertag], side: 'opp',
-          grade: p.grade || null,
-          pts: +p.pts, reb: +p.reb, ast: +p.ast, stl: +p.stl, blk: +p.blk,
-          fouls: +p.fouls, tov: +p.tov, fgm: +p.fgm, fga: +p.fga,
-          tpm: +p.tpm, tpa: +p.tpa, ftm: +p.ftm, fta: +p.fta,
-        })),
-      ]
-      const { error: statsErr } = await supabase.from('game_stats').insert(statsRows)
-      if (statsErr) throw new Error(statsErr.message)
-
-      // 4. Insert matchups (from our players' matchup_gamertag field + opp players with matchup)
-      const matchupRows = []
-      const allPlayerRows = [...game.our_players, ...game.opp_players]
-      for (const p of allPlayerRows) {
-        if (!p.gamertag.trim() || !p.matchup_gamertag?.trim()) continue
-        const defId = playerMap[p.gamertag]
-        const offExisting = allPlayers.find(pl => pl.gamertag.toLowerCase() === p.matchup_gamertag.toLowerCase())
-        const offId = offExisting?.id || playerMap[p.matchup_gamertag]
-        if (defId && offId) {
-          matchupRows.push({ game_id: gameRow.id, defender_player_id: defId, offensive_player_id: offId })
-        }
-      }
-      if (matchupRows.length > 0) {
-        await supabase.from('game_matchups').insert(matchupRows)
-      }
-
-      // 5. Update series win/loss counts
-      const newWins = existingGames.filter(g => g.our_result === 'W').length + (game.our_result === 'W' ? 1 : 0)
-      const newLosses = existingGames.filter(g => g.our_result === 'L').length + (game.our_result === 'L' ? 1 : 0)
-      await supabase.from('series').update({ our_wins: newWins, opp_wins: newLosses }).eq('id', seriesId)
-
+      const res = await fetch('/.netlify/functions/add-game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          series_id: seriesId,
+          game_number: Number(game.game_number),
+          our_score: Number(game.our_score),
+          opp_score: Number(game.opp_score),
+          our_result: game.our_result,
+          our_players: game.our_players,
+          opp_players: game.opp_players,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Save failed')
       navigate(`/series/${seriesId}`)
     } catch (err) {
       setSaveError(err.message)
