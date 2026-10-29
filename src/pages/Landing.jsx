@@ -405,7 +405,7 @@ function Jumbotron({ careers }) {
                       {valStr}
                     </span>
                     <button onClick={() => navigate(`/feed?quote=${encodeURIComponent(quoteStr)}`)} style={jb.chatBtn} title="Comment">
-                      <IconChat size={11} color="#333" />
+                      <IconChat size={11} color={OR} />
                     </button>
                   </div>
                 </div>
@@ -559,13 +559,13 @@ const jb = {
     fontVariantNumeric: 'tabular-nums',
   },
   chatBtn: {
-    background: 'none',
-    border: 'none',
+    background: 'rgba(244,112,27,0.1)',
+    border: '1px solid rgba(244,112,27,0.25)',
+    borderRadius: 4,
     cursor: 'pointer',
-    padding: '2px 3px',
+    padding: '3px 5px',
     display: 'flex',
     alignItems: 'center',
-    opacity: 0.5,
     flexShrink: 0,
   },
   barTrack: {
