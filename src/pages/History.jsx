@@ -77,8 +77,8 @@ const COLUMNS = [
   { key: 'career_spg',   label: 'SPG',     numeric: true,  colorType: 'spg' },
   { key: 'career_bpg',   label: 'BPG',     numeric: true,  colorType: 'bpg' },
   { key: 'career_tovpg', label: 'TOV/G',   numeric: true,  colorType: 'tov' },
-  { key: 'career_fg_pct',label: 'FG%',     numeric: true,  colorType: 'fg',  pct: true },
-  { key: 'career_3p_pct',label: '3P%',     numeric: true,  colorType: '3p',  pct: true },
+  { key: 'career_fg_pct',label: 'FG%',     numeric: true,  colorType: 'fg',  pctLabel: true },
+  { key: 'career_3p_pct',label: '3P%',     numeric: true,  colorType: '3p',  pctLabel: true },
   { key: 'mvp_count',    label: 'MVPs',    numeric: true,  colorType: null },
   { key: 'elite_count',  label: 'ELITE',   numeric: true,  colorType: null },
   { key: 'strong_count', label: 'STRONG',  numeric: true,  colorType: null },
@@ -402,12 +402,14 @@ function LeadersTab({ rows, sortKey, sortDir, minGP, onSort, onMinGPChange, excl
               <tr key={p.player_id || i} style={s.tr}>
                 <td style={s.tdRank}>{i + 1}</td>
                 {COLUMNS.map(col => {
-                  const raw = p[col.key]
-                  const display = col.pct
-                    ? raw != null ? `${(raw * 100).toFixed(1)}%` : '—'
-                    : raw != null ? (typeof raw === 'number' ? raw.toFixed(col.key.includes('pct') ? 1 : 1) : raw) : '—'
+                  const raw = col.key === 'display_name'
+                    ? (p.display_name || p.gamertag)
+                    : p[col.key]
+                  const display = col.pctLabel
+                    ? raw != null ? `${Number(raw).toFixed(1)}%` : '—'
+                    : raw != null ? (typeof raw === 'number' ? raw.toFixed(1) : raw) : '—'
                   const cellColor = col.colorType
-                    ? statColor(col.pct ? (raw || 0) * 100 : raw, col.colorType)
+                    ? statColor(raw, col.colorType)
                     : col.key === 'display_name' ? colors.textPrimary : colors.textSecondary
                   return (
                     <td
