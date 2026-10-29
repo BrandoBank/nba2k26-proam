@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { colors } from '../lib/theme'
-import { IconShield, IconArrow, IconPlus } from '../lib/icons'
+import { IconShield, IconArrow, IconPlus, IconLock } from '../lib/icons'
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4', 'OT']
 
@@ -280,7 +280,7 @@ export default function LogMatchup() {
 
             {editingLocked && (
               <div style={s.lockedBanner}>
-                🔒 This matchup was already submitted by <strong>{existingOwner}</strong>.
+                <IconLock size={13} color="currentColor" style={{flexShrink:0}} /> This matchup was already submitted by <strong>{existingOwner}</strong>.
                 Only that player or an editor can change it.
               </div>
             )}

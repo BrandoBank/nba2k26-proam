@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { toPng } from 'html-to-image'
 import { supabase } from '../lib/supabase'
 import { colors, statColor } from '../lib/theme'
-import { IconStar, IconArrow } from '../lib/icons'
+import { IconStar, IconArrow, IconCheck } from '../lib/icons'
 
 const TIER_META = {
   ELITE:  { label: 'ELITE TIER — SERIES-DEFINING IMPACT',      spine: '#9333ea', bg: 'rgba(147,51,234,0.07)',  text: '#c084fc' },
@@ -92,7 +92,7 @@ export default function SeriesChart() {
         <Link to={`/series/${seriesId}`} style={pg.back}>← Series</Link>
         <div style={pg.ctrlRight}>
           <button onClick={copyLink} style={pg.btnGhost}>
-            {copied ? '✓ Copied' : 'Copy Link'}
+            {copied ? <span style={{display:'flex',alignItems:'center',gap:4}}><IconCheck size={13} color="#4ade80" /> Copied</span> : 'Copy Link'}
           </button>
           <button onClick={handleExport} disabled={exporting} style={pg.btnOrange}>
             {exporting ? 'Exporting...' : 'Download PNG'}

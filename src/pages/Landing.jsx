@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { colors } from '../lib/theme'
-import { IconBall, IconFlame, IconTrophy, IconShield, IconStar } from '../lib/icons'
+import { IconBall, IconFlame, IconTrophy, IconShield, IconStar, IconSnowflake, IconChat, IconX, IconCheck } from '../lib/icons'
 
 const RAINBOW = 'linear-gradient(90deg,#f87171,#fb923c,#facc15,#4ade80,#60a5fa,#a78bfa,#f472b6)'
 const OR = colors.orange
@@ -127,7 +127,7 @@ export default function Landing() {
                   <div key={p.gamertag} style={s.badgeCard}>
                     <span style={s.badgeName}>{p.display_name || p.gamertag}</span>
                     <span style={{color: OR, fontWeight: 800, fontSize: '0.8rem'}}>{p.currentStreak}× ELITE</span>
-                    <span style={{fontSize: '1rem'}}>🔥</span>
+                    <IconFlame size={16} color={OR} />
                   </div>
                 ))}
               </div>
@@ -139,7 +139,7 @@ export default function Landing() {
                   <div key={p.gamertag} style={s.badgeCard}>
                     <span style={s.badgeName}>{p.display_name || p.gamertag}</span>
                     <span style={{color: '#60a5fa', fontWeight: 800, fontSize: '0.8rem'}}>dropped to G TIER</span>
-                    <span style={{fontSize: '1rem'}}>❄️</span>
+                    <IconSnowflake size={16} color="#60a5fa" />
                   </div>
                 ))}
               </div>
@@ -347,7 +347,7 @@ function AllTimeLeaderboard() {
               const isEx = excluded.has(p.gamertag)
               return (
                 <button key={p.gamertag} onClick={() => toggleExclude(p.gamertag)} style={{...lb.manageChip, ...(isEx ? lb.manageChipEx : {})}}>
-                  {isEx ? '✕ ' : ''}{p.display_name || p.gamertag}
+                  {isEx && <IconX size={10} color="currentColor" />}{p.display_name || p.gamertag}
                 </button>
               )
             })}
@@ -478,7 +478,7 @@ function CommentBox({ onPost }) {
   return (
     <section style={{...s.section, background: 'linear-gradient(135deg,#06000f,#0a0008)'}}>
       <div style={s.sectionHead}>
-        <span style={s.eyebrow}>💬 LOBBY TALK</span>
+        <span style={s.eyebrow}><IconChat size={13} color={colors.textMuted} style={{marginRight:5}} /> LOBBY TALK</span>
       </div>
       <div style={cb.wrap}>
         <div style={{position:'relative'}}>
@@ -511,7 +511,7 @@ function CommentBox({ onPost }) {
         <div style={cb.footer}>
           <span style={cb.count}>{text.length}/200</span>
           {done ? (
-            <span style={{color: colors.statGreen, fontSize: '0.82rem', fontWeight: 700}}>Posted ✓</span>
+            <span style={{color: colors.statGreen, fontSize: '0.82rem', fontWeight: 700, display:'flex', alignItems:'center', gap:4}}><IconCheck size={13} color={colors.statGreen} /> Posted</span>
           ) : (
             <button style={cb.btn} onClick={post} disabled={posting || !gtag.trim() || !text.trim()}>
               {posting ? 'Posting...' : 'Post'}

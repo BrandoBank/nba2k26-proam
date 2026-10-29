@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { IconTip } from '../lib/icons'
 
 // ─── The Claude prompt template shown to the user ────────────────────────────
 const CLAUDE_PROMPT = `You are helping convert NBA 2K26 Pro-Am series history into a structured JSON format for a stat-tracking web app.
@@ -173,7 +174,7 @@ export default function Import() {
             <pre style={s.promptText}>{CLAUDE_PROMPT}</pre>
           </div>
           <div style={s.tipBox}>
-            <div style={s.tipTitle}>💡 Tips for best results</div>
+            <div style={{...s.tipTitle, display:'flex', alignItems:'center', gap:6}}><IconTip size={14} color="#facc15" /> Tips for best results</div>
             <ul style={s.tipList}>
               <li>Paste your entire history — past series, box scores, notes, whatever format you have it in</li>
               <li>If you have screenshots or box score photos, describe the numbers in text first</li>

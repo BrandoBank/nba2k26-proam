@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { IconX } from '../lib/icons'
 
 function autoSeriesName(format) {
   const now = new Date()
@@ -76,7 +77,7 @@ function PlayerSearch({ value, onChange, placeholder }) {
           autoComplete="off"
         />
         {locked && (
-          <button type="button" onClick={clear} style={s.clearBtn}>✕</button>
+          <button type="button" onClick={clear} style={s.clearBtn}><IconX size={13} color="currentColor" /></button>
         )}
       </div>
       {open && (

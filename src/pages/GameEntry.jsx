@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { IconCheck, IconX, IconWarn } from '../lib/icons'
 
 const STAT_COLS = ['pts','reb','ast','stl','blk','fouls','tov','fgm','fga','tpm','tpa','ftm','fta']
 const POSITIONS = ['PG','SG','SF','PF','C']
@@ -209,7 +210,7 @@ export default function GameEntry() {
         {parsing ? (
           <div style={s.dropText}>Parsing screenshot with AI...</div>
         ) : screenshotFile ? (
-          <div style={s.dropText}>✓ {screenshotFile.name} — stats loaded below. Verify and save.</div>
+          <div style={{...s.dropText, display:'flex', alignItems:'center', gap:6}}><IconCheck size={14} color="#4ade80" /> {screenshotFile.name} — stats loaded below. Verify and save.</div>
         ) : (
           <div style={s.dropText}>
             Drop box score screenshot here or <span style={{color:'#1d6ef5'}}>click to upload</span>
@@ -256,7 +257,7 @@ export default function GameEntry() {
 
       {/* Duplicate warning */}
       {duplicateGame && (
-        <div style={s.warnBanner}>⚠ Game {game.game_number} already exists in this series. Choose a different game number.</div>
+        <div style={{...s.warnBanner, display:'flex', alignItems:'center', gap:6}}><IconWarn size={14} color="#facc15" /> Game {game.game_number} already exists in this series. Choose a different game number.</div>
       )}
 
       {/* Stat grids */}
@@ -297,7 +298,7 @@ function TotalCheck({ label, sum, score, ok }) {
     <div style={{display:'flex', alignItems:'center', gap:8}}>
       <span style={{color:'#666', fontSize:'0.8rem'}}>{label}:</span>
       <span style={{color:'#fff', fontSize:'0.9rem', fontWeight:600}}>Σ{sum} / {score || '?'}</span>
-      <span style={{fontSize:'1rem'}}>{ok ? '✅' : '❌'}</span>
+      {ok ? <IconCheck size={16} color="#4ade80" /> : <IconX size={16} color="#f87171" />}
     </div>
   )
 }

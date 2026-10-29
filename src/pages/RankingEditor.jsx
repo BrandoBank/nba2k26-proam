@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { colors } from '../lib/theme'
 import { computeImpactScores, computeDefensiveDeltas } from '../lib/ranking'
-import { IconStar, IconTrophy, IconFlame } from '../lib/icons'
+import { IconStar, IconTrophy, IconFlame, IconBolt } from '../lib/icons'
 
 const TIERS = ['ELITE', 'STRONG', 'SOLID', 'G_TIER']
 const TIER_COLORS = { ELITE: colors.elite, STRONG: colors.strong, SOLID: colors.solid, G_TIER: colors.gTier }
@@ -174,7 +174,7 @@ export default function RankingEditor() {
         </div>
         <div style={s.headerActions}>
           <button onClick={runAiDraft} disabled={aiLoading} style={s.btnBlue}>
-            {aiLoading ? 'AI Drafting...' : '⚡ AI Draft'}
+            {aiLoading ? 'AI Drafting...' : <span style={{display:'flex',alignItems:'center',gap:4}}><IconBolt size={13} color="currentColor" /> AI Draft</span>}
           </button>
           <button onClick={() => handleSave(false)} disabled={saving} style={s.btnGhost}>
             {saving ? 'Saving...' : 'Save Draft'}
@@ -189,7 +189,7 @@ export default function RankingEditor() {
       {saved && <p style={s.success}>Saved.</p>}
 
       <p style={s.hint}>
-        Drag rows between tiers to reorder. Click ★ to set MVP. Edit impact notes inline.
+        Drag rows between tiers to reorder. Click the star to set MVP. Edit impact notes inline.
         Hit "AI Draft" to get Claude's take — then adjust before publishing.
       </p>
 

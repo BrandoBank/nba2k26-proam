@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { computeImpactScores } from '../lib/ranking'
+import { IconCrystal, IconLock, IconStar } from '../lib/icons'
 
 // ─── Series Predictions Widget ────────────────────────────────────────────────
 function PredictionsWidget({ seriesId, seriesStatus, players, ourTeam, oppTeam }) {
@@ -46,7 +47,7 @@ function PredictionsWidget({ seriesId, seriesStatus, players, ourTeam, oppTeam }
     <div style={ps.wrap}>
       <div style={ps.header}>
         <div style={ps.title}>
-          <span style={ps.titleIcon}>🔮</span>
+          <IconCrystal size={15} color="#a78bfa" />
           PREDICTIONS
           <span style={ps.count}>{predictions.length}</span>
         </div>
@@ -97,7 +98,7 @@ function PredictionsWidget({ seriesId, seriesStatus, players, ourTeam, oppTeam }
             ))}
           </select>
           <button type="submit" disabled={saving} style={ps.lockBtn}>
-            {saving ? 'Locking in...' : 'Lock In Pick 🔒'}
+            {saving ? 'Locking in...' : <span style={{display:'flex',alignItems:'center',gap:5}}><IconLock size={13} color="#f4701b" /> Lock In Pick</span>}
           </button>
         </form>
       )}
@@ -360,7 +361,7 @@ export default function SeriesDetail() {
                 <div style={s.tierPlayers}>
                   {players.map(r => (
                     <div key={r.player_id} style={s.rankPlayer}>
-                      {r.is_mvp && <span style={s.mvpStar}>★</span>}
+                      {r.is_mvp && <IconStar size={13} color={colors.gold} filled style={s.mvpStar} />}
                       <span style={{color: '#fff', fontWeight: 700}}>
                         {r.display_name || r.gamertag}
                       </span>

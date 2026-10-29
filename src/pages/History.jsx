@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { colors, fonts, radius, statColor } from '../lib/theme'
-import { IconTrophy, IconChart, IconArrow, IconStar, IconBall, IconFlame, IconTarget, IconPass, IconShield } from '../lib/icons'
+import { IconTrophy, IconChart, IconArrow, IconStar, IconBall, IconFlame, IconTarget, IconPass, IconShield, IconDraft, IconX } from '../lib/icons'
 import { computeAchievements, ACHIEVEMENT_CATALOGUE } from '../lib/achievements'
 import { computeImpactScores, computeDefensiveDeltas } from '../lib/ranking'
 
@@ -363,7 +363,7 @@ function LeadersTab({ rows, sortKey, sortDir, minGP, onSort, onMinGPChange, excl
             return (
               <button key={p.gamertag} onClick={() => onToggleExclude(p.gamertag)}
                 style={{background: isEx ? 'rgba(220,38,38,0.1)' : colors.bg, border: `1px solid ${isEx ? 'rgba(220,38,38,0.4)' : colors.border}`, borderRadius:6, color: isEx ? colors.gTier : colors.textSecondary, fontSize:12, fontWeight:600, padding:'4px 10px', cursor:'pointer', fontFamily:'inherit'}}>
-                {isEx ? '✕ ' : ''}{p.display_name || p.gamertag}
+                {isEx && <IconX size={10} color="currentColor" />}{p.display_name || p.gamertag}
               </button>
             )
           })}
@@ -474,7 +474,7 @@ function SeriesLogTab({ series, rankings }) {
       {draftStats.length > 0 && (
         <div style={s.draftWrap}>
           <div style={s.draftHeader}>
-            <span style={s.draftTitle}>🎯 DRAFT ROTATION</span>
+            <span style={s.draftTitle}><IconDraft size={12} color={colors.textMuted} /> DRAFT ROTATION</span>
             {nextDrafter && (
               <span style={s.draftNext}>Next up: <strong style={{ color: colors.orange }}>{nextDrafter.name}</strong></span>
             )}
@@ -522,7 +522,7 @@ function SeriesLogTab({ series, rankings }) {
                     </div>
                   )}
                   {ser.drafted_by && (
-                    <div style={s.logDraft}>🎯 Drafted by {ser.drafted_by}</div>
+                    <div style={s.logDraft}><IconDraft size={11} color={colors.textMuted} /> Drafted by {ser.drafted_by}</div>
                   )}
                 </div>
                 <div style={s.logRight}>
@@ -630,7 +630,7 @@ function AchievementsTab({ achievements }) {
               {p.positive.map(a => (
                 <div key={a.achievement} style={{ ...s.achBadge, ...s.achBadgePos }} title={a.description}>
                   <span style={s.achBadgeIcon}>
-                    {ACHIEVEMENT_ICONS[a.icon_key]?.(colors.orange) || '🏆'}
+                    {ACHIEVEMENT_ICONS[a.icon_key]?.(colors.orange) || <IconTrophy size={16} color={colors.orange} />}
                   </span>
                   <span style={s.achBadgeLabel}>{a.label}</span>
                 </div>
@@ -638,7 +638,7 @@ function AchievementsTab({ achievements }) {
               {p.negative.map(a => (
                 <div key={a.achievement} style={{ ...s.achBadge, ...s.achBadgeNeg }} title={a.description}>
                   <span style={s.achBadgeIcon}>
-                    {ACHIEVEMENT_ICONS[a.icon_key]?.(colors.gTier) || '💀'}
+                    {ACHIEVEMENT_ICONS[a.icon_key]?.(colors.gTier) || <IconShield size={16} color={colors.gTier} />}
                   </span>
                   <span style={{ ...s.achBadgeLabel, color: colors.gTier }}>{a.label}</span>
                 </div>
@@ -1001,6 +1001,9 @@ const s = {
     marginTop: 2,
   },
   logDraft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
     fontSize: 11,
     color: colors.textMuted,
     marginTop: 2,
@@ -1022,6 +1025,9 @@ const s = {
     gap: 8,
   },
   draftTitle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
     fontSize: 11,
     fontWeight: 700,
     letterSpacing: '0.08em',
