@@ -112,10 +112,8 @@ export default function Landing() {
         </section>
       )}
 
-      {/* ALL-TIME LEADERBOARD */}
-      <section style={s.section}>
-        <AllTimeLeaderboard />
-      </section>
+      {/* JUMBOTRON — ALL-TIME LEADERBOARD */}
+      <Jumbotron careers={careers} />
 
       {/* CULTURE BADGES: HOT + COLD */}
       {(hotStreaks.length > 0 || coldList.length > 0) && (
@@ -297,6 +295,316 @@ function ActiveSeriesCard({ series: ser }) {
       <div style={s.activeFormat}>BO{ser.format} · Game {(ser.our_wins || 0) + (ser.opp_wins || 0) + 1} next</div>
     </Link>
   )
+}
+
+// ─── Jumbotron ───────────────────────────────────────────────────────────────
+
+const JB_STATS = [
+  { key: 'career_ppg',   label: 'PPG',    color: OR,              suffix: '' },
+  { key: 'career_fg_pct',label: 'FG%',    color: colors.statGreen,suffix: '%' },
+  { key: 'career_3p_pct',label: '3P%',    color: colors.gold,     suffix: '%' },
+  { key: 'career_apg',   label: 'APG',    color: '#60a5fa',       suffix: '' },
+  { key: 'career_rpg',   label: 'RPG',    color: '#a78bfa',       suffix: '' },
+  { key: 'career_spg',   label: 'SPG',    color: '#06b6d4',       suffix: '' },
+  { key: 'elite_count',  label: 'ELITE',  color: colors.elite,    suffix: '' },
+  { key: 'mvp_count',    label: 'MVPs',   color: colors.gold,     suffix: '' },
+]
+
+function Jumbotron({ careers }) {
+  const navigate = useNavigate()
+  const [statIdx, setStatIdx] = useState(0)
+  const [fading, setFading] = useState(false)
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setFading(true)
+      setTimeout(() => { setStatIdx(i => (i + 1) % JB_STATS.length); setFading(false) }, 300)
+    }, 5000)
+    return () => clearInterval(id)
+  }, [])
+
+  function selectStat(i) {
+    if (i === statIdx) return
+    setFading(true)
+    setTimeout(() => { setStatIdx(i); setFading(false) }, 200)
+  }
+
+  const stat = JB_STATS[statIdx]
+  const ranked = [...(careers || [])]
+    .filter(p => (p.total_gp >= 3 || ['elite_count','mvp_count'].includes(stat.key)) && Number(p[stat.key]) > 0)
+    .sort((a, b) => Number(b[stat.key]) - Number(a[stat.key]))
+    .slice(0, 5)
+
+  const rankColors = [colors.gold, '#b0b0b0', '#cd7f32', '#555', '#3a3a3a']
+
+  return (
+    <section style={jb.outer}>
+      {/* corner bracket decorations */}
+      <div style={{...jb.corner, top:0,left:0,borderTop:`2px solid ${OR}`,borderLeft:`2px solid ${OR}`}} />
+      <div style={{...jb.corner, top:0,right:0,borderTop:`2px solid ${OR}`,borderRight:`2px solid ${OR}`}} />
+      <div style={{...jb.corner, bottom:0,left:0,borderBottom:`2px solid ${OR}`,borderLeft:`2px solid ${OR}`}} />
+      <div style={{...jb.corner, bottom:0,right:0,borderBottom:`2px solid ${OR}`,borderRight:`2px solid ${OR}`}} />
+
+      {/* dot-matrix overlay */}
+      <div style={jb.dots} />
+      {/* scanline overlay */}
+      <div style={jb.scanlines} />
+
+      {/* header bar */}
+      <div style={jb.headerBar}>
+        <div style={jb.headerLeft}>
+          <IconTrophy size={10} color={OR} />
+          <span style={jb.headerText}>ALL-TIME LEADERS</span>
+        </div>
+        <div style={jb.headerPipe} />
+        <span style={{...jb.headerText, color: stat.color, minWidth: 48, textAlign: 'center'}}>{stat.label}</span>
+        <div style={jb.headerPipe} />
+        <Link to="/history" style={jb.headerLink}>FULL STATS →</Link>
+      </div>
+
+      {/* stat selector tabs */}
+      <div style={jb.tabRow}>
+        {JB_STATS.map((st, i) => (
+          <button key={st.key} onClick={() => selectStat(i)} style={{
+            ...jb.tab,
+            color: i === statIdx ? st.color : '#2a2a2a',
+            borderBottom: i === statIdx ? `2px solid ${st.color}` : '2px solid transparent',
+            textShadow: i === statIdx ? `0 0 8px ${st.color}` : 'none',
+          }}>{st.label}</button>
+        ))}
+      </div>
+
+      {/* main board */}
+      <div style={{ ...jb.board, opacity: fading ? 0 : 1, transition: 'opacity 0.2s' }}>
+        {ranked.length === 0 ? (
+          <div style={jb.empty}>Logging series populates the board</div>
+        ) : ranked.map((p, i) => {
+          const val = Number(p[stat.key])
+          const max = Number(ranked[0][stat.key])
+          const barPct = max > 0 ? (val / max) * 100 : 0
+          const name = p.display_name || p.gamertag
+          const valStr = `${val % 1 === 0 ? val : val.toFixed(1)}${stat.suffix}`
+          const quoteStr = `${name} · ${valStr} ${stat.label} (All-Time)`
+          const isTop = i === 0
+          return (
+            <div key={p.player_id} style={{ ...jb.row, ...(isTop ? jb.rowTop : {}) }}>
+              {/* rank */}
+              <span style={{ ...jb.rankNum, color: rankColors[i], textShadow: isTop ? `0 0 12px ${rankColors[0]}` : 'none' }}>
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              {/* name + bar */}
+              <div style={jb.rowMid}>
+                <div style={jb.nameLine}>
+                  <span style={{ ...jb.playerName, fontSize: isTop ? '1.05rem' : '0.82rem', color: isTop ? '#fff' : '#888' }}>{name}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ ...jb.statVal, color: stat.color, fontSize: isTop ? '1.3rem' : '0.95rem', textShadow: isTop ? `0 0 16px ${stat.color}` : 'none' }}>
+                      {valStr}
+                    </span>
+                    <button onClick={() => navigate(`/feed?quote=${encodeURIComponent(quoteStr)}`)} style={jb.chatBtn} title="Comment">
+                      <IconChat size={11} color="#333" />
+                    </button>
+                  </div>
+                </div>
+                <div style={jb.barTrack}>
+                  <div style={{ ...jb.barFill, width: `${barPct}%`, background: stat.color, boxShadow: isTop ? `0 0 6px ${stat.color}` : 'none' }} />
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* bottom strip: manage */}
+      <div style={jb.bottomStrip}>
+        <Link to="/history" style={jb.bottomLink}><IconTrophy size={10} color="#333" /> view all →</Link>
+      </div>
+    </section>
+  )
+}
+
+const jb = {
+  outer: {
+    position: 'relative',
+    margin: '1.25rem 1rem',
+    background: 'linear-gradient(160deg,#040010 0%,#080014 40%,#050008 100%)',
+    border: `1px solid rgba(244,112,27,0.2)`,
+    borderRadius: 10,
+    overflow: 'hidden',
+    boxShadow: `0 0 40px rgba(244,112,27,0.08), inset 0 0 60px rgba(0,0,0,0.6)`,
+  },
+  corner: {
+    position: 'absolute',
+    width: 14,
+    height: 14,
+    zIndex: 4,
+  },
+  dots: {
+    position: 'absolute',
+    inset: 0,
+    backgroundImage: 'radial-gradient(circle, rgba(168,85,247,0.12) 1px, transparent 1px)',
+    backgroundSize: '4px 4px',
+    pointerEvents: 'none',
+    zIndex: 1,
+  },
+  scanlines: {
+    position: 'absolute',
+    inset: 0,
+    backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.18) 3px, rgba(0,0,0,0.18) 4px)',
+    pointerEvents: 'none',
+    zIndex: 2,
+  },
+  headerBar: {
+    position: 'relative',
+    zIndex: 3,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    background: 'rgba(0,0,0,0.7)',
+    borderBottom: `1px solid rgba(244,112,27,0.15)`,
+    padding: '7px 14px',
+  },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: 5 },
+  headerText: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontSize: '0.68rem',
+    fontWeight: 800,
+    letterSpacing: '0.18em',
+    color: OR,
+    textTransform: 'uppercase',
+  },
+  headerPipe: { width: 1, height: 12, background: 'rgba(244,112,27,0.2)' },
+  headerLink: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontSize: '0.62rem',
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    color: '#444',
+    textDecoration: 'none',
+    marginLeft: 'auto',
+  },
+  tabRow: {
+    position: 'relative',
+    zIndex: 3,
+    display: 'flex',
+    overflowX: 'auto',
+    scrollbarWidth: 'none',
+    background: 'rgba(0,0,0,0.4)',
+    borderBottom: '1px solid rgba(168,85,247,0.08)',
+    padding: '0 8px',
+  },
+  tab: {
+    background: 'none',
+    border: 'none',
+    borderBottom: '2px solid transparent',
+    color: '#2a2a2a',
+    fontSize: '0.62rem',
+    fontWeight: 800,
+    letterSpacing: '0.1em',
+    padding: '6px 8px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    textTransform: 'uppercase',
+    transition: 'color 0.2s',
+  },
+  board: {
+    position: 'relative',
+    zIndex: 3,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0,
+    padding: '8px 0 4px',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '6px 14px',
+    borderBottom: '1px solid rgba(168,85,247,0.04)',
+  },
+  rowTop: {
+    background: 'rgba(244,112,27,0.04)',
+    borderBottom: '1px solid rgba(244,112,27,0.08)',
+  },
+  rankNum: {
+    fontFamily: "'Barlow Condensed', monospace",
+    fontSize: '0.85rem',
+    fontWeight: 900,
+    minWidth: 22,
+    textAlign: 'right',
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '0.02em',
+  },
+  rowMid: { flex: 1 },
+  nameLine: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 3,
+  },
+  playerName: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+  },
+  statVal: {
+    fontFamily: "'Barlow Condensed', monospace",
+    fontWeight: 900,
+    letterSpacing: '0.02em',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  chatBtn: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '2px 3px',
+    display: 'flex',
+    alignItems: 'center',
+    opacity: 0.5,
+    flexShrink: 0,
+  },
+  barTrack: {
+    height: 2,
+    background: 'rgba(168,85,247,0.06)',
+    borderRadius: 1,
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: '100%',
+    borderRadius: 1,
+    transition: 'width 0.5s ease',
+  },
+  empty: {
+    color: '#2a2a2a',
+    fontSize: '0.78rem',
+    textAlign: 'center',
+    padding: '2rem',
+    fontStyle: 'italic',
+    position: 'relative',
+    zIndex: 3,
+  },
+  bottomStrip: {
+    position: 'relative',
+    zIndex: 3,
+    display: 'flex',
+    justifyContent: 'flex-end',
+    padding: '6px 14px',
+    borderTop: '1px solid rgba(168,85,247,0.06)',
+    background: 'rgba(0,0,0,0.3)',
+  },
+  bottomLink: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    color: '#333',
+    textDecoration: 'none',
+    fontSize: '0.62rem',
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+  },
 }
 
 // ─── All-Time Leaderboard ─────────────────────────────────────────────────────
