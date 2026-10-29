@@ -320,7 +320,7 @@ function Jumbotron({ careers }) {
     const id = setInterval(() => {
       setFading(true)
       setTimeout(() => { setStatIdx(i => (i + 1) % JB_STATS.length); setFading(false) }, 300)
-    }, 5000)
+    }, 12000)
     return () => clearInterval(id)
   }, [])
 
