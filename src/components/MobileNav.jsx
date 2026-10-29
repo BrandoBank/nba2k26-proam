@@ -18,12 +18,10 @@ export default function MobileNav() {
     <nav className="mobile-nav">
       <NavItem to="/" label="Home" active={active('/')} icon={<HomeIcon />} />
       <NavItem to="/leagues" label="Series" active={isSeriesActive} icon={<BallIcon />} />
+      <NavItem to="/feed" label="Feed" active={active('/feed')} icon={<FeedIcon />} />
       <NavItem to="/history" label="History" active={active('/history')} icon={<ChartIcon />} />
       {isEditor
-        ? <>
-            <NavItem to="/series/new" label="+ New" active={active('/series/new')} icon={<PlusIcon />} accent />
-            <NavItem to="/import" label="Import" active={active('/import')} icon={<ImportIcon />} />
-          </>
+        ? <NavItem to="/series/new" label="+ New" active={active('/series/new')} icon={<PlusIcon />} accent />
         : <NavItem to="/login" label="Sign In" active={active('/login')} icon={<UserIcon />} />
       }
     </nav>
@@ -89,4 +87,7 @@ function UserIcon() {
 }
 function ImportIcon() {
   return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+}
+function FeedIcon() {
+  return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
 }

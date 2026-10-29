@@ -13,6 +13,7 @@ import Accolades from './pages/Accolades'
 import SeriesChart from './pages/SeriesChart'
 import RankingEditor from './pages/RankingEditor'
 import History from './pages/History'
+import Feed from './pages/Feed'
 
 function ProtectedRoute({ children }) {
   const { session, loading } = useAuth()
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/leagues" element={<Dashboard />} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/history" element={<History />} />
+        <Route path="/feed" element={<Feed />} />
         <Route path="/login" element={<Login />} />
         <Route path="/series/new" element={<ProtectedRoute><NewSeries /></ProtectedRoute>} />
         <Route path="/series/:id" element={<SeriesDetail />} />

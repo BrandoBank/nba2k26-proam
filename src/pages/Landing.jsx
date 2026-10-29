@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { colors } from '../lib/theme'
+import { useNavigate } from 'react-router-dom'
 import { IconBall, IconFlame, IconTrophy, IconShield, IconStar, IconSnowflake, IconChat, IconX, IconCheck } from '../lib/icons'
 
 const RAINBOW = 'linear-gradient(90deg,#f87171,#fb923c,#facc15,#4ade80,#60a5fa,#a78bfa,#f472b6)'
@@ -37,7 +38,7 @@ export default function Landing() {
         supabase.from('series').select('*').eq('status', 'complete').order('ended_at', { ascending: false }).limit(3),
         supabase.from('career_player_totals').select('*'),
         supabase.from('series_rankings').select('*, players(gamertag,display_name), series(name,ended_at)').eq('finalized', true).order('series(ended_at)', { ascending: true }),
-        supabase.from('series_comments').select('*').order('created_at', { ascending: false }).limit(30),
+        supabase.from('comments').select('*').order('created_at', { ascending: false }).limit(30),
       ])
 
       setActiveSeries(active || [])
@@ -95,7 +96,7 @@ export default function Landing() {
       {/* 2K27 COUNTDOWN */}
       <Countdown />
 
-      {/* COMMENT TICKER */}
+      {/* FEED TICKER */}
       {comments.length > 0 && <CommentTicker comments={comments} />}
 
       {/* ACTIVE SERIES */}
@@ -230,8 +231,20 @@ export default function Landing() {
         </section>
       )}
 
-      {/* COMMENT BOX */}
-      <CommentBox onPost={c => setComments(prev => [c, ...prev])} />
+      {/* FEED LINK */}
+      <section style={{...s.section, background: 'linear-gradient(135deg,#06000f,#0a0008)'}}>
+        <div style={s.sectionHead}>
+          <span style={s.eyebrow}><IconChat size={13} color={colors.textMuted} style={{marginRight:5}} /> CREW FEED</span>
+        </div>
+        <div style={{ padding: '0 0 1.5rem', textAlign: 'center' }}>
+          <p style={{ color: '#444', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
+            Comment on stats, call out plays, talk trash — tap the chat icon on any leaderboard row to quote a stat.
+          </p>
+          <Link to="/feed" style={{ display: 'inline-block', background: 'transparent', border: `1px solid ${OR}`, color: OR, borderRadius: 6, padding: '0.6rem 1.5rem', fontSize: '0.85rem', fontWeight: 800, textDecoration: 'none', letterSpacing: '0.08em' }}>
+            OPEN FEED →
+          </Link>
+        </div>
+      </section>
 
       {/* FOOTER */}
       <footer style={s.footer}>
@@ -301,6 +314,7 @@ const LB_STATS = [
 ]
 
 function AllTimeLeaderboard() {
+  const navigate = useNavigate()
   const [careers, setCareers] = useState([])
   const [tab, setTab] = useState('career_ppg')
   const [excluded, setExcluded] = useState(() => {
@@ -380,17 +394,28 @@ function AllTimeLeaderboard() {
             const pct = max > 0 ? (val / max) * 100 : 0
             const name = p.display_name || p.gamertag
             const rankColor = i === 0 ? colors.gold : i === 1 ? '#aaa' : i === 2 ? '#cd7f32' : '#2a2a2a'
+            const valStr = `${val % 1 === 0 ? val : val.toFixed(1)}${stat.suffix || ''}`
+            const quoteStr = `${name} · ${valStr} ${stat.label} (All-Time)`
             return (
               <div key={p.player_id} style={lb.row}>
                 <span style={{...lb.rank, color: rankColor}}>{i + 1}</span>
                 <div style={lb.info}>
                   <div style={lb.nameRow}>
                     <span style={lb.name}>{name}</span>
-                    <span style={stat.rainbow ? {
-                      ...lb.val, background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                    } : {...lb.val, color: stat.color}}>
-                      {val % 1 === 0 ? val : val.toFixed(1)}{stat.suffix || ''}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={stat.rainbow ? {
+                        ...lb.val, background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                      } : {...lb.val, color: stat.color}}>
+                        {valStr}
+                      </span>
+                      <button
+                        onClick={() => navigate(`/feed?quote=${encodeURIComponent(quoteStr)}`)}
+                        style={lb.commentBtn}
+                        title="Comment on this stat"
+                      >
+                        <IconChat size={12} color="#444" />
+                      </button>
+                    </div>
                   </div>
                   <div style={lb.track}>
                     <div style={{...lb.fill, width: `${pct}%`, background: stat.rainbow ? RAINBOW : stat.color}} />
@@ -462,7 +487,7 @@ function CommentBox({ onPost }) {
   async function post() {
     if (!gtag.trim() || !text.trim()) return
     setPosting(true)
-    const { data, error } = await supabase.from('series_comments').insert({
+    const { data, error } = await supabase.from('comments').insert({
       gamertag: gtag.trim(),
       content: text.trim().slice(0, 200),
     }).select().single()
@@ -676,6 +701,7 @@ const lb = {
   manageGrid: { display: 'flex', flexWrap: 'wrap', gap: '0.4rem' },
   manageChip: { background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 5, color: '#888', fontSize: '0.72rem', fontWeight: 600, padding: '0.3rem 0.6rem', cursor: 'pointer', fontFamily: "'Inter', sans-serif" },
   manageChipEx: { background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', color: '#dc2626' },
+  commentBtn: { background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center', opacity: 0.5, flexShrink: 0 },
 }
 
 const cb = {
