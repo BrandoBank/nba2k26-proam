@@ -14,48 +14,59 @@ const OUTPUT_COST_PER_M = 15.0
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'])
 const MAX_B64_CHARS = 14_000_000
 
-const SYSTEM_PROMPT = `You are an expert at parsing NBA 2K box score screenshots.
+const SYSTEM_PROMPT = `You are a stat transcription robot for NBA 2K box score screenshots. Your only job is to copy numbers and text exactly as shown — no inference, no estimation.
 
-The box score shows two teams. Each team has exactly 5 players listed top-to-bottom: PG, SG, SF, PF, C.
+## LAYOUT
+Two teams are shown. Each team lists players top-to-bottom in position order (PG, SG, SF, PF, C). There may be 3, 4, or 5 players per team depending on the game mode.
 
-Stat columns (left to right): GRADE | PTS | REB | AST | STL | BLK | PF | TO | FGM-FGA | 3PM-3PA | FTM-FTA
+Stat columns left-to-right: GRADE | PTS | REB | AST | STL | BLK | PF | TO | FGM-FGA | 3PM-3PA | FTM-FTA
 
-The bottom team may also have a "YOUR MATCHUP" column showing their defensive assignment.
+The bottom team may have a "YOUR MATCHUP" column at the far right showing the opponent gamertag they were assigned to guard.
 
-Extract every stat cell precisely:
-- Gamertags: copy exactly, including numbers, underscores, capitals
-- FG/3P/FT columns show "X/Y" format — split into made and attempted
-- Blank or "--" cells = 0
-- Grade column: A+, A, A-, B+, B, B-, C+, C, C-, D, F — or null if missing
-- 0 vs O: stat columns are digits only
+## CRITICAL — GAMERTAG TRANSCRIPTION
+Gamertags are case-sensitive and use mixed alphanumerics. YOU MUST:
+1. Read each character individually — do not guess or auto-correct spelling
+2. Distinguish: digit 0 (zero) vs letter O (oh), digit 1 (one) vs letter l (lowercase L) vs letter I (capital i), digit 5 vs letter S
+3. Preserve ALL underscores, numbers, capitals exactly as shown
+4. Do NOT add or remove any characters
+5. If a character is genuinely ambiguous due to font rendering, pick the most visually accurate one
 
-Return ONLY valid JSON — no markdown fences, no explanation:
+## CRITICAL — STAT ACCURACY
+- FGM-FGA, 3PM-3PA, FTM-FTA columns show "X/Y" — X is made, Y is attempted. Never swap them.
+- fgm MUST always be ≤ fga. If your read would violate this, re-examine the cell.
+- tpm MUST always be ≤ tpa. Same rule.
+- pts MUST equal (fgm - tpm) * 2 + tpm * 3 + ftm, approximately. If it's wildly off, re-read the FG row.
+- Blank or "--" cells = 0, not null
+- Grade: A+, A, A-, B+, B, B-, C+, C, C-, D, F — copy exactly, or null if the column is absent
+
+## OUTPUT
+Return ONLY valid JSON with no markdown fences, no explanation, no trailing text.
 
 {
   "team_top": {
-    "name": "<team name shown in screenshot>",
+    "name": "<team name exactly as shown>",
     "score": <integer>,
     "players": [
       {
         "position_slot": 1,
-        "gamertag": "<exact gamertag>",
-        "grade": "<letter grade or null>",
+        "gamertag": "<exact gamertag — transcribed character by character>",
+        "grade": "<grade or null>",
         "pts": 0, "reb": 0, "ast": 0, "stl": 0, "blk": 0, "fouls": 0, "tov": 0,
         "fgm": 0, "fga": 0, "tpm": 0, "tpa": 0, "ftm": 0, "fta": 0
       }
     ]
   },
   "team_bottom": {
-    "name": "<team name shown in screenshot>",
+    "name": "<team name exactly as shown>",
     "score": <integer>,
     "players": [
       {
         "position_slot": 1,
-        "gamertag": "<exact gamertag>",
-        "grade": "<letter grade or null>",
+        "gamertag": "<exact gamertag — transcribed character by character>",
+        "grade": "<grade or null>",
         "pts": 0, "reb": 0, "ast": 0, "stl": 0, "blk": 0, "fouls": 0, "tov": 0,
         "fgm": 0, "fga": 0, "tpm": 0, "tpa": 0, "ftm": 0, "fta": 0,
-        "matchup_gamertag": "<opponent gamertag from YOUR MATCHUP column, or null>"
+        "matchup_gamertag": "<gamertag from YOUR MATCHUP column, or null>"
       }
     ]
   }
@@ -105,7 +116,7 @@ export default async function handler(req) {
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type, data: image_base64 } },
-            { type: 'text', text: 'Parse every stat from this box score screenshot and return the JSON.' },
+            { type: 'text', text: 'Parse every stat from this box score screenshot. Before returning, verify: (1) every gamertag was copied character-by-character, (2) fgm ≤ fga and tpm ≤ tpa for every player, (3) no player row was skipped. Then return the JSON.' },
           ],
         },
       ],
