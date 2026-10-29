@@ -308,6 +308,7 @@ const JB_STATS = [
   { key: 'career_spg',   label: 'SPG',    color: '#06b6d4',       suffix: '' },
   { key: 'elite_count',  label: 'ELITE',  color: colors.elite,    suffix: '' },
   { key: 'mvp_count',    label: 'MVPs',   color: colors.gold,     suffix: '' },
+  { key: 'g_tier_count', label: 'G TIER', color: colors.gTier,    suffix: '', rainbow: true },
 ]
 
 function Jumbotron({ careers }) {
@@ -333,9 +334,9 @@ function Jumbotron({ careers }) {
   const ranked = [...(careers || [])]
     .filter(p => (p.total_gp >= 3 || ['elite_count','mvp_count'].includes(stat.key)) && Number(p[stat.key]) > 0)
     .sort((a, b) => Number(b[stat.key]) - Number(a[stat.key]))
-    .slice(0, 5)
+    .slice(0, 10)
 
-  const rankColors = [colors.gold, '#b0b0b0', '#cd7f32', '#555', '#3a3a3a']
+  const rankColors = [colors.gold, '#b0b0b0', '#cd7f32', '#555', '#3a3a3a', '#2e2e2e', '#2e2e2e', '#2e2e2e', '#2e2e2e', '#2e2e2e']
 
   return (
     <section style={jb.outer}>
@@ -397,7 +398,10 @@ function Jumbotron({ careers }) {
                 <div style={jb.nameLine}>
                   <span style={{ ...jb.playerName, fontSize: isTop ? '1.05rem' : '0.82rem', color: isTop ? '#fff' : '#888' }}>{name}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ ...jb.statVal, color: stat.color, fontSize: isTop ? '1.3rem' : '0.95rem', textShadow: isTop ? `0 0 16px ${stat.color}` : 'none' }}>
+                    <span style={stat.rainbow ? {
+                      ...jb.statVal, fontSize: isTop ? '1.3rem' : '0.95rem',
+                      background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                    } : { ...jb.statVal, color: stat.color, fontSize: isTop ? '1.3rem' : '0.95rem', textShadow: isTop ? `0 0 16px ${stat.color}` : 'none' }}>
                       {valStr}
                     </span>
                     <button onClick={() => navigate(`/feed?quote=${encodeURIComponent(quoteStr)}`)} style={jb.chatBtn} title="Comment">
@@ -406,7 +410,7 @@ function Jumbotron({ careers }) {
                   </div>
                 </div>
                 <div style={jb.barTrack}>
-                  <div style={{ ...jb.barFill, width: `${barPct}%`, background: stat.color, boxShadow: isTop ? `0 0 6px ${stat.color}` : 'none' }} />
+                  <div style={{ ...jb.barFill, width: `${barPct}%`, background: stat.rainbow ? RAINBOW : stat.color, boxShadow: isTop && !stat.rainbow ? `0 0 6px ${stat.color}` : 'none' }} />
                 </div>
               </div>
             </div>
