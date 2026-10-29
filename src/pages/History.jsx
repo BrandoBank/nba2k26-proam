@@ -145,6 +145,20 @@ export default function History() {
     fetchAll()
   }, [])
 
+  // ── Exclusion list (shared with landing leaderboard) ───────────────────────
+  const [excluded, setExcluded] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('lb_excluded') || '[]')) } catch { return new Set() }
+  })
+  function toggleExclude(gamertag) {
+    setExcluded(prev => {
+      const next = new Set(prev)
+      if (next.has(gamertag)) next.delete(gamertag)
+      else next.add(gamertag)
+      try { localStorage.setItem('lb_excluded', JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
+
   // ── Sorted leaders ──────────────────────────────────────────────────────────
   const sortedLeaders = useMemo(() => {
     let rows = careerStats.filter(p => (p.total_gp || 0) >= minGP)
@@ -288,6 +302,9 @@ export default function History() {
           minGP={minGP}
           onSort={handleSort}
           onMinGPChange={setMinGP}
+          excluded={excluded}
+          onToggleExclude={toggleExclude}
+          allPlayers={careerStats}
         />
       )}
       {tab === 'log' && (
@@ -312,7 +329,9 @@ export default function History() {
 
 // ─── ALL-TIME LEADERS TAB ─────────────────────────────────────────────────────
 
-function LeadersTab({ rows, sortKey, sortDir, minGP, onSort, onMinGPChange }) {
+function LeadersTab({ rows, sortKey, sortDir, minGP, onSort, onMinGPChange, excluded, onToggleExclude, allPlayers }) {
+  const [managing, setManaging] = useState(false)
+  const visibleRows = rows.filter(p => !excluded.has(p.gamertag))
   return (
     <div style={s.tabContent}>
       {/* Controls */}
@@ -331,8 +350,25 @@ function LeadersTab({ rows, sortKey, sortDir, minGP, onSort, onMinGPChange }) {
             ))}
           </div>
         </div>
-        <div style={s.controlNote}>{rows.length} players</div>
+        <button onClick={() => setManaging(m => !m)} style={s.filterBtn}>
+          {managing ? 'Done' : `Filter Players${excluded.size > 0 ? ` (${excluded.size})` : ''}`}
+        </button>
+        <div style={s.controlNote}>{visibleRows.length} players</div>
       </div>
+      {managing && (
+        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16,padding:'10px 12px',background:colors.surface,border:`1px solid ${colors.border}`,borderRadius:8}}>
+          <div style={{width:'100%',fontSize:10,color:colors.textMuted,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:4}}>Tap to hide from leaderboard</div>
+          {allPlayers.map(p => {
+            const isEx = excluded.has(p.gamertag)
+            return (
+              <button key={p.gamertag} onClick={() => onToggleExclude(p.gamertag)}
+                style={{background: isEx ? 'rgba(220,38,38,0.1)' : colors.bg, border: `1px solid ${isEx ? 'rgba(220,38,38,0.4)' : colors.border}`, borderRadius:6, color: isEx ? colors.gTier : colors.textSecondary, fontSize:12, fontWeight:600, padding:'4px 10px', cursor:'pointer', fontFamily:'inherit'}}>
+                {isEx ? '✕ ' : ''}{p.display_name || p.gamertag}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Table */}
       <div style={s.tableWrap}>
@@ -357,12 +393,12 @@ function LeadersTab({ rows, sortKey, sortDir, minGP, onSort, onMinGPChange }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {visibleRows.length === 0 && (
               <tr>
                 <td colSpan={COLUMNS.length + 1} style={s.emptyCell}>No players meet the filter.</td>
               </tr>
             )}
-            {rows.map((p, i) => (
+            {visibleRows.map((p, i) => (
               <tr key={p.player_id || i} style={s.tr}>
                 <td style={s.tdRank}>{i + 1}</td>
                 {COLUMNS.map(col => {

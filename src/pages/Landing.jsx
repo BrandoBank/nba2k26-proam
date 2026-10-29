@@ -76,6 +76,9 @@ export default function Landing() {
 
   return (
     <div style={s.page}>
+      {/* ARCADE BACKGROUND */}
+      <div style={s.arcadeBg} />
+
       {/* NAV */}
       <nav style={s.nav}>
         <Link to="/" style={s.logo}>
@@ -150,7 +153,6 @@ export default function Landing() {
         <section style={s.section}>
           <div style={s.sectionHead}>
             <span style={s.eyebrow}><IconTrophy size={11} color={OR} />LEAGUE LEADERS</span>
-            <h2 style={s.h2}>Who's Running the Lobby</h2>
           </div>
           <div style={s.leadersGrid}>
             {[
@@ -178,7 +180,6 @@ export default function Landing() {
         <section style={{...s.section, background: 'linear-gradient(135deg,#0f0000,#07000a)'}}>
           <div style={s.sectionHead}>
             <span style={{...s.eyebrow, color: colors.gTier}}><IconFlame size={11} color={colors.gTier} /><span style={{color:colors.gTier}}>BOTTOM OF THE LOBBY</span></span>
-            <h2 style={s.h2}>Who's Getting Exposed</h2>
           </div>
           <div style={s.leadersGrid}>
             {[
@@ -201,7 +202,6 @@ export default function Landing() {
         <section style={s.section}>
           <div style={s.sectionHead}>
             <span style={s.eyebrow}><IconBall size={11} color={OR} />RECENT ACTION</span>
-            <h2 style={s.h2}>Last Series</h2>
           </div>
           <div style={s.recentGrid}>
             {recentSeries.map(ser => {
@@ -303,14 +303,28 @@ const LB_STATS = [
 function AllTimeLeaderboard() {
   const [careers, setCareers] = useState([])
   const [tab, setTab] = useState('career_ppg')
+  const [excluded, setExcluded] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('lb_excluded') || '[]')) } catch { return new Set() }
+  })
+  const [managing, setManaging] = useState(false)
 
   useEffect(() => {
     supabase.from('career_player_totals').select('*').then(({ data }) => setCareers(data || []))
   }, [])
 
+  function toggleExclude(gamertag) {
+    setExcluded(prev => {
+      const next = new Set(prev)
+      if (next.has(gamertag)) next.delete(gamertag)
+      else next.add(gamertag)
+      try { localStorage.setItem('lb_excluded', JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
+
   const stat = LB_STATS.find(s => s.key === tab) || LB_STATS[0]
   const ranked = [...careers]
-    .filter(p => p.total_gp >= (['career_fg_pct','career_3p_pct'].includes(tab) ? 0 : 3) && Number(p[tab]) > 0)
+    .filter(p => !excluded.has(p.gamertag) && p.total_gp >= (['career_fg_pct','career_3p_pct'].includes(tab) ? 0 : 3) && Number(p[tab]) > 0)
     .sort((a, b) => Number(b[tab]) - Number(a[tab]))
     .slice(0, 10)
 
@@ -318,8 +332,28 @@ function AllTimeLeaderboard() {
     <div style={lb.wrap}>
       <div style={lb.header}>
         <div style={lb.title}><IconTrophy size={12} color={OR} /><span>ALL-TIME LEADERBOARD</span></div>
-        <Link to="/history" style={lb.more}>Full history →</Link>
+        <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
+          <button onClick={() => setManaging(m => !m)} style={lb.manageBtn}>
+            {managing ? 'Done' : 'Filter'}
+          </button>
+          <Link to="/history" style={lb.more}>Full history →</Link>
+        </div>
       </div>
+      {managing && (
+        <div style={lb.managePanel}>
+          <div style={lb.manageLabel}>Tap to exclude from leaderboards</div>
+          <div style={lb.manageGrid}>
+            {careers.map(p => {
+              const isEx = excluded.has(p.gamertag)
+              return (
+                <button key={p.gamertag} onClick={() => toggleExclude(p.gamertag)} style={{...lb.manageChip, ...(isEx ? lb.manageChipEx : {})}}>
+                  {isEx ? '✕ ' : ''}{p.display_name || p.gamertag}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <div style={lb.tabs}>
         {LB_STATS.map(st => {
           const active = tab === st.key
@@ -445,7 +479,6 @@ function CommentBox({ onPost }) {
     <section style={{...s.section, background: 'linear-gradient(135deg,#06000f,#0a0008)'}}>
       <div style={s.sectionHead}>
         <span style={s.eyebrow}>💬 LOBBY TALK</span>
-        <h2 style={s.h2}>Drop a Comment</h2>
       </div>
       <div style={cb.wrap}>
         <div style={{position:'relative'}}>
@@ -545,7 +578,8 @@ function computeLeaders(careers) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = {
-  page: { minHeight: '100vh', background: '#000', color: '#fff', fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 80 },
+  page: { minHeight: '100vh', background: '#000', color: '#fff', fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 80, position: 'relative' },
+  arcadeBg: { position: 'fixed', inset: 0, backgroundImage: 'url(/arcade-bg.png)', backgroundSize: 'cover', backgroundPosition: 'center top', opacity: 0.06, pointerEvents: 'none', zIndex: 0, filter: 'saturate(1.4)' },
 
   nav: { position: 'sticky', top: 0, zIndex: 200, background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(16px)', borderBottom: `1px solid rgba(168,85,247,0.2)`, boxShadow: `0 1px 24px rgba(168,85,247,0.06)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem', height: 52 },
   logo: { display: 'flex', alignItems: 'center', gap: 7, textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: '1.15rem', letterSpacing: '0.28em', color: '#fff', textShadow: `0 0 20px ${NEON_P_GLOW}`, textTransform: 'uppercase' },
@@ -636,6 +670,12 @@ const lb = {
   track: { height: 2, background: 'rgba(168,85,247,0.08)', borderRadius: 1, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 1, transition: 'width 0.4s' },
   empty: { color: '#2a2a2a', fontSize: '0.78rem', textAlign: 'center', padding: '2rem', fontStyle: 'italic' },
+  manageBtn: { background: 'transparent', border: `1px solid rgba(168,85,247,0.3)`, borderRadius: 4, color: '#666', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', padding: '0.2rem 0.5rem', cursor: 'pointer', fontFamily: "'Inter', sans-serif" },
+  managePanel: { padding: '0.6rem 0.75rem 0.75rem', borderBottom: `1px solid rgba(168,85,247,0.1)` },
+  manageLabel: { fontSize: '0.6rem', color: '#333', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.5rem' },
+  manageGrid: { display: 'flex', flexWrap: 'wrap', gap: '0.4rem' },
+  manageChip: { background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 5, color: '#888', fontSize: '0.72rem', fontWeight: 600, padding: '0.3rem 0.6rem', cursor: 'pointer', fontFamily: "'Inter', sans-serif" },
+  manageChipEx: { background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', color: '#dc2626' },
 }
 
 const cb = {
