@@ -44,7 +44,8 @@ export const colors = {
 }
 
 export const fonts = {
-  display: "'Segoe UI', system-ui, -apple-system, sans-serif",
+  display: "'Barlow Condensed', 'Segoe UI', system-ui, sans-serif",
+  body: "'Inter', 'Segoe UI', system-ui, sans-serif",
   mono: "'SF Mono', 'Fira Code', monospace",
 }
 
