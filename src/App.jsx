@@ -28,12 +28,18 @@ import { supabase } from './lib/supabase'
 
 function RecoveryRedirect() {
   useEffect(() => {
-    // When Supabase drops a recovery token in the hash, redirect to /login to handle it
-    supabase.auth.onAuthStateChange((event) => {
+    // Catch recovery/confirmation tokens in the hash immediately on mount
+    const hash = window.location.hash
+    if (hash && (hash.includes('type=recovery') || hash.includes('type=email') || hash.includes('access_token'))) {
+      window.location.replace('/login' + hash)
+      return
+    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         window.location.replace('/login' + window.location.hash)
       }
     })
+    return () => subscription.unsubscribe()
   }, [])
   return null
 }
