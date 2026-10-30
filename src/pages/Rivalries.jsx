@@ -62,20 +62,48 @@ export default function Rivalries() {
     const pB = players.find(p => p.gamertag === playerB)
     if (!pA || !pB) { setLoading(false); return }
 
-    const { data: spaA } = await supabase.from('series_player_averages').select('series_id,side,ppg,rpg,apg,gp').eq('player_id', pA.id)
-    const { data: spaB } = await supabase.from('series_player_averages').select('series_id,side,ppg,rpg,apg,gp').eq('player_id', pB.id)
+    // Fetch H2H record from the view + both players' per-series stats in parallel
+    const [{ data: h2hRows }, { data: spaA }, { data: spaB }] = await Promise.all([
+      supabase.from('player_head_to_head')
+        .select('*')
+        .or(`and(player_a.eq.${playerA},player_b.eq.${playerB}),and(player_a.eq.${playerB},player_b.eq.${playerA})`),
+      supabase.from('series_player_averages').select('series_id,side,ppg,rpg,apg,gp').eq('player_id', pA.id),
+      supabase.from('series_player_averages').select('series_id,side,ppg,rpg,apg,gp').eq('player_id', pB.id),
+    ])
+
+    // Derive shared series from the spa data
     const setA = new Set((spaA || []).map(r => r.series_id))
     const sharedSeriesIds = (spaB || []).filter(r => setA.has(r.series_id)).map(r => r.series_id)
 
     if (sharedSeriesIds.length === 0) { setH2hData({ seriesAWins: 0, seriesBWins: 0, history: [] }); setLoading(false); return }
 
-    const { data: seriesList } = await supabase.from('series').select('id,name,our_wins,opp_wins,ended_at').in('id', sharedSeriesIds).order('ended_at', { ascending: false })
-    let seriesAWins = 0, seriesBWins = 0
+    // Use the view for the win totals — fall back to counting if view has no row yet
+    const h2hRow = (h2hRows || [])[0]
+    let seriesAWins, seriesBWins
+    if (h2hRow) {
+      const aIsPlayerA = h2hRow.player_a === playerA
+      seriesAWins = aIsPlayerA ? (h2hRow.player_a_wins || 0) : (h2hRow.player_a_losses || 0)
+      seriesBWins = aIsPlayerA ? (h2hRow.player_a_losses || 0) : (h2hRow.player_a_wins || 0)
+    }
+
+    const { data: seriesList } = await supabase
+      .from('series').select('id,name,our_wins,opp_wins,ended_at')
+      .in('id', sharedSeriesIds).order('ended_at', { ascending: false })
+
+    // If the view didn't have a row, count from the series list
+    if (!h2hRow) {
+      seriesAWins = 0; seriesBWins = 0
+      ;(seriesList || []).forEach(ser => {
+        const rowA = (spaA || []).find(r => r.series_id === ser.id)
+        const aWon = rowA?.side === 'our' ? (ser.our_wins || 0) > (ser.opp_wins || 0) : (ser.opp_wins || 0) > (ser.our_wins || 0)
+        if (aWon) seriesAWins++; else seriesBWins++
+      })
+    }
+
     const history = (seriesList || []).map(ser => {
       const rowA = (spaA || []).find(r => r.series_id === ser.id)
       const rowB = (spaB || []).find(r => r.series_id === ser.id)
       const aWon = rowA?.side === 'our' ? (ser.our_wins || 0) > (ser.opp_wins || 0) : (ser.opp_wins || 0) > (ser.our_wins || 0)
-      if (aWon) seriesAWins++; else seriesBWins++
       return { ser, rowA, rowB, aWon }
     })
     setH2hData({ seriesAWins, seriesBWins, history })
