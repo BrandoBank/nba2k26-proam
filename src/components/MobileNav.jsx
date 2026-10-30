@@ -9,7 +9,7 @@ const OR = colors.orange
 
 export default function MobileNav() {
   const { pathname } = useLocation()
-  const { isEditor, session, signOut, gamertag } = useAuth()
+  const { isEditor, session, signOut, gamertag, gamertagLoading } = useAuth()
   const [calloutCount, setCalloutCount] = useState(0)
 
   useEffect(() => {
@@ -54,7 +54,10 @@ export default function MobileNav() {
         <div style={dt.right}>
           {session ? (
             <>
-              <Link to={gamertag ? `/player/${gamertag}` : '/claim'} style={dt.profile}>
+              <Link
+                to={gamertagLoading ? '#' : (gamertag ? `/player/${gamertag}` : '/claim')}
+                style={{ ...dt.profile, pointerEvents: gamertagLoading ? 'none' : 'auto' }}
+              >
                 <div style={{ position: 'relative' }}>
                   <div style={dt.avatar}>{(gamertag?.[0] || session.user.email?.[0] || 'U').toUpperCase()}</div>
                   {calloutCount > 0 && <div style={dt.badge}>{calloutCount}</div>}
