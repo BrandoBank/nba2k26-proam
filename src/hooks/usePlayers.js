@@ -5,17 +5,20 @@ import { supabase } from '../lib/supabase'
 export function usePlayers(fields = 'id,gamertag,display_name') {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     let cancelled = false
     async function fetch() {
       setLoading(true)
-      const { data: rows } = await supabase
+      setError(null)
+      const { data: rows, error: err } = await supabase
         .from('players')
         .select(fields)
         .order('gamertag')
       if (!cancelled) {
-        setData(rows || [])
+        if (err) setError(err.message)
+        else setData(rows || [])
         setLoading(false)
       }
     }
@@ -23,5 +26,5 @@ export function usePlayers(fields = 'id,gamertag,display_name') {
     return () => { cancelled = true }
   }, [fields])
 
-  return { data, loading }
+  return { data, loading, error }
 }

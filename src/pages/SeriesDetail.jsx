@@ -15,14 +15,22 @@ function PredictionsWidget({ seriesId, seriesStatus, players, ourTeam, oppTeam }
   const [loadingPreds, setLoadingPreds] = useState(true)
 
   useEffect(() => {
-    supabase.from('series_predictions')
-      .select('*, players(gamertag, display_name)')
-      .eq('series_id', seriesId)
-      .then(({ data }) => {
-        setPredictions(data || [])
-        setLoadingPreds(false)
-      })
-  }, [seriesId, saved])
+    function loadPredictions() {
+      supabase.from('series_predictions')
+        .select('*, players(gamertag, display_name)')
+        .eq('series_id', seriesId)
+        .then(({ data }) => {
+          setPredictions(data || [])
+          setLoadingPreds(false)
+        })
+    }
+    loadPredictions()
+    const channel = supabase
+      .channel(`predictions-${seriesId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'series_predictions', filter: `series_id=eq.${seriesId}` }, loadPredictions)
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [seriesId])
 
   async function submitPrediction(e) {
     e.preventDefault()
@@ -180,9 +188,13 @@ export default function SeriesDetail() {
 
   useEffect(() => {
     fetchAll()
-    // Auto-refresh every 45s while series is in progress
-    const interval = setInterval(fetchAll, 45000)
-    return () => clearInterval(interval)
+    // Subscribe to live game updates for this series
+    const channel = supabase
+      .channel(`series-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `series_id=eq.${id}` }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_stats' }, fetchAll)
+      .subscribe()
+    return () => supabase.removeChannel(channel)
   }, [fetchAll])
 
   async function markComplete() {
@@ -210,7 +222,7 @@ export default function SeriesDetail() {
 
   const wins = games.filter(g => g.our_result === 'W').length
   const losses = games.filter(g => g.our_result === 'L').length
-  const maxWins = Math.ceil(series.format / 2)
+  const maxWins = Math.ceil((series.format ?? 7) / 2)
   const seriesOver = wins >= maxWins || losses >= maxWins
 
   // Split stats by side

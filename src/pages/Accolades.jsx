@@ -26,27 +26,32 @@ export default function Accolades() {
   const [awards, setAwards] = useState([])
   const [stats, setStats] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => { fetchData() }, [seriesId])
 
   async function fetchData() {
-    const [{ data: ser }, { data: aw }, { data: st }] = await Promise.all([
-      supabase.from('series').select('*').eq('id', seriesId).single(),
-      supabase.from('series_awards').select('*, players(gamertag, display_name)').eq('series_id', seriesId),
-      supabase.from('series_player_stats').select('*').eq('series_id', seriesId),
-    ])
-    setSeries(ser)
-    setAwards(aw || [])
-
-    // Auto-compute nominations from stats if no awards saved yet
-    if ((!aw || aw.length === 0) && st && st.length > 0) {
-      setAwards(computeAwards(st, ser))
+    try {
+      const [{ data: ser, error: e1 }, { data: aw }, { data: st }] = await Promise.all([
+        supabase.from('series').select('*').eq('id', seriesId).single(),
+        supabase.from('series_awards').select('*, players(gamertag, display_name)').eq('series_id', seriesId),
+        supabase.from('series_player_stats').select('*').eq('series_id', seriesId),
+      ])
+      if (e1) throw new Error('Series not found.')
+      setSeries(ser)
+      setAwards(aw || [])
+      if ((!aw || aw.length === 0) && st && st.length > 0) {
+        setAwards(computeAwards(st, ser))
+      }
+      setStats(st || [])
+    } catch (err) {
+      setLoadError(err.message)
     }
-    setStats(st || [])
     setLoading(false)
   }
 
   if (loading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
+  if (loadError) return <div style={s.page}><p style={s.dim}>{loadError}</p></div>
   if (!series) return <div style={s.page}><p style={s.dim}>Series not found.</p></div>
 
   // Group awards by player
@@ -169,23 +174,25 @@ function computeAwards(stats, series) {
   const maxBy = (arr, key) => arr.length ? arr.reduce((b, c) => Number(c[key]||0) > Number(b[key]||0) ? c : b, arr[0]) : null
   const minBy = (arr, key) => arr.length ? arr.reduce((b, c) => Number(c[key]||0) < Number(b[key]||0) ? c : b, arr[0]) : null
 
+  const fmt = (v, suffix = '') => v != null ? `${v}${suffix}` : '—'
+
   const topScorer = maxBy(withGP, 'ppg')
-  if (topScorer) awards.push({ award: 'MVP', gamertag: topScorer.gamertag, players: { gamertag: topScorer.gamertag, display_name: topScorer.display_name }, detail: `${topScorer.ppg} PPG · ${topScorer.fg_pct}% FG` })
+  if (topScorer) awards.push({ award: 'MVP', gamertag: topScorer.gamertag, players: { gamertag: topScorer.gamertag, display_name: topScorer.display_name }, detail: `${fmt(topScorer.ppg)} PPG · ${fmt(topScorer.fg_pct, '% FG')}` })
 
   const bestFG = maxBy(withFG, 'fg_pct')
-  if (bestFG) awards.push({ award: 'Best Shooter', gamertag: bestFG.gamertag, players: { gamertag: bestFG.gamertag, display_name: bestFG.display_name }, detail: `${bestFG.fg_pct}% FG · ${bestFG.ppg} PPG` })
+  if (bestFG) awards.push({ award: 'Best Shooter', gamertag: bestFG.gamertag, players: { gamertag: bestFG.gamertag, display_name: bestFG.display_name }, detail: `${fmt(bestFG.fg_pct, '% FG')} · ${fmt(bestFG.ppg)} PPG` })
 
   const best3P = maxBy(withThree, 'three_pct')
-  if (best3P) awards.push({ award: 'Best from Three', gamertag: best3P.gamertag, players: { gamertag: best3P.gamertag, display_name: best3P.display_name }, detail: `${best3P.three_pct}% on ${best3P.total_tpa} attempts` })
+  if (best3P) awards.push({ award: 'Best from Three', gamertag: best3P.gamertag, players: { gamertag: best3P.gamertag, display_name: best3P.display_name }, detail: `${fmt(best3P.three_pct, '%')} on ${fmt(best3P.total_tpa)} attempts` })
 
   const topAST = maxBy(withGP, 'apg')
-  if (topAST) awards.push({ award: 'Top Playmaker', gamertag: topAST.gamertag, players: { gamertag: topAST.gamertag, display_name: topAST.display_name }, detail: `${topAST.apg} APG` })
+  if (topAST) awards.push({ award: 'Top Playmaker', gamertag: topAST.gamertag, players: { gamertag: topAST.gamertag, display_name: topAST.display_name }, detail: `${fmt(topAST.apg)} APG` })
 
   const topDef = maxBy(withGP, 'spg')
-  if (topDef) awards.push({ award: 'Defensive POTS', gamertag: topDef.gamertag, players: { gamertag: topDef.gamertag, display_name: topDef.display_name }, detail: `${topDef.spg} SPG · ${topDef.bpg} BPG` })
+  if (topDef) awards.push({ award: 'Defensive POTS', gamertag: topDef.gamertag, players: { gamertag: topDef.gamertag, display_name: topDef.display_name }, detail: `${fmt(topDef.spg)} SPG · ${fmt(topDef.bpg)} BPG` })
 
   const topReb = maxBy(withGP, 'rpg')
-  if (topReb) awards.push({ award: 'Glass Cleaner', gamertag: topReb.gamertag, players: { gamertag: topReb.gamertag, display_name: topReb.display_name }, detail: `${topReb.rpg} RPG` })
+  if (topReb) awards.push({ award: 'Glass Cleaner', gamertag: topReb.gamertag, players: { gamertag: topReb.gamertag, display_name: topReb.display_name }, detail: `${fmt(topReb.rpg)} RPG` })
 
   const zeroTO = withGP.find(p => Number(p.tovpg) === 0)
   if (zeroTO) awards.push({ award: 'Zero-TO', gamertag: zeroTO.gamertag, players: { gamertag: zeroTO.gamertag, display_name: zeroTO.display_name }, detail: '0.0 TOV/G across the series' })
@@ -194,7 +201,7 @@ function computeAwards(stats, series) {
   if (ironMan) awards.push({ award: 'Iron Man', gamertag: ironMan.gamertag, players: { gamertag: ironMan.gamertag, display_name: ironMan.display_name }, detail: `Played all ${series?.format || 7} games` })
 
   const worstFG = withFG.length ? minBy(withFG, 'fg_pct') : null
-  if (worstFG) awards.push({ award: 'Worst Player', gamertag: worstFG.gamertag, players: { gamertag: worstFG.gamertag, display_name: worstFG.display_name }, detail: `${worstFG.fg_pct}% FG · ${worstFG.ppg} PPG` })
+  if (worstFG) awards.push({ award: 'Worst Player', gamertag: worstFG.gamertag, players: { gamertag: worstFG.gamertag, display_name: worstFG.display_name }, detail: `${fmt(worstFG.fg_pct, '% FG')} · ${fmt(worstFG.ppg)} PPG` })
 
   return awards
 }

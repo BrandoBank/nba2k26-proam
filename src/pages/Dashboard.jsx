@@ -16,14 +16,19 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function fetch() {
+    async function fetchSeries() {
       const q = supabase.from('series').select('*').order('created_at', { ascending: false })
       if (!isEditor) q.eq('published', true)
       const { data } = await q
       setSeries(data || [])
       setLoading(false)
     }
-    fetch()
+    fetchSeries()
+    const channel = supabase
+      .channel('dashboard-series')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'series' }, fetchSeries)
+      .subscribe()
+    return () => supabase.removeChannel(channel)
   }, [isEditor])
 
   const active = series.filter(s => s.status === 'in_progress')

@@ -26,14 +26,15 @@ export default function RankingEditor() {
   useEffect(() => { if (isEditor) fetchData() }, [seriesId, isEditor])
 
   async function fetchData() {
+    const { data: gameRows } = await supabase.from('games').select('id').eq('series_id', seriesId)
+    const gameIds = gameRows?.map(g => g.id) || []
+
     const [{ data: ser }, { data: sts }, { data: existing }, { data: matchups }, { data: gStats }] = await Promise.all([
       supabase.from('series').select('*').eq('id', seriesId).single(),
       supabase.from('series_player_stats').select('*').eq('series_id', seriesId),
       supabase.from('series_rankings').select('*, players(gamertag,display_name)').eq('series_id', seriesId),
-      supabase.from('game_matchups').select('game_id,defender_player_id,offensive_player_id')
-        .in('game_id', (await supabase.from('games').select('id').eq('series_id', seriesId)).data?.map(g => g.id) || []),
-      supabase.from('game_stats').select('game_id,player_id,pts')
-        .in('game_id', (await supabase.from('games').select('id').eq('series_id', seriesId)).data?.map(g => g.id) || []),
+      supabase.from('game_matchups').select('game_id,defender_player_id,offensive_player_id').in('game_id', gameIds),
+      supabase.from('game_stats').select('game_id,player_id,pts').in('game_id', gameIds),
     ])
     setSeries(ser)
     setStats(sts || [])

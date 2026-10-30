@@ -39,6 +39,7 @@ export default function Profile() {
   const [bestGames, setBestGames] = useState([])
   const [h2h, setH2h] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -47,12 +48,15 @@ export default function Profile() {
 
   async function loadProfile() {
     setLoading(true)
-
-    const [{ data: playerRow }, { data: careerRow }, { data: allCareerRows }] = await Promise.all([
+    setLoadError('')
+    try {
+    const [{ data: playerRow, error: e1 }, { data: careerRow }, { data: allCareerRows }] = await Promise.all([
       supabase.from('players').select('id,gamertag,display_name').eq('gamertag', gamertag).maybeSingle(),
       supabase.from('career_player_totals').select('*').eq('gamertag', gamertag).maybeSingle(),
       supabase.from('career_player_totals').select('*'),
     ])
+
+    if (e1) throw new Error('Failed to load player data.')
 
     setPlayer(playerRow)
     setCareer(careerRow)
@@ -112,7 +116,9 @@ export default function Profile() {
         .slice(0, 8)
       setH2h(h2hList)
     }
-
+    } catch (err) {
+      setLoadError(err.message)
+    }
     setLoading(false)
   }
 
@@ -137,14 +143,19 @@ export default function Profile() {
     </div>
   )
 
+  if (loadError) return (
+    <div style={s.page}>
+      <div style={s.loadWrap}><p style={s.dim}>Error loading profile: {loadError}</p></div>
+    </div>
+  )
   if (!player) return (
     <div style={s.page}>
       <div style={s.loadWrap}><p style={s.dim}>Player not found.</p></div>
     </div>
   )
 
-  const name = player.display_name || player.gamertag
-  const initial = name[0].toUpperCase()
+  const name = player.display_name || player.gamertag || ''
+  const initial = name?.[0]?.toUpperCase() || '?'
   const eliteCount = career?.elite_count || 0
   const mvpCount = career?.mvp_count || 0
   const gTierCount = career?.g_tier_count || 0

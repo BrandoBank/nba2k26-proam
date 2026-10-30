@@ -43,6 +43,11 @@ export default function Rivalries() {
       }
     }
     loadCallouts()
+    const channel = supabase
+      .channel('callouts-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'callouts' }, loadCallouts)
+      .subscribe()
+    return () => supabase.removeChannel(channel)
   }, [gamertag])
 
   useEffect(() => {
