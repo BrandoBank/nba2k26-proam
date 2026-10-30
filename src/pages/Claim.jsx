@@ -30,25 +30,27 @@ export default function Claim() {
 
   async function loadPlayers() {
     setLoading(true)
-    const { data: mine } = await supabase
+    const { data: mine, error: mineErr } = await supabase
       .from('players')
       .select('gamertag,display_name')
       .eq('user_id', session.user.id)
       .maybeSingle()
 
+    if (mineErr) { setError('Failed to load your claim. Try refreshing.'); setLoading(false); return }
+
     if (mine) {
-      // Already claimed — show current claim with release option instead of redirecting
       setCurrentClaim(mine)
       setLoading(false)
       return
     }
 
-    const { data: unclaimed } = await supabase
+    const { data: unclaimed, error: unclaimedErr } = await supabase
       .from('players')
       .select('gamertag,display_name')
       .is('user_id', null)
       .order('gamertag')
 
+    if (unclaimedErr) { setError('Failed to load player list. Try refreshing.'); setLoading(false); return }
     setPlayers(unclaimed || [])
     setLoading(false)
   }
@@ -413,7 +415,7 @@ const s = {
     margin: '0 0 0.75rem',
   },
   dim: {
-    color: '#444',
+    color: '#888',
     fontSize: '0.85rem',
     textAlign: 'center',
     lineHeight: 1.6,

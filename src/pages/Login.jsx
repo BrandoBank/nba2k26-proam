@@ -142,7 +142,7 @@ export default function Login() {
     <div style={s.page}>
       <div style={s.card}>
         <div style={s.logo}><IconBall size={18} color={OR} /><span>NEXT UP</span></div>
-        <p style={{ color: '#333', fontSize: '0.8rem', textAlign: 'center', margin: 0 }}>Loading...</p>
+        <p style={{ color: '#666', fontSize: '0.8rem', textAlign: 'center', margin: 0 }}>Loading...</p>
       </div>
     </div>
   )

@@ -32,7 +32,7 @@ export default async function handler(req) {
 
   // Verify series exists
   const { data: series, error: seriesErr } = await supabaseAdmin
-    .from('series').select('id, our_wins, opp_wins').eq('id', series_id).single()
+    .from('series').select('id, our_wins, opp_wins, format').eq('id', series_id).single()
   if (seriesErr || !series) {
     return new Response(JSON.stringify({ error: 'Series not found' }), { status: 404 })
   }
@@ -126,12 +126,18 @@ export default async function handler(req) {
       await supabaseAdmin.from('game_matchups').insert(matchupRows)
     }
 
-    // 5. Update series win/loss counts
+    // 5. Update series win/loss counts and status
     const { data: allGames } = await supabaseAdmin
       .from('games').select('our_result').eq('series_id', series_id)
     const wins = (allGames || []).filter(g => g.our_result === 'W').length
     const losses = (allGames || []).filter(g => g.our_result === 'L').length
-    await supabaseAdmin.from('series').update({ our_wins: wins, opp_wins: losses }).eq('id', series_id)
+    const clinch = Math.ceil(series.format / 2)
+    const isComplete = wins >= clinch || losses >= clinch
+    await supabaseAdmin.from('series').update({
+      our_wins: wins,
+      opp_wins: losses,
+      ...(isComplete ? { status: 'completed' } : {}),
+    }).eq('id', series_id)
 
     return new Response(JSON.stringify({ success: true, game_id: gameRow.id }), {
       status: 200,
