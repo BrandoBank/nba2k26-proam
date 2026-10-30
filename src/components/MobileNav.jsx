@@ -9,19 +9,24 @@ const OR = colors.orange
 
 export default function MobileNav() {
   const { pathname } = useLocation()
-  const { isEditor, session, signOut, gamertag, playerRow } = useAuth()
+  const { isEditor, session, signOut, gamertag } = useAuth()
   const [calloutCount, setCalloutCount] = useState(0)
 
   useEffect(() => {
-    if (!playerRow) return
-    supabase.from('callouts').select('id', { count: 'exact' }).eq('challenged_id', playerRow.id).eq('status', 'pending')
-      .then(({ count }) => setCalloutCount(count || 0))
-    const channel = supabase.channel('callout-nav')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'callouts', filter: `challenged_id=eq.${playerRow.id}` },
-        () => setCalloutCount(c => c + 1))
-      .subscribe()
-    return () => supabase.removeChannel(channel)
-  }, [playerRow])
+    if (!gamertag) return
+    let playerId = null
+    supabase.from('players').select('id').eq('gamertag', gamertag).maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        playerId = data.id
+        supabase.from('callouts').select('id', { count: 'exact', head: true }).eq('challenged_id', playerId).eq('status', 'pending')
+          .then(({ count }) => setCalloutCount(count || 0))
+        const channel = supabase.channel('callout-nav-' + playerId)
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'callouts', filter: `challenged_id=eq.${playerId}` },
+            () => setCalloutCount(c => c + 1))
+          .subscribe()
+      })
+  }, [gamertag])
 
   const active = (path) => {
     if (path === '/') return pathname === '/'

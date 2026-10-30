@@ -56,12 +56,13 @@ function StatRow({ label, aVal, bVal, higherIsBetter = true }) {
 }
 
 export default function Rivalries() {
-  const { session, playerRow } = useAuth()
+  const { session, gamertag } = useAuth()
+  const [playerRow, setPlayerRow] = useState(null)
   const [players, setPlayers] = useState([])
   const [playerA, setPlayerA] = useState('')
   const [playerB, setPlayerB] = useState('')
   const [careers, setCareers] = useState({})
-  const [h2hData, setH2hData] = useState(null) // { seriesA: wins, seriesB: wins, history: [] }
+  const [h2hData, setH2hData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState(null)
   const [pendingCallouts, setPendingCallouts] = useState([])
@@ -71,6 +72,13 @@ export default function Rivalries() {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
   }
+
+  // Fetch playerRow whenever gamertag changes
+  useEffect(() => {
+    if (!gamertag) { setPlayerRow(null); return }
+    supabase.from('players').select('id,gamertag,display_name').eq('gamertag', gamertag).maybeSingle()
+      .then(({ data }) => setPlayerRow(data || null))
+  }, [gamertag])
 
   // Load all players + career totals + pending callouts on mount
   useEffect(() => {
@@ -84,18 +92,18 @@ export default function Rivalries() {
       const map = {}
       ;(careerRows || []).forEach(r => { map[r.gamertag] = r })
       setCareers(map)
-      if (playerRow) {
-        setPendingCallouts((callouts || []).filter(c => c.challenged?.gamertag === playerRow.gamertag))
-        setMyCallouts((callouts || []).filter(c => c.challenger?.gamertag === playerRow.gamertag))
+      if (gamertag) {
+        setPendingCallouts((callouts || []).filter(c => c.challenged?.gamertag === gamertag))
+        setMyCallouts((callouts || []).filter(c => c.challenger?.gamertag === gamertag))
       }
     }
     load()
-  }, [playerRow])
+  }, [gamertag])
 
   // Pre-select logged-in player as A
   useEffect(() => {
-    if (playerRow && !playerA) setPlayerA(playerRow.gamertag)
-  }, [playerRow, playerA])
+    if (gamertag && !playerA) setPlayerA(gamertag)
+  }, [gamertag, playerA])
 
   const compare = useCallback(async () => {
     if (!playerA || !playerB || playerA === playerB) return
@@ -236,6 +244,7 @@ export default function Rivalries() {
             <StatRow label="Games" aVal={carA?.total_gp} bVal={carB?.total_gp} />
             <StatRow label="ELITEs" aVal={carA?.elite_count} bVal={carB?.elite_count} />
             <StatRow label="MVPs" aVal={carA?.mvp_count} bVal={carB?.mvp_count} />
+            <StatRow label="G TIERs" aVal={carA?.g_tier_count} bVal={carB?.g_tier_count} higherIsBetter={false} />
           </div>
         </div>
       )}
