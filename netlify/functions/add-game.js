@@ -77,7 +77,7 @@ export default async function handler(req) {
         our_score: Number(our_score),
         opp_score: Number(opp_score),
         our_result,
-        played_at: new Date().toISOString(),
+        played_at: body.played_at || new Date().toISOString(),
       })
       .select().single()
     if (gameErr) throw new Error(gameErr.message)

@@ -62,15 +62,17 @@ export default function Landing() {
         rnk.forEach(r => {
           const gtag = r.players?.gamertag
           if (!gtag) return
-          if (!byPlayer[gtag]) byPlayer[gtag] = { gamertag: gtag, display_name: r.players?.display_name, tiers: [] }
-          byPlayer[gtag].tiers.push(r.tier)
+          if (!byPlayer[gtag]) byPlayer[gtag] = { gamertag: gtag, display_name: r.players?.display_name, entries: [] }
+          byPlayer[gtag].entries.push({ tier: r.tier, ended_at: r.series?.ended_at || '' })
         })
         const streaks = Object.values(byPlayer).map(p => {
+          const sorted = [...p.entries].sort((a, b) => a.ended_at.localeCompare(b.ended_at))
+          const tiers = sorted.map(e => e.tier)
           let cur = 0, max = 0
-          p.tiers.forEach(t => { if (t === 'ELITE') { cur++; max = Math.max(max, cur) } else cur = 0 })
+          tiers.forEach(t => { if (t === 'ELITE') { cur++; max = Math.max(max, cur) } else cur = 0 })
           // Ice cold: last tier was G_TIER after being STRONG or ELITE
-          const last = p.tiers[p.tiers.length - 1]
-          const prev = p.tiers[p.tiers.length - 2]
+          const last = tiers[tiers.length - 1]
+          const prev = tiers[tiers.length - 2]
           const iceCold = last === 'G_TIER' && (prev === 'STRONG' || prev === 'ELITE')
           return { ...p, currentStreak: cur, maxStreak: max, iceCold }
         })
