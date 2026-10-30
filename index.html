@@ -122,6 +122,29 @@
       @media (max-width: 768px) {
         input, textarea, select { font-size: 16px !important; }
       }
+
+      /* Global select styling */
+      select {
+        appearance: none;
+        -webkit-appearance: none;
+        background-color: #0d0d14;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23555' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        color: #ccc;
+        border: 1px solid #1e1e2e;
+        border-radius: 8px;
+        padding: 8px 36px 8px 12px;
+        font-family: inherit;
+        cursor: pointer;
+        transition: border-color 0.15s;
+      }
+      select:hover { border-color: #2e2e3e; }
+      select:focus { outline: none; border-color: var(--orange); }
+      select option {
+        background: #0d0d14;
+        color: #ccc;
+      }
     </style>
   </head>
   <body>

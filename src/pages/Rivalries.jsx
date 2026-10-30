@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useCareerStats } from '../hooks/useCareerStats'
 import { usePlayers } from '../hooks/usePlayers'
+import CustomSelect from '../components/CustomSelect'
 
 const ORANGE = '#f4701b'
 const BLUE   = '#9333ea'
@@ -192,10 +193,15 @@ export default function Rivalries() {
             {/* Player A */}
             <div className="player-a-col" style={{ background: `linear-gradient(135deg, rgba(244,112,27,0.08) 0%, transparent 70%)`, border: '1px solid rgba(244,112,27,0.15)', borderRight: 'none', borderRadius: '10px 0 0 0', padding: '16px 20px 20px' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: ORANGE, textTransform: 'uppercase', marginBottom: 8 }}>Player A</div>
-              <select className="rival-select" value={playerA} onChange={e => setPlayerA(e.target.value)} style={{ color: playerA ? '#fff' : '#444', fontSize: 18, textAlign: 'left' }}>
-                <option value="">Select player</option>
-                {players.map(p => <option key={p.id} value={p.gamertag}>{p.display_name || p.gamertag}</option>)}
-              </select>
+              <CustomSelect
+                value={playerA}
+                onChange={setPlayerA}
+                placeholder="Select player"
+                size="lg"
+                align="left"
+                accentColor={ORANGE}
+                options={players.map(p => ({ value: p.gamertag, label: p.display_name || p.gamertag }))}
+              />
               {carA && <div style={{ fontSize: 11, color: '#444', marginTop: 6 }}>{carA.total_gp} GP · {carA.career_ppg} PPG</div>}
             </div>
 
@@ -214,10 +220,15 @@ export default function Rivalries() {
             {/* Player B */}
             <div className="player-b-col" style={{ background: `linear-gradient(225deg, rgba(147,51,234,0.08) 0%, transparent 70%)`, border: '1px solid rgba(147,51,234,0.15)', borderLeft: 'none', borderRadius: '0 10px 0 0', padding: '16px 20px 20px' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: BLUE, textTransform: 'uppercase', marginBottom: 8, textAlign: 'right' }}>Player B</div>
-              <select className="rival-select" value={playerB} onChange={e => setPlayerB(e.target.value)} style={{ color: playerB ? '#fff' : '#444', fontSize: 18, textAlign: 'right' }}>
-                <option value="">Select player</option>
-                {players.map(p => <option key={p.id} value={p.gamertag}>{p.display_name || p.gamertag}</option>)}
-              </select>
+              <CustomSelect
+                value={playerB}
+                onChange={setPlayerB}
+                placeholder="Select player"
+                size="lg"
+                align="right"
+                accentColor={BLUE}
+                options={players.map(p => ({ value: p.gamertag, label: p.display_name || p.gamertag }))}
+              />
               {carB && <div style={{ fontSize: 11, color: '#444', marginTop: 6, textAlign: 'right' }}>{carB.total_gp} GP · {carB.career_ppg} PPG</div>}
             </div>
           </div>
