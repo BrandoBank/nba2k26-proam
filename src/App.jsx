@@ -26,19 +26,21 @@ function ProtectedRoute({ children }) {
 }
 
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 
 function RecoveryRedirect() {
+  const navigate = useNavigate()
   useEffect(() => {
-    // Catch recovery/confirmation tokens in the hash immediately on mount
+    // If a password-reset link lands on a non-login page, send it to /login
     const hash = window.location.hash
-    if (hash && (hash.includes('type=recovery') || hash.includes('type=email') || hash.includes('access_token'))) {
-      window.location.replace('/login' + hash)
+    if (window.location.pathname !== '/login' && hash && hash.includes('type=recovery')) {
+      navigate('/login' + hash, { replace: true })
       return
     }
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        window.location.replace('/login' + window.location.hash)
+      if (event === 'PASSWORD_RECOVERY' && window.location.pathname !== '/login') {
+        navigate('/login' + window.location.hash, { replace: true })
       }
     })
     return () => subscription.unsubscribe()

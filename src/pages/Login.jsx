@@ -24,6 +24,8 @@ export default function Login() {
 
   useEffect(() => {
     if (!session) return
+    // Don't route away when we're in password-recovery mode
+    if (window.location.hash.includes('type=recovery')) return
     async function routeUser() {
       const { data } = await supabase.from('players').select('gamertag').eq('user_id', session.user.id).maybeSingle()
       navigate(data?.gamertag ? '/' : '/claim', { replace: true })
@@ -32,28 +34,20 @@ export default function Login() {
   }, [session])
 
   useEffect(() => {
-    const hash = window.location.hash
-    if (hash.includes('type=recovery') || hash.includes('type=email')) {
-      supabase.auth.onAuthStateChange((event) => {
-        if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
-      })
-    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
+    })
+    return () => subscription.unsubscribe()
   }, [])
 
   async function handleSignIn(e) {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { data, error } = await signIn(email, password)
+    const { error } = await signIn(email, password)
     setLoading(false)
-    if (error) { setError(error.message); return }
-    // Check if they've claimed a player yet
-    const { data: claimed } = await supabase
-      .from('players')
-      .select('gamertag')
-      .eq('user_id', data.user.id)
-      .maybeSingle()
-    navigate(claimed ? '/' : '/claim')
+    if (error) setError(error.message)
+    // Navigation is handled by the useEffect([session]) above
   }
 
   async function handleSignUp(e) {
@@ -63,7 +57,7 @@ export default function Login() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: window.location.origin + '/login' },
     })
     setLoading(false)
     if (error) { setError(error.message); return }
