@@ -295,7 +295,7 @@ export default function Rivalries() {
                 <line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/>
                 <polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/>
               </svg>
-              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, color: '#333', textTransform: 'uppercase' }}>Issue a Callout to {nameB}</span>
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, color: '#333', textTransform: 'uppercase' }}>Call that FN out — {nameB}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr' }}>
               <button className="callout-btn" onClick={() => sendCallout('1v1')} style={{ background: 'transparent', border: 'none', padding: '20px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
