@@ -77,6 +77,7 @@ export default function Landing() {
 
   return (
     <div style={s.page}>
+      <style>{`@keyframes tickerScroll { from { transform: translateX(0) } to { transform: translateX(-50%) } }`}</style>
       {/* ARCADE BACKGROUND */}
       <div style={s.arcadeBg} />
 
@@ -747,22 +748,9 @@ function AllTimeLeaderboard() {
 // ─── Comment Ticker ───────────────────────────────────────────────────────────
 
 function CommentTicker({ comments }) {
-  const ref = useRef(null)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let frame
-    function scroll() {
-      if (!el) return
-      el.scrollLeft += 0.7
-      if (el.scrollLeft >= el.scrollWidth / 2) el.scrollLeft = 0
-      frame = requestAnimationFrame(scroll)
-    }
-    frame = requestAnimationFrame(scroll)
-    return () => cancelAnimationFrame(frame)
-  }, [comments])
-
   const doubled = [...comments, ...comments]
+  // duration scales with number of items so speed stays consistent
+  const duration = Math.max(20, comments.length * 6)
 
   return (
     <div style={tk.wrap}>
@@ -772,16 +760,18 @@ function CommentTicker({ comments }) {
         <span style={tk.badgeBottom}>CREW FEED</span>
       </div>
       <div style={tk.divider} />
-      {/* scrolling content */}
-      <div ref={ref} style={tk.track}>
-        {doubled.map((c, i) => (
-          <span key={i} style={tk.item}>
-            <span style={tk.who}>{(c.gamertag || '').toUpperCase()}</span>
-            <span style={tk.colon}>:</span>
-            <span style={tk.text}>{c.body || c.content}</span>
-            <span style={tk.pipe}>|</span>
-          </span>
-        ))}
+      {/* scrolling content — CSS animation, works on mobile */}
+      <div style={tk.trackWrap}>
+        <div style={{ ...tk.track, animationDuration: `${duration}s` }}>
+          {doubled.map((c, i) => (
+            <span key={i} style={tk.item}>
+              <span style={tk.who}>{(c.gamertag || '').toUpperCase()}</span>
+              <span style={tk.colon}>:</span>
+              <span style={tk.text}>{c.body || c.content}</span>
+              <span style={tk.pipe}>|</span>
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -1032,14 +1022,21 @@ const tk = {
     background: '#222',
     flexShrink: 0,
   },
+  trackWrap: {
+    flex: 1,
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    position: 'relative',
+  },
   track: {
     display: 'flex',
     alignItems: 'center',
-    overflow: 'hidden',
     whiteSpace: 'nowrap',
-    flex: 1,
     userSelect: 'none',
     paddingLeft: 12,
+    animation: 'tickerScroll linear infinite',
+    willChange: 'transform',
   },
   item: {
     display: 'inline-flex',
