@@ -126,8 +126,8 @@ export default function History() {
           supabase.from('series_rankings').select('*, players(gamertag,display_name)'),
           supabase.from('player_head_to_head').select('*'),
           supabase.from('series_player_stats').select('*'),
-          supabase.from('game_matchups').select('game_id,defender_player_id,offensive_player_id'),
-          supabase.from('game_stats').select('game_id,player_id,pts'),
+          supabase.from('game_matchups').select('game_id,series_id,defender_player_id,offensive_player_id'),
+          supabase.from('game_stats').select('game_id,series_id,player_id,pts'),
         ])
         if (e1 || e2 || e3) throw new Error('Failed to load history data.')
         setCareerStats(career || [])
@@ -202,21 +202,23 @@ export default function History() {
       if (!statsBySeries[s.series_id]) statsBySeries[s.series_id] = []
       statsBySeries[s.series_id].push(s)
     }
-    // Index game_stats and matchups by series for defensive delta computation
-    const gamesBySeries = {}
-    for (const gs of allGameStats) {
-      // game_stats doesn't have series_id directly; we'll index by game_id and resolve via allSeriesStats
+    // Index matchups and game_stats by series_id for isolated per-series delta computation
+    const matchupsBySeries = {}
+    for (const m of allMatchups) {
+      if (!matchupsBySeries[m.series_id]) matchupsBySeries[m.series_id] = []
+      matchupsBySeries[m.series_id].push(m)
     }
-    // Build game_id → series_id map from series_player_stats (which has series_id + game context via allMatchups)
-    // We'll use allMatchups game_ids and resolve series via games embedded in allSeriesStats player data
-    // Simpler: compute deltas per series using matchups filtered to games in that series
-    // We need game_id → series_id — build from allSeriesStats which has series_id + player_id (no game_id)
-    // Best approach: pass all matchups + gameStats to computeDefensiveDeltas per series using series_player_stats
-    // For now compute globally (cross-series) as a reasonable approximation for auto-tier display
+    const gameStatsBySeries = {}
+    for (const gs of allGameStats) {
+      if (!gameStatsBySeries[gs.series_id]) gameStatsBySeries[gs.series_id] = []
+      gameStatsBySeries[gs.series_id].push(gs)
+    }
 
     for (const [seriesId, stats] of Object.entries(statsBySeries)) {
       if (finalizedSeriesIds.has(seriesId)) continue
-      const defDeltas = computeDefensiveDeltas(allMatchups, allGameStats, stats)
+      const seriesMatchups = matchupsBySeries[seriesId] || []
+      const seriesGameStats = gameStatsBySeries[seriesId] || []
+      const defDeltas = computeDefensiveDeltas(seriesMatchups, seriesGameStats, stats)
       const computed = computeImpactScores(stats, defDeltas)
       for (const r of computed) {
         autoRankings.push({ ...r, series_id: seriesId, auto: true })
