@@ -13,9 +13,6 @@ export default function Login() {
   const [tab, setTab] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [gamertag, setGamertag] = useState('')
-  const [players, setPlayers] = useState([])
-  const [showDrop, setShowDrop] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [signedUp, setSignedUp] = useState(false)
@@ -36,36 +33,27 @@ export default function Login() {
     }
   }, [])
 
-  useEffect(() => {
-    supabase.from('players').select('gamertag,display_name').order('gamertag').then(({ data }) => {
-      setPlayers(data || [])
-    })
-  }, [])
-
-  const filtered = gamertag.length >= 1
-    ? players.filter(p => p.gamertag.toLowerCase().includes(gamertag.toLowerCase())).slice(0, 6)
-    : []
-
   async function handleSignIn(e) {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error } = await signIn(email, password)
+    const { data, error } = await signIn(email, password)
     setLoading(false)
-    if (error) setError(error.message)
-    else navigate('/')
+    if (error) { setError(error.message); return }
+    // Check if they've claimed a player yet
+    const { data: claimed } = await supabase
+      .from('players')
+      .select('gamertag')
+      .eq('user_id', data.user.id)
+      .maybeSingle()
+    navigate(claimed ? '/' : '/claim')
   }
 
   async function handleSignUp(e) {
     e.preventDefault()
-    if (!gamertag.trim()) { setError('Pick your gamertag so we can link your stats.'); return }
     setError('')
     setLoading(true)
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { gamertag: gamertag.trim() } },
-    })
+    const { error } = await supabase.auth.signUp({ email, password })
     setLoading(false)
     if (error) { setError(error.message); return }
     setSignedUp(true)
@@ -164,33 +152,7 @@ export default function Login() {
           </form>
         ) : (
           <form onSubmit={handleSignUp} style={s.form}>
-            <div style={s.fieldHint}>Your gamertag links your account to your stats.</div>
-
-            {/* Gamertag picker */}
-            <div style={{ position: 'relative' }}>
-              <input
-                placeholder="Your gamertag (e.g. BrandoBank)"
-                value={gamertag}
-                onChange={e => { setGamertag(e.target.value); setShowDrop(true) }}
-                onBlur={() => setTimeout(() => setShowDrop(false), 150)}
-                style={s.input}
-                autoComplete="off"
-              />
-              {showDrop && filtered.length > 0 && (
-                <div style={s.drop}>
-                  {filtered.map(p => (
-                    <div key={p.gamertag} style={s.dropItem}
-                      onMouseDown={() => { setGamertag(p.gamertag); setShowDrop(false) }}>
-                      <span style={{ color: '#fff', fontWeight: 700 }}>{p.gamertag}</span>
-                      {p.display_name && p.display_name !== p.gamertag &&
-                        <span style={{ color: '#555', fontSize: 11, marginLeft: 6 }}>({p.display_name})</span>
-                      }
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
+            <div style={s.fieldHint}>Create your account — you'll pick your player profile after confirming your email.</div>
             <input type="email" placeholder="Email" value={email}
               onChange={e => setEmail(e.target.value)} required style={s.input} autoComplete="email" />
             <input type="password" placeholder="Password (min 8 chars)" value={password}

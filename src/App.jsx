@@ -14,6 +14,7 @@ import SeriesChart from './pages/SeriesChart'
 import RankingEditor from './pages/RankingEditor'
 import History from './pages/History'
 import Feed from './pages/Feed'
+import Claim from './pages/Claim'
 
 function ProtectedRoute({ children }) {
   const { session, loading } = useAuth()
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/history" element={<History />} />
         <Route path="/feed" element={<Feed />} />
+        <Route path="/claim" element={<Claim />} />
         <Route path="/login" element={<Login />} />
         <Route path="/series/new" element={<ProtectedRoute><NewSeries /></ProtectedRoute>} />
         <Route path="/series/:id" element={<SeriesDetail />} />
