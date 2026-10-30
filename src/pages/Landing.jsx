@@ -389,7 +389,10 @@ function Jumbotron({ careers }) {
           <span style={jb.headerText}>ALL-TIME LEADERS</span>
         </div>
         <div style={jb.headerPipe} />
-        <span style={{...jb.headerText, color: stat.color, minWidth: 48, textAlign: 'center'}}>{stat.label}</span>
+        <span style={stat.rainbow ? {
+          ...jb.headerText, minWidth: 48, textAlign: 'center',
+          background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent',
+        } : {...jb.headerText, color: stat.color, minWidth: 48, textAlign: 'center'}}>{stat.label}</span>
         <div style={jb.headerPipe} />
         <Link to="/history" style={jb.headerLink}>FULL STATS →</Link>
       </div>
@@ -399,9 +402,14 @@ function Jumbotron({ careers }) {
         {JB_STATS.map((st, i) => (
           <button key={st.key} onClick={() => selectStat(i)} style={{
             ...jb.tab,
-            color: i === statIdx ? st.color : '#2a2a2a',
-            borderBottom: i === statIdx ? `2px solid ${st.color}` : '2px solid transparent',
-            textShadow: i === statIdx ? `0 0 8px ${st.color}` : 'none',
+            ...(i === statIdx && st.rainbow ? {
+              background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              borderBottom: '2px solid', borderImageSlice: 1, borderImageSource: RAINBOW,
+            } : {
+              color: i === statIdx ? st.color : '#2a2a2a',
+              borderBottom: i === statIdx ? `2px solid ${st.color}` : '2px solid transparent',
+              textShadow: i === statIdx ? `0 0 8px ${st.color}` : 'none',
+            }),
           }}>{st.label}</button>
         ))}
       </div>
