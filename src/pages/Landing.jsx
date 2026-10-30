@@ -100,12 +100,14 @@ export default function Landing() {
         <div style={s.navRight}>
           {session ? (
             <div style={s.navProfile}>
-              <div style={s.navAvatar}>
-                {(authGamertag?.[0] || session.user.email?.[0] || 'U').toUpperCase()}
-              </div>
-              <span style={s.navProfileLabel}>
-                {(authGamertag || session.user.email?.split('@')[0] || '').toUpperCase()}
-              </span>
+              <Link to={authGamertag ? `/player/${authGamertag}` : '/claim'} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div style={s.navAvatar}>
+                  {(authGamertag?.[0] || session.user.email?.[0] || 'U').toUpperCase()}
+                </div>
+                <span style={s.navProfileLabel}>
+                  {(authGamertag || session.user.email?.split('@')[0] || '').toUpperCase()}
+                </span>
+              </Link>
               <button onClick={signOut} style={s.navSignOut}>OUT</button>
             </div>
           ) : (
