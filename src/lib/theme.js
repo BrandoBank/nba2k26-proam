@@ -14,8 +14,8 @@ export const colors = {
   orangeGlow: 'rgba(244,112,27,0.12)',
   gold: '#d4a017',
   goldDim: '#6a5000',
-  blue: '#1d6ef5',
-  blueDim: '#0a1a3a',
+  blue: '#9333ea',
+  blueDim: '#1a0a2e',
 
   // Tier colors
   elite: '#9333ea',
@@ -39,7 +39,7 @@ export const colors = {
   statRed: '#ef4444',
 
   // Team
-  teamOur: '#3b82f6',
+  teamOur: '#f4701b',
   teamOpp: '#ef4444',
 }
 

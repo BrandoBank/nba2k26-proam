@@ -142,7 +142,7 @@ const ps = {
   list: { display: 'flex', flexDirection: 'column', gap: '0.35rem' },
   predRow: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.6rem', background: '#0a0a0a', borderRadius: 5, flexWrap: 'wrap' },
   predWho: { fontWeight: 700, color: '#fff', fontSize: '0.82rem', minWidth: 80 },
-  predPick: { background: '#0a1a2a', border: '1px solid #1a3a4a', borderRadius: 3, padding: '0.1rem 0.5rem', color: '#4da6ff', fontSize: '0.75rem', fontWeight: 700 },
+  predPick: { background: '#1a0a2e', border: '1px solid #2a1a3e', borderRadius: 3, padding: '0.1rem 0.5rem', color: '#9333ea', fontSize: '0.75rem', fontWeight: 700 },
   predDetail: { color: '#555', fontSize: '0.72rem' },
   predMvp: { background: '#1a1000', border: '1px solid #4a3000', borderRadius: 3, padding: '0.1rem 0.5rem', color: '#f59e0b', fontSize: '0.72rem', fontWeight: 600 },
   empty: { color: '#333', fontSize: '0.8rem', margin: 0 },
@@ -246,7 +246,7 @@ export default function SeriesDetail() {
         </div>
         <div style={s.scoreBlock}>
           <span style={s.score}>{wins}–{losses}</span>
-          <span style={{...s.statusBadge, background: series.status === 'complete' ? '#1a3a1a' : '#1a2a3a', color: series.status === 'complete' ? '#4caf50' : '#4da6ff'}}>
+          <span style={{...s.statusBadge, background: series.status === 'complete' ? '#1a3a1a' : '#1a0a2e', color: series.status === 'complete' ? '#4caf50' : '#9333ea'}}>
             {series.status === 'complete' ? series.result_label || 'Complete' : 'In Progress'}
           </span>
         </div>
@@ -470,7 +470,7 @@ const s = {
   score: { fontSize: '2rem', fontWeight: 700, color: '#fff' },
   statusBadge: { fontSize: '0.75rem', padding: '0.2rem 0.6rem', borderRadius: 3, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' },
   controls: { display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' },
-  btnPrimary: { background: '#1d6ef5', color: '#fff', border: 'none', borderRadius: 4, padding: '0.5rem 1rem', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' },
+  btnPrimary: { background: '#f4701b', color: '#fff', border: 'none', borderRadius: 4, padding: '0.5rem 1rem', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' },
   btnSuccess: { background: '#1a4a1a', color: '#4caf50', border: '1px solid #2d6a2d', borderRadius: 4, padding: '0.5rem 1rem', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' },
   btnGhost: { background: 'transparent', color: '#888', border: '1px solid #333', borderRadius: 4, padding: '0.5rem 1rem', fontSize: '0.9rem', cursor: 'pointer' },
   gameStrip: { display: 'flex', gap: '0.75rem', marginBottom: '2rem', flexWrap: 'wrap' },
@@ -479,7 +479,7 @@ const s = {
   gameScore: { fontSize: '1rem', fontWeight: 700, color: '#fff', marginBottom: '0.15rem' },
   gameMargin: { fontSize: '0.75rem', color: '#666' },
   gameBuild: { fontSize: '0.72rem', color: '#555', marginTop: '0.2rem' },
-  editLink: { display: 'block', fontSize: '0.7rem', color: '#1d6ef5', textDecoration: 'none', marginTop: '0.2rem' },
+  editLink: { display: 'block', fontSize: '0.7rem', color: '#f4701b', textDecoration: 'none', marginTop: '0.2rem' },
   matchupLink: { display: 'block', fontSize: '0.7rem', color: '#f4701b', textDecoration: 'none', marginTop: '0.4rem' },
   empty: { color: '#444', textAlign: 'center', padding: '3rem 0' },
 
@@ -494,7 +494,7 @@ const s = {
   rankingMeta: { color: '#333', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' },
   liveBadge: { background: '#0a1a0a', border: '1px solid #1a4a1a', color: '#4caf50', fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.1em', padding: '0.15rem 0.5rem', borderRadius: 3 },
   finalBadge: { background: '#1a1200', border: '1px solid #4a3000', color: '#f4701b', fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.1em', padding: '0.15rem 0.5rem', borderRadius: 3 },
-  refreshBtn: { background: 'transparent', border: 'none', color: '#4da6ff', fontSize: '0.72rem', cursor: 'pointer', padding: 0 },
+  refreshBtn: { background: 'transparent', border: 'none', color: '#9333ea', fontSize: '0.72rem', cursor: 'pointer', padding: 0 },
   tierRow: { display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '3px solid', paddingLeft: '0.75rem', marginBottom: '0.6rem' },
   tierTag: { fontWeight: 800, fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', minWidth: 52 },
   tierPlayers: { display: 'flex', flexWrap: 'wrap', gap: '0.4rem' },

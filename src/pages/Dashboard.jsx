@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth'
 import { colors, fonts, radius } from '../lib/theme'
 
 const OR = '#f4701b'
-const BL = '#38bdf8'
+const BL = '#9333ea'
 const BG = '#0a0a0f'
 const SURF = '#0d0d14'
 const BORDER = '#161616'

@@ -12,7 +12,7 @@ const TIER_META = {
   G_TIER: { label: 'G TIER — NEGATIVE NET IMPACT',             spine: '#dc2626', bg: 'rgba(220,38,38,0.07)',   text: '#f87171' },
 }
 
-const TEAM_COLORS = { our: '#3b82f6', opp: '#ef4444' }
+const TEAM_COLORS = { our: '#f4701b', opp: '#ef4444' }
 
 export default function SeriesChart() {
   const { id: seriesId } = useParams()

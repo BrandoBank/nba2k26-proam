@@ -56,8 +56,8 @@ export default function Home() {
                 <span style={styles.cardName}>{s.name}</span>
                 <span style={{
                   ...styles.badge,
-                  background: s.status === 'complete' ? '#1a3a1a' : '#1a2a3a',
-                  color: s.status === 'complete' ? '#4caf50' : '#4da6ff',
+                  background: s.status === 'complete' ? '#1a3a1a' : '#1a0a2e',
+                  color: s.status === 'complete' ? '#4caf50' : '#9333ea',
                 }}>
                   {s.status === 'complete' ? s.result_label || 'Complete' : 'In Progress'}
                 </span>
@@ -83,7 +83,7 @@ const styles = {
   title: { margin: 0, fontSize: '1.5rem', letterSpacing: '0.12em', color: '#fff' },
   sub: { margin: '0.25rem 0 0', color: '#666', fontSize: '0.85rem', letterSpacing: '0.08em' },
   actions: { display: 'flex', gap: '0.75rem', alignItems: 'center' },
-  btnPrimary: { background: '#1d6ef5', color: '#fff', padding: '0.5rem 1rem', borderRadius: 4, textDecoration: 'none', fontSize: '0.9rem', fontWeight: 600 },
+  btnPrimary: { background: '#f4701b', color: '#fff', padding: '0.5rem 1rem', borderRadius: 4, textDecoration: 'none', fontSize: '0.9rem', fontWeight: 600 },
   btnGhost: { background: 'transparent', color: '#888', border: '1px solid #333', padding: '0.5rem 1rem', borderRadius: 4, cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'none' },
   dim: { color: '#555', textAlign: 'center', marginTop: '4rem' },
   grid: { display: 'flex', flexDirection: 'column', gap: '0.75rem' },

@@ -204,7 +204,7 @@ export default function GameEntry() {
 
       {/* Screenshot drop zone */}
       <div
-        style={{...s.dropZone, borderColor: dragOver ? '#1d6ef5' : '#2a2a2a', background: dragOver ? '#0a1a2a' : '#080808'}}
+        style={{...s.dropZone, borderColor: dragOver ? '#f4701b' : '#2a2a2a', background: dragOver ? '#1a0a2e' : '#080808'}}
         onDragOver={e => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }}
@@ -217,7 +217,7 @@ export default function GameEntry() {
           <div style={{...s.dropText, display:'flex', alignItems:'center', gap:6}}><IconCheck size={14} color="#4ade80" /> {screenshotFile.name} — stats loaded below. Verify and save.</div>
         ) : (
           <div style={s.dropText}>
-            Drop box score screenshot here or <span style={{color:'#1d6ef5'}}>click to upload</span>
+            Drop box score screenshot here or <span style={{color:'#f4701b'}}>click to upload</span>
             <div style={s.dropSub}>AI will parse all stats + matchups automatically</div>
           </div>
         )}
@@ -273,7 +273,7 @@ export default function GameEntry() {
         side="our"
         players={game.our_players}
         allPlayers={allPlayers}
-        teamColor="#4da6ff"
+        teamColor="#9333ea"
         onChange={updatePlayer}
         showMatchup={false}
       />
@@ -416,7 +416,7 @@ const s = {
   totalsBar: { display:'flex', gap:'1.5rem', alignItems:'center', background:'#080808', border:'1px solid #1a1a1a', borderRadius:6, padding:'0.75rem 1rem', marginBottom:'1rem', flexWrap:'wrap' },
   overrideLabel: { display:'flex', alignItems:'center', cursor:'pointer', fontSize:'0.82rem' },
   warnBanner: { background:'#2a1a00', border:'1px solid #5a3500', borderRadius:4, padding:'0.6rem 1rem', color:'#ffc107', fontSize:'0.85rem', marginBottom:'1rem' },
-  btnSave: { background:'#1d6ef5', color:'#fff', border:'none', borderRadius:4, padding:'0.85rem 2rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', marginTop:'1rem' },
+  btnSave: { background:'#f4701b', color:'#fff', border:'none', borderRadius:4, padding:'0.85rem 2rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', marginTop:'1rem' },
   error: { color:'#e55', fontSize:'0.85rem' },
   dim: { color:'#555' },
 }

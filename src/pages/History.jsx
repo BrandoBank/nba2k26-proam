@@ -726,7 +726,7 @@ function RivalriesTab({ h2h }) {
           const dominant = winsA > winsB ? pA : winsB > winsA ? pB : null
 
           const COL_A = '#f4701b'   // orange
-          const COL_B = '#38bdf8'   // sky blue — complementary, readable on black
+          const COL_B = '#9333ea'
 
           return (
             <div key={i} style={s.rivalCard}>
@@ -1025,7 +1025,7 @@ const s = {
   draftWrap: {
     background: colors.surface,
     border: `1px solid ${colors.border}`,
-    borderLeft: `3px solid #38bdf8`,
+    borderLeft: `3px solid #9333ea`,
     borderRadius: radius.lg,
     padding: '12px 16px',
     marginBottom: 16,
