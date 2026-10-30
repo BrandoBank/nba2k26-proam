@@ -25,11 +25,11 @@ const s = {
   recordRow: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginTop: 8 },
   divider: { width: 1, height: 40, background: '#222' },
   seriesRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #161616' },
-  calloutSection: { marginTop: 28 },
+  calloutSection: { marginTop: 28, textAlign: 'center' },
   calloutTitle: { fontSize: 13, color: '#555', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 },
-  calloutBtns: { display: 'flex', gap: 12, flexWrap: 'wrap' },
-  callout1v1: { background: 'linear-gradient(135deg, #f4701b, #e05c0a)', color: '#fff', border: 'none', borderRadius: 10, padding: '14px 24px', fontWeight: 800, fontSize: 15, cursor: 'pointer', letterSpacing: 0.5 },
-  calloutDraft: { background: 'linear-gradient(135deg, #38bdf8, #0ea5e9)', color: '#fff', border: 'none', borderRadius: 10, padding: '14px 24px', fontWeight: 800, fontSize: 15, cursor: 'pointer', letterSpacing: 0.5 },
+  calloutBtns: { display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' },
+  callout1v1: { background: 'linear-gradient(135deg, #f4701b, #e05c0a)', color: '#fff', border: 'none', borderRadius: 10, padding: '14px 24px', fontWeight: 800, fontSize: 15, cursor: 'pointer', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 },
+  calloutDraft: { background: 'linear-gradient(135deg, #38bdf8, #0ea5e9)', color: '#fff', border: 'none', borderRadius: 10, padding: '14px 24px', fontWeight: 800, fontSize: 15, cursor: 'pointer', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 },
   toast: { position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)', background: '#1a1a1a', border: '1px solid #333', borderRadius: 10, padding: '12px 20px', fontSize: 14, zIndex: 9999, whiteSpace: 'nowrap' },
   pendingCallouts: { background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 12, padding: 20, marginBottom: 20 },
   calloutItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #161616' },
@@ -184,8 +184,9 @@ export default function Rivalries() {
       {/* Pending callouts for logged-in player */}
       {pendingCallouts.length > 0 && (
         <div style={s.pendingCallouts}>
-          <div style={{ ...s.cardTitle, color: ORANGE }}>
-            ⚡ You've Been Called Out
+          <div style={{ ...s.cardTitle, color: ORANGE, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill={ORANGE} stroke={ORANGE} strokeWidth="1"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            You've Been Called Out
             <span style={s.badge}>{pendingCallouts.length}</span>
           </div>
           {pendingCallouts.map(c => (
@@ -301,10 +302,19 @@ export default function Rivalries() {
           <div style={s.calloutTitle}>Send a Callout to {careers[playerB]?.display_name || playerB}</div>
           <div style={s.calloutBtns}>
             <button style={s.callout1v1} onClick={() => sendCallout('1v1')}>
-              🔥 Call Out 1v1
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/>
+                <line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/>
+                <polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" y1="14" x2="9" y2="18"/><line x1="7" y1="21" x2="9" y2="19"/>
+              </svg>
+              Call Out 1v1
             </button>
             <button style={s.calloutDraft} onClick={() => sendCallout('draft')}>
-              🏀 Call Out to Draft
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <circle cx="12" cy="12" r="9"/><path d="M12 3c0 4.97 3 9 7 10.5M12 3c0 4.97-3 9-7 10.5"/>
+                <path d="M5.5 19.5C7 16 9 13 12 12s5-4 6.5-7.5"/>
+              </svg>
+              Call Out to Draft
             </button>
           </div>
         </div>
