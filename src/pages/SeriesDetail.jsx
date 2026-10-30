@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, NavLink } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { computeImpactScores } from '../lib/ranking'
@@ -360,13 +360,13 @@ export default function SeriesDetail() {
                 <div style={{...s.tierTag, color: TIER_COLORS[tier]}}>{tier === 'G_TIER' ? 'G TIER' : tier}</div>
                 <div style={s.tierPlayers}>
                   {players.map(r => (
-                    <div key={r.player_id} style={s.rankPlayer}>
+                    <Link key={r.player_id} to={`/player/${r.gamertag}`} style={{...s.rankPlayer, textDecoration: 'none'}}>
                       {r.is_mvp && <IconStar size={13} color={colors.gold} filled style={s.mvpStar} />}
                       <span style={{color: '#fff', fontWeight: 700}}>
                         {r.display_name || r.gamertag}
                       </span>
                       <span style={s.impactScore}>{Number(r.impact_score || 0).toFixed(1)}</span>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -433,9 +433,11 @@ function StatsTable({ players, teamName }) {
             {players.map(p => (
               <tr key={p.player_id} style={s.tr}>
                 <td style={{...s.td, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap'}}>
-                  {p.gamertag}
+                  <Link to={`/player/${p.gamertag}`} style={{color: '#fff', textDecoration: 'none'}}>
+                    {p.display_name || p.gamertag}
+                  </Link>
                   {p.display_name && p.display_name !== p.gamertag && (
-                    <span style={{color:'#555', fontWeight:400, marginLeft:6, fontSize:'0.8rem'}}>({p.display_name})</span>
+                    <span style={{color:'#555', fontWeight:400, marginLeft:6, fontSize:'0.8rem'}}>{p.gamertag}</span>
                   )}
                 </td>
                 <td style={s.td}>{p.gp}</td>

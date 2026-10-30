@@ -35,7 +35,9 @@ export default function Profile() {
   const [career, setCareer] = useState(null)
   const [allCareers, setAllCareers] = useState([])
   const [rankings, setRankings] = useState([])
+  const [seriesStats, setSeriesStats] = useState({})
   const [bestGames, setBestGames] = useState([])
+  const [h2h, setH2h] = useState([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
 
@@ -57,7 +59,7 @@ export default function Profile() {
     setAllCareers(allCareerRows || [])
 
     if (playerRow?.id) {
-      const [{ data: rankRows }, { data: gameRows }] = await Promise.all([
+      const [{ data: rankRows }, { data: gameRows }, { data: spaRows }, { data: allSpaRows }] = await Promise.all([
         supabase.from('series_rankings')
           .select('*, series(id,name,our_wins,opp_wins,ended_at)')
           .eq('player_id', playerRow.id)
@@ -67,9 +69,48 @@ export default function Profile() {
           .eq('player_id', playerRow.id)
           .order('pts', { ascending: false })
           .limit(3),
+        supabase.from('series_player_averages')
+          .select('series_id,side,gp,ppg,rpg,apg,spg,fg_pct,three_pct,best_pts')
+          .eq('player_id', playerRow.id),
+        supabase.from('series_player_averages')
+          .select('series_id,player_id,gamertag,display_name,side'),
       ])
+
       setRankings(rankRows || [])
       setBestGames((gameRows || []).filter(g => g.pts != null))
+
+      // Series stat line map keyed by series_id
+      const statsMap = {}
+      ;(spaRows || []).forEach(r => { statsMap[r.series_id] = r })
+      setSeriesStats(statsMap)
+
+      // H2H: for each series this player appeared in, find opponents and track W/L
+      const myRankMap = {}
+      ;(rankRows || []).forEach(r => {
+        if (r.series) myRankMap[r.series_id || r.series?.id] = r
+      })
+      const h2hMap = {}
+      ;(spaRows || []).forEach(myRow => {
+        const rankRow = (rankRows || []).find(r => (r.series_id || r.series?.id) === myRow.series_id)
+        const ser = rankRow?.series
+        if (!ser) return
+        const oppSide = myRow.side === 'our' ? 'opp' : 'our'
+        const iWon = myRow.side === 'our'
+          ? (ser.our_wins || 0) > (ser.opp_wins || 0)
+          : (ser.opp_wins || 0) > (ser.our_wins || 0)
+        ;(allSpaRows || [])
+          .filter(r => r.series_id === myRow.series_id && r.side === oppSide && r.player_id !== playerRow.id)
+          .forEach(opp => {
+            if (!h2hMap[opp.gamertag]) h2hMap[opp.gamertag] = { gamertag: opp.gamertag, display_name: opp.display_name, wins: 0, losses: 0 }
+            if (iWon) h2hMap[opp.gamertag].wins++
+            else h2hMap[opp.gamertag].losses++
+          })
+      })
+      const h2hList = Object.values(h2hMap)
+        .filter(r => r.wins + r.losses >= 1)
+        .sort((a, b) => (b.wins + b.losses) - (a.wins + a.losses))
+        .slice(0, 8)
+      setH2h(h2hList)
     }
 
     setLoading(false)
@@ -221,14 +262,15 @@ export default function Profile() {
         </div>
       )}
 
-      {/* Tier timeline */}
+      {/* Tier timeline with stat lines */}
       {rankings.length > 0 && (
         <div style={s.section}>
           <div style={s.sectionLabel}>SERIES HISTORY</div>
           <div style={s.timeline}>
-            {rankings.map((r, i) => {
+            {rankings.map((r) => {
               const ser = r.series
               const tc = TIER_COLOR[r.tier] || '#555'
+              const spa = seriesStats[r.series_id || ser?.id]
               return (
                 <Link key={r.id} to={ser ? `/series/${ser.id}` : '#'} style={s.timelineRow}>
                   <div style={{ ...s.tierDot, background: tc, boxShadow: `0 0 6px ${tc}` }} />
@@ -239,9 +281,44 @@ export default function Profile() {
                       {r.tags?.length > 0 && r.tags.slice(0, 2).map(t => (
                         <span key={t} style={s.tag}>{t}</span>
                       ))}
+                      {spa && (
+                        <span style={s.spaLine}>
+                          {spa.ppg} PPG · {spa.rpg} RPG · {spa.apg} APG
+                          {spa.fg_pct != null && ` · ${spa.fg_pct}% FG`}
+                          {spa.gp > 1 && ` · ${spa.gp}G`}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <span style={{ ...s.tierLabel, color: tc }}>{TIER_LABEL[r.tier] || r.tier}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* H2H Rivalries */}
+      {h2h.length > 0 && (
+        <div style={s.section}>
+          <div style={s.sectionLabel}>HEAD TO HEAD</div>
+          <div style={s.h2hGrid}>
+            {h2h.map(opp => {
+              const total = opp.wins + opp.losses
+              const winPct = Math.round((opp.wins / total) * 100)
+              const isUp = opp.wins >= opp.losses
+              return (
+                <Link key={opp.gamertag} to={`/player/${opp.gamertag}`} style={s.h2hCard}>
+                  <div style={s.h2hAvatar}>{(opp.display_name || opp.gamertag)[0].toUpperCase()}</div>
+                  <div style={s.h2hBody}>
+                    <div style={s.h2hName}>{(opp.display_name || opp.gamertag).toUpperCase()}</div>
+                    <div style={s.h2hRecord}>
+                      <span style={{ color: isUp ? colors.statGreen : colors.gTier, fontWeight: 900 }}>{opp.wins}W</span>
+                      <span style={{ color: '#333' }}>–</span>
+                      <span style={{ color: isUp ? '#555' : colors.gTier, fontWeight: 700 }}>{opp.losses}L</span>
+                      <span style={{ color: '#333', fontSize: '0.65rem' }}>{winPct}%</span>
+                    </div>
+                  </div>
                 </Link>
               )
             })}
@@ -299,6 +376,13 @@ const s = {
   tierLabel: { fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em', fontFamily: "'Barlow Condensed', system-ui, sans-serif", textTransform: 'uppercase', flexShrink: 0 },
   mvpTag: { background: 'rgba(234,179,8,0.12)', color: colors.gold, fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.1em', padding: '1px 5px', borderRadius: 3, fontFamily: "'Barlow Condensed', system-ui, sans-serif" },
   tag: { background: '#111', color: '#444', fontSize: '0.58rem', fontWeight: 600, letterSpacing: '0.06em', padding: '1px 5px', borderRadius: 3 },
-  feedLink: { display: 'flex', alignItems: 'center', gap: 8, color: OR, textDecoration: 'none', fontSize: '0.82rem', fontWeight: 700, letterSpacing: '0.06em', background: 'rgba(244,112,27,0.06)', border: '1px solid rgba(244,112,27,0.15)', borderRadius: 8, padding: '12px 14px', fontFamily: "'Barlow Condensed', system-ui, sans-serif', textTransform: 'uppercase'" },
+  feedLink: { display: 'flex', alignItems: 'center', gap: 8, color: OR, textDecoration: 'none', fontSize: '0.82rem', fontWeight: 700, letterSpacing: '0.06em', background: 'rgba(244,112,27,0.06)', border: '1px solid rgba(244,112,27,0.15)', borderRadius: 8, padding: '12px 14px', fontFamily: "'Barlow Condensed', system-ui, sans-serif", textTransform: 'uppercase' },
+  spaLine: { color: '#444', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.03em' },
+  h2hGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 },
+  h2hCard: { display: 'flex', alignItems: 'center', gap: 10, background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 8, padding: '10px 12px', textDecoration: 'none', color: 'inherit' },
+  h2hAvatar: { width: 32, height: 32, borderRadius: '50%', background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: '1rem', color: '#555', flexShrink: 0 },
+  h2hBody: { flex: 1, minWidth: 0 },
+  h2hName: { fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.06em', color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  h2hRecord: { display: 'flex', gap: 5, alignItems: 'baseline', marginTop: 2, fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.85rem' },
   dim: { color: '#444', fontSize: '0.85rem' },
 }

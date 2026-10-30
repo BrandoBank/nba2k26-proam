@@ -17,11 +17,14 @@ const emptyPlayer = (slot) => ({
   matchup_gamertag: '',
 })
 
+const todayISO = () => new Date().toISOString().slice(0, 10)
+
 const emptyGame = (series) => ({
   game_number: '',
   our_score: '',
   opp_score: '',
   our_result: 'W',
+  played_at: todayISO(),
   our_players: POSITIONS.map((_, i) => emptyPlayer(i+1)),
   opp_players: POSITIONS.map((_, i) => emptyPlayer(i+1)),
 })
@@ -168,6 +171,7 @@ export default function GameEntry() {
           our_score: Number(game.our_score),
           opp_score: Number(game.opp_score),
           our_result: game.our_result,
+          played_at: game.played_at || new Date().toISOString(),
           our_players: game.our_players,
           opp_players: game.opp_players,
         }),
@@ -228,6 +232,9 @@ export default function GameEntry() {
               <option key={n} value={n}>Game {n}</option>
             ))}
           </select>
+        </label>
+        <label style={s.label}>Date Played
+          <input style={s.input} type="date" value={game.played_at || todayISO()} onChange={e => setGame(g => ({...g, played_at: e.target.value}))} />
         </label>
         <label style={s.label}>Result
           <select style={s.input} value={game.our_result} onChange={e => setGame(g => ({...g, our_result: e.target.value}))}>
