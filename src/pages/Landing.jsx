@@ -87,12 +87,16 @@ export default function Landing() {
 
   return (
     <div style={s.page}>
-      <style>{`@keyframes tickerScroll { from { transform: translateX(0) } to { transform: translateX(-50%) } }`}</style>
+      <style>{`
+        @keyframes tickerScroll { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+        .landing-nav { display: flex; }
+        @media (min-width: 900px) { .landing-nav { display: none !important; } }
+      `}</style>
       {/* ARCADE BACKGROUND */}
       <div style={s.arcadeBg} />
 
-      {/* NAV */}
-      <nav style={s.nav}>
+      {/* NAV — mobile only; desktop uses MobileNav's desktop-topbar */}
+      <nav style={s.nav} className="landing-nav">
         <Link to="/" style={s.logo}>
           <IconBall size={16} color={OR} />
           <span>NEXT UP</span>
@@ -943,6 +947,7 @@ const s = {
   logo: { display: 'flex', alignItems: 'center', gap: 7, textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: '1.15rem', letterSpacing: '0.28em', color: '#fff', textShadow: `0 0 20px ${NEON_P_GLOW}`, textTransform: 'uppercase' },
   navRight: { display: 'flex', alignItems: 'center', gap: '0.25rem' },
   navLink: { color: '#555', textDecoration: 'none', fontSize: '0.82rem', padding: '0.4rem 0.6rem', fontFamily: "'Inter', system-ui, sans-serif" },
+  desktopNavLink: { color: '#555', textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 700, fontSize: '0.85rem', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0.4rem 0.75rem', borderRadius: 5, transition: 'color 0.15s' },
   navCta: { background: 'transparent', border: '1px solid #2a2a2a', color: '#666', textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.8rem', fontWeight: 700, padding: '0.3rem 0.8rem', borderRadius: 5, letterSpacing: '0.1em', textTransform: 'uppercase' },
   navProfile: { display: 'flex', alignItems: 'center', gap: 7 },
   navAvatar: { width: 28, height: 28, borderRadius: '50%', background: OR, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: '0.85rem', color: '#000', flexShrink: 0 },

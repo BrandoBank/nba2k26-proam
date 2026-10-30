@@ -3,9 +3,11 @@ import { useAuth } from '../hooks/useAuth'
 import { colors } from '../lib/theme'
 import './MobileNav.css'
 
+const OR = colors.orange
+
 export default function MobileNav() {
   const { pathname } = useLocation()
-  const { isEditor } = useAuth()
+  const { isEditor, session, signOut, gamertag } = useAuth()
 
   const active = (path) => {
     if (path === '/') return pathname === '/'
@@ -15,14 +17,76 @@ export default function MobileNav() {
   const isSeriesActive = active('/leagues') || (pathname.startsWith('/series') && !pathname.startsWith('/series/new'))
 
   return (
-    <nav className="mobile-nav">
-      <NavItem to="/" label="Home" active={active('/')} icon={<HomeIcon />} />
-      <NavItem to="/leagues" label="Series" active={isSeriesActive} icon={<BallIcon />} />
-      <NavItem to="/feed" label="Feed" active={active('/feed')} icon={<FeedIcon />} />
-      <NavItem to="/history" label="History" active={active('/history')} icon={<ChartIcon />} />
-      {isEditor && <NavItem to="/series/new" label="+ New" active={active('/series/new')} icon={<PlusIcon />} accent />}
-    </nav>
+    <>
+      {/* Desktop top bar — hidden on mobile */}
+      <nav className="desktop-topbar">
+        <Link to="/" style={dt.logo}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={OR} strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 3c0 4.97 3 9 7 10.5M12 3c0 4.97-3 9-7 10.5"/><path d="M5.5 19.5C7 16 9 13 12 12s5-4 6.5-7.5"/></svg>
+          <span>NEXT UP</span>
+        </Link>
+        <div style={dt.links}>
+          <DesktopLink to="/" label="Home" active={active('/')} />
+          <DesktopLink to="/leagues" label="Series" active={isSeriesActive} />
+          <DesktopLink to="/feed" label="Feed" active={active('/feed')} />
+          <DesktopLink to="/history" label="History" active={active('/history')} />
+          {isEditor && <DesktopLink to="/series/new" label="+ New" active={active('/series/new')} accent />}
+        </div>
+        <div style={dt.right}>
+          {session ? (
+            <>
+              <Link to={gamertag ? `/player/${gamertag}` : '/claim'} style={dt.profile}>
+                <div style={dt.avatar}>{(gamertag?.[0] || session.user.email?.[0] || 'U').toUpperCase()}</div>
+                <span style={dt.profileLabel}>{(gamertag || session.user.email?.split('@')[0] || '').toUpperCase()}</span>
+              </Link>
+              <button onClick={signOut} style={dt.signOut}>OUT</button>
+            </>
+          ) : (
+            <Link to="/login" style={dt.signIn}>Sign In</Link>
+          )}
+        </div>
+      </nav>
+
+      {/* Mobile bottom bar — hidden on desktop */}
+      <nav className="mobile-nav">
+        <NavItem to="/" label="Home" active={active('/')} icon={<HomeIcon />} />
+        <NavItem to="/leagues" label="Series" active={isSeriesActive} icon={<BallIcon />} />
+        <NavItem to="/feed" label="Feed" active={active('/feed')} icon={<FeedIcon />} />
+        <NavItem to="/history" label="History" active={active('/history')} icon={<ChartIcon />} />
+        {isEditor && <NavItem to="/series/new" label="+ New" active={active('/series/new')} icon={<PlusIcon />} accent />}
+      </nav>
+    </>
   )
+}
+
+function DesktopLink({ to, label, active, accent }) {
+  return (
+    <Link to={to} style={{
+      color: accent ? OR : active ? '#fff' : '#555',
+      textDecoration: 'none',
+      fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+      fontWeight: 700,
+      fontSize: '0.85rem',
+      letterSpacing: '0.1em',
+      textTransform: 'uppercase',
+      padding: '0.35rem 0.75rem',
+      borderRadius: 5,
+      background: active ? 'rgba(244,112,27,0.08)' : 'transparent',
+      border: `1px solid ${active ? 'rgba(244,112,27,0.15)' : 'transparent'}`,
+    }}>
+      {label}
+    </Link>
+  )
+}
+
+const dt = {
+  logo: { display: 'flex', alignItems: 'center', gap: 7, textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: '1.1rem', letterSpacing: '0.28em', color: '#fff', textTransform: 'uppercase' },
+  links: { display: 'flex', alignItems: 'center', gap: 4 },
+  right: { display: 'flex', alignItems: 'center', gap: 8 },
+  profile: { display: 'flex', alignItems: 'center', gap: 7, textDecoration: 'none' },
+  avatar: { width: 28, height: 28, borderRadius: '50%', background: OR, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: '0.85rem', color: '#000', flexShrink: 0 },
+  profileLabel: { fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em', color: '#888', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  signOut: { background: 'none', border: '1px solid #222', borderRadius: 4, color: '#444', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', padding: '0.2rem 0.45rem', cursor: 'pointer', fontFamily: "'Barlow Condensed', system-ui, sans-serif" },
+  signIn: { background: 'transparent', border: '1px solid #2a2a2a', color: '#666', textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.8rem', fontWeight: 700, padding: '0.3rem 0.8rem', borderRadius: 5, letterSpacing: '0.1em', textTransform: 'uppercase' },
 }
 
 function NavItem({ to, label, active, icon, accent }) {
