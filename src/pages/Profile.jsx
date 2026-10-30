@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { colors, fonts } from '../lib/theme'
-import { IconTrophy, IconFlame, IconBall, IconArrow, IconShield, IconStar, IconChat } from '../lib/icons'
+import { IconTrophy, IconFlame, IconBall, IconArrow, IconShield, IconStar, IconChat, IconCheck } from '../lib/icons'
 
 const OR = colors.orange
 const NEON_P = '#a855f7'
@@ -41,6 +41,10 @@ export default function Profile() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState('')
+  const [nameSaving, setNameSaving] = useState(false)
+  const [nameError, setNameError] = useState('')
 
   useEffect(() => {
     loadProfile()
@@ -137,6 +141,28 @@ export default function Profile() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  function startEditName() {
+    setNameInput(player.display_name || '')
+    setNameError('')
+    setEditingName(true)
+  }
+
+  async function saveDisplayName() {
+    const trimmed = nameInput.trim()
+    if (trimmed.length > 30) { setNameError('Max 30 characters'); return }
+    setNameSaving(true)
+    setNameError('')
+    const newName = trimmed || null  // empty string → null (falls back to gamertag)
+    const { error } = await supabase
+      .from('players')
+      .update({ display_name: newName })
+      .eq('gamertag', gamertag)
+    setNameSaving(false)
+    if (error) { setNameError('Could not save. Try again.'); return }
+    setPlayer(p => ({ ...p, display_name: newName }))
+    setEditingName(false)
+  }
+
   if (loading) return (
     <div style={s.page}>
       <div style={s.loadWrap}><IconBall size={20} color={OR} /><p style={s.dim}>Loading...</p></div>
@@ -188,14 +214,54 @@ export default function Profile() {
       {/* Hero */}
       <div style={s.hero} ref={shareRef}>
         <div style={s.avatar}>{initial}</div>
-        <div>
-          <div style={s.heroName}>{name.toUpperCase()}</div>
-          {player.display_name && player.display_name !== player.gamertag &&
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {editingName ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input
+                  autoFocus
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveDisplayName(); if (e.key === 'Escape') setEditingName(false) }}
+                  maxLength={30}
+                  placeholder={player.gamertag}
+                  style={{ background: '#111', border: `1px solid ${OR}`, borderRadius: 6, color: '#fff', padding: '6px 10px', fontSize: 18, fontWeight: 800, fontFamily: 'inherit', width: '100%', outline: 'none', letterSpacing: 0.5 }}
+                />
+                <button onClick={saveDisplayName} disabled={nameSaving} style={{ background: OR, border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', flexShrink: 0 }}>
+                  {nameSaving ? '…' : <IconCheck size={14} color="#000" />}
+                </button>
+                <button onClick={() => setEditingName(false)} style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', color: '#666', fontSize: 12, flexShrink: 0, fontFamily: 'inherit' }}>
+                  ✕
+                </button>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {nameError
+                  ? <span style={{ color: '#ef4444', fontSize: 11 }}>{nameError}</span>
+                  : <span style={{ color: '#333', fontSize: 11 }}>Leave blank to show gamertag · max 30 chars</span>
+                }
+                <span style={{ color: '#333', fontSize: 11 }}>{nameInput.length}/30</span>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div style={s.heroName}>{name.toUpperCase()}</div>
+              {isOwnProfile && (
+                <button
+                  onClick={startEditName}
+                  title="Edit display name"
+                  style={{ background: 'none', border: '1px solid #222', borderRadius: 5, padding: '3px 8px', cursor: 'pointer', color: '#555', fontSize: 11, fontFamily: 'inherit', flexShrink: 0, letterSpacing: '0.04em' }}
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+          )}
+          {!editingName && player.display_name && player.display_name !== player.gamertag &&
             <div style={s.heroTag}>{player.gamertag}</div>
           }
           <div style={s.heroMeta}>{career?.total_gp || 0} GP · {rankings.length} Series</div>
         </div>
-        {isOwnProfile && <div style={s.youBadge}>YOU</div>}
+        {isOwnProfile && !editingName && <div style={s.youBadge}>YOU</div>}
       </div>
 
       {/* Accolade badges */}
