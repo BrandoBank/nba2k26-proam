@@ -794,10 +794,11 @@ const s = {
   },
   pageSub: {
     fontFamily: "'Inter', system-ui, sans-serif",
-    fontSize: 11,
-    color: colors.textMuted,
+    fontSize: 9,
+    fontWeight: 700,
+    color: '#333',
     marginTop: 2,
-    letterSpacing: '0.04em',
+    letterSpacing: 3,
     textTransform: 'uppercase',
   },
   tabBar: {
@@ -961,6 +962,7 @@ const s = {
     display: 'block',
     background: colors.surface,
     border: `1px solid ${colors.border}`,
+    borderLeft: `3px solid #f4701b`,
     borderRadius: radius.lg,
     textDecoration: 'none',
     color: 'inherit',
@@ -1020,6 +1022,7 @@ const s = {
   draftWrap: {
     background: colors.surface,
     border: `1px solid ${colors.border}`,
+    borderLeft: `3px solid #38bdf8`,
     borderRadius: radius.lg,
     padding: '12px 16px',
     marginBottom: 16,
@@ -1171,6 +1174,7 @@ const s = {
   achCard: {
     background: colors.surface,
     border: `1px solid ${colors.border}`,
+    borderLeft: `3px solid #f4701b`,
     borderRadius: radius.lg,
     padding: '14px 16px',
   },

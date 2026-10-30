@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { colors, fonts, radius } from '../lib/theme'
+
+const OR = '#f4701b'
+const BL = '#38bdf8'
+const BG = '#0a0a0f'
+const SURF = '#0d0d14'
+const BORDER = '#161616'
 
 export default function Dashboard() {
   const { isEditor, signOut } = useAuth()
@@ -23,113 +30,295 @@ export default function Dashboard() {
   const completed = series.filter(s => s.status === 'complete')
 
   return (
-    <div style={s.page}>
+    <div style={p.page}>
       {/* Header */}
-      <div style={s.header}>
+      <div style={p.header}>
         <div>
-          <Link to="/" style={s.logoLink}>NEXT UP SERIES</Link>
-          <p style={s.sub}>All Series</p>
+          <div style={p.pageTitle}>THE ARCHIVE</div>
+          <div style={p.pageSub}>All Series — Next Up Pro-Am</div>
         </div>
-        <div style={s.actions}>
-          {isEditor && <Link to="/series/new" style={s.btnPrimary}>+ New Series</Link>}
-          {isEditor && <button onClick={signOut} style={s.btnGhost}>Sign Out</button>}
-          {!isEditor && <Link to="/login" style={s.btnGhost}>Editor Login</Link>}
+        <div style={p.actions}>
+          {isEditor && <Link to="/series/new" style={p.btnNew}>+ NEW SERIES</Link>}
         </div>
       </div>
 
       {loading ? (
-        <p style={s.dim}>Loading...</p>
+        <p style={p.dim}>Loading...</p>
       ) : series.length === 0 ? (
-        <div style={s.empty}>
-          <p style={s.emptyTitle}>No series yet.</p>
-          {isEditor && <Link to="/series/new" style={s.btnPrimary}>Start the First One</Link>}
+        <div style={p.empty}>
+          <p style={p.dim}>No series yet.</p>
+          {isEditor && <Link to="/series/new" style={p.btnNew}>Start the First One</Link>}
         </div>
       ) : (
-        <>
+        <div style={p.content}>
           {active.length > 0 && (
-            <section style={s.section}>
-              <h2 style={s.sectionTitle}>
-                <span style={s.dot} />
-                In Progress
-              </h2>
-              <div style={s.grid}>
-                {active.map(s => <SeriesCard key={s.id} s={s} />)}
+            <section style={p.section}>
+              <div style={p.sectionLabel}>
+                <span style={p.liveDot} />
+                IN PROGRESS
+              </div>
+              <div style={p.cardList}>
+                {active.map(s => <SeriesCard key={s.id} s={s} live />)}
               </div>
             </section>
           )}
           {completed.length > 0 && (
-            <section style={s.section}>
-              <h2 style={{...s.sectionTitle, color: '#444'}}>Completed</h2>
-              <div style={s.grid}>
+            <section style={p.section}>
+              <div style={p.sectionLabel}>COMPLETED</div>
+              <div style={p.cardList}>
                 {completed.map(s => <SeriesCard key={s.id} s={s} />)}
               </div>
             </section>
           )}
-        </>
+        </div>
       )}
+
+      <div style={{ height: 80 }} />
     </div>
   )
 }
 
-function SeriesCard({ s }) {
-  const teamA = s.our_team_name || 'Team A'
-  const teamB = s.opp_team_name || 'Team B'
-  const record = `${s.our_wins ?? 0}–${s.opp_wins ?? 0}`
+function SeriesCard({ s, live }) {
+  const teamA = s.our_team_name || 'US'
+  const teamB = s.opp_team_name || 'THEM'
+  const winsA = s.our_wins ?? 0
+  const winsB = s.opp_wins ?? 0
+  const total = winsA + winsB
+  const pctA = total > 0 ? winsA / total : 0.5
   const dateStr = s.started_at
     ? new Date(s.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : null
+
   return (
     <Link to={`/series/${s.id}`} style={c.card}>
-      <div style={c.top}>
-        <div>
-          <div style={c.name}>{s.name}</div>
-          <div style={c.teams}>{teamA} <span style={c.vs}>vs</span> {teamB}</div>
-          {dateStr && <div style={c.date}>{dateStr}</div>}
+      <div style={c.inner}>
+        {/* Teams row */}
+        <div style={c.teams}>
+          <span style={{ ...c.team, color: OR }}>{teamA}</span>
+          <div style={c.vs}>
+            {live ? (
+              <span style={c.liveBadge}>LIVE</span>
+            ) : (
+              <span style={c.vsTxt}>VS</span>
+            )}
+          </div>
+          <span style={{ ...c.team, color: BL, textAlign: 'right' }}>{teamB}</span>
         </div>
-        <div style={{
-          ...c.badge,
-          background: s.status === 'complete' ? '#111' : '#0a1a2a',
-          color: s.status === 'complete' ? '#aaa' : '#4da6ff',
-          border: `1px solid ${s.status === 'complete' ? '#222' : '#1a3a5a'}`,
-        }}>
-          {s.status === 'complete' ? (s.result_label || record) : 'LIVE'}
+
+        {/* Score */}
+        <div style={c.scoreRow}>
+          <span style={{ ...c.score, color: winsA >= winsB ? OR : '#555' }}>{winsA}</span>
+          <span style={c.dash}>—</span>
+          <span style={{ ...c.score, color: winsB >= winsA ? BL : '#555' }}>{winsB}</span>
         </div>
-      </div>
-      {s.storyline && <p style={c.story}>{s.storyline}</p>}
-      <div style={c.score}>
-        <span style={{color: '#fff', fontWeight: 800, fontSize: '1.4rem'}}>{s.our_wins ?? 0}</span>
-        <span style={{color: '#333', margin: '0 0.4rem', fontSize: '1rem'}}>–</span>
-        <span style={{color: '#fff', fontWeight: 800, fontSize: '1.4rem'}}>{s.opp_wins ?? 0}</span>
+
+        {/* Split bar */}
+        <div style={c.barWrap}>
+          <div style={{ display: 'flex', height: '100%' }}>
+            <div style={{ width: `${pctA * 100}%`, background: `linear-gradient(90deg, ${OR}cc, ${OR})`, borderRadius: '2px 0 0 2px', transition: 'width 0.4s' }} />
+            <div style={{ flex: 1, background: `linear-gradient(90deg, ${BL}, ${BL}cc)`, borderRadius: '0 2px 2px 0' }} />
+          </div>
+        </div>
+
+        {/* Series name + meta */}
+        <div style={c.meta}>
+          <span style={c.seriesName}>{s.name}</span>
+          {dateStr && <span style={c.date}>{dateStr}</span>}
+        </div>
+
+        {s.storyline && <p style={c.story}>{s.storyline}</p>}
       </div>
     </Link>
   )
 }
 
-const s = {
-  page: { minHeight: '100vh', background: '#000', color: '#fff', padding: '2rem', maxWidth: 1000, margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2.5rem', gap: '1rem', flexWrap: 'wrap' },
-  logoLink: { fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.15em', color: '#fff', textDecoration: 'none' },
-  sub: { color: '#444', fontSize: '0.8rem', margin: '0.25rem 0 0', letterSpacing: '0.06em' },
-  actions: { display: 'flex', gap: '0.75rem', alignItems: 'center' },
-  btnPrimary: { background: '#1d6ef5', color: '#fff', padding: '0.5rem 1.1rem', borderRadius: 6, textDecoration: 'none', fontSize: '0.88rem', fontWeight: 700 },
-  btnGhost: { background: 'transparent', color: '#555', border: '1px solid #222', padding: '0.5rem 1rem', borderRadius: 6, cursor: 'pointer', fontSize: '0.88rem', textDecoration: 'none' },
-  dim: { color: '#444', textAlign: 'center', marginTop: '4rem' },
-  empty: { textAlign: 'center', padding: '5rem 0' },
-  emptyTitle: { color: '#444', marginBottom: '1.5rem', fontSize: '1rem' },
-  section: { marginBottom: '2.5rem' },
-  sectionTitle: { color: '#555', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' },
-  dot: { width: 6, height: 6, borderRadius: '50%', background: '#4da6ff', display: 'inline-block' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1px', background: '#111', border: '1px solid #111' },
+const p = {
+  page: {
+    minHeight: '100vh',
+    background: BG,
+    color: '#fff',
+    fontFamily: fonts.display,
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '20px 20px 16px',
+    borderBottom: `1px solid ${BORDER}`,
+  },
+  pageTitle: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontSize: 26,
+    fontWeight: 900,
+    letterSpacing: '0.12em',
+    color: '#fff',
+    textTransform: 'uppercase',
+  },
+  pageSub: {
+    fontSize: 11,
+    color: '#333',
+    marginTop: 2,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  btnNew: {
+    background: OR,
+    color: '#000',
+    padding: '7px 14px',
+    borderRadius: 6,
+    textDecoration: 'none',
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: '0.08em',
+    fontFamily: fonts.display,
+  },
+  dim: {
+    color: '#333',
+    textAlign: 'center',
+    marginTop: '4rem',
+    fontSize: 13,
+    letterSpacing: '0.04em',
+  },
+  empty: {
+    textAlign: 'center',
+    padding: '5rem 0',
+  },
+  content: {
+    padding: '20px',
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 9,
+    fontWeight: 700,
+    letterSpacing: 3,
+    color: '#333',
+    textTransform: 'uppercase',
+    marginBottom: 12,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    background: OR,
+    display: 'inline-block',
+    boxShadow: `0 0 6px ${OR}`,
+  },
+  cardList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 1,
+    border: `1px solid ${BORDER}`,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
 }
 
 const c = {
-  card: { display: 'block', background: '#000', padding: '1.25rem 1.5rem', textDecoration: 'none', color: 'inherit', transition: 'background 0.1s' },
-  top: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.6rem', gap: '0.75rem' },
-  name: { fontWeight: 700, fontSize: '0.95rem', color: '#fff', marginBottom: '0.2rem' },
-  teams: { color: '#444', fontSize: '0.78rem' },
-  date: { color: '#333', fontSize: '0.72rem', marginTop: '0.15rem' },
-  vs: { color: '#2a2a2a', margin: '0 0.3rem' },
-  badge: { fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: 4, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' },
-  story: { color: '#555', fontSize: '0.8rem', lineHeight: 1.5, margin: '0 0 0.75rem', fontStyle: 'italic' },
-  score: { display: 'flex', alignItems: 'center' },
+  card: {
+    display: 'block',
+    background: SURF,
+    textDecoration: 'none',
+    color: 'inherit',
+    borderBottom: `1px solid ${BORDER}`,
+    transition: 'background 0.15s',
+  },
+  inner: {
+    padding: '16px 18px',
+  },
+  teams: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  team: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontSize: 13,
+    fontWeight: 800,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    flex: 1,
+  },
+  vs: {
+    padding: '0 12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vsTxt: {
+    fontSize: 9,
+    fontWeight: 800,
+    color: '#333',
+    letterSpacing: '0.1em',
+  },
+  liveBadge: {
+    fontSize: 9,
+    fontWeight: 800,
+    color: OR,
+    letterSpacing: '0.1em',
+    background: `${OR}15`,
+    border: `1px solid ${OR}40`,
+    borderRadius: 4,
+    padding: '2px 6px',
+  },
+  scoreRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  score: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontSize: 36,
+    fontWeight: 900,
+    letterSpacing: '-0.02em',
+    lineHeight: 1,
+  },
+  dash: {
+    fontSize: 18,
+    color: '#2a2a2a',
+    fontWeight: 300,
+  },
+  barWrap: {
+    height: 3,
+    background: 'transparent',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  meta: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  seriesName: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#888',
+    letterSpacing: '0.04em',
+  },
+  date: {
+    fontSize: 10,
+    color: '#333',
+    letterSpacing: '0.04em',
+  },
+  story: {
+    fontSize: 11,
+    color: '#444',
+    lineHeight: 1.5,
+    marginTop: 6,
+    marginBottom: 0,
+    fontStyle: 'italic',
+  },
 }

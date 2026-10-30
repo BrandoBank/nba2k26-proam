@@ -160,6 +160,9 @@ export default function Feed() {
 
       {/* Feed */}
       <div style={s.feed}>
+        {comments.length > 0 && (
+          <div style={s.feedLabel}>LIVE COMMENTARY</div>
+        )}
         {loading && <p style={s.dim}>Loading feed...</p>}
         {!loading && comments.length === 0 && (
           <p style={s.dim}>No posts yet. Be first.</p>
@@ -267,6 +270,7 @@ const s = {
     margin: '16px 16px 0',
     background: colors.surface,
     border: `1px solid ${colors.border}`,
+    borderLeft: '3px solid #f4701b',
     borderRadius: radius.lg,
     padding: '14px 14px 10px',
     display: 'flex',
@@ -418,10 +422,18 @@ const s = {
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  feedLabel: {
+    fontSize: 9,
+    fontWeight: 700,
+    letterSpacing: 3,
+    color: '#333',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
   cardTag: {
     fontSize: 11,
     fontWeight: 700,
-    color: colors.textMuted,
+    color: '#f4701b',
     letterSpacing: '0.04em',
   },
   cardTime: {
