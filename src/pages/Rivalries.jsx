@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
 const ORANGE = '#f4701b'
-const BLUE   = '#38bdf8'
+const BLUE   = '#9333ea'
 
 export default function Rivalries() {
   const { session, gamertag } = useAuth()
@@ -183,7 +183,7 @@ export default function Rivalries() {
           </div>
 
           {/* Divider bar under selectors */}
-          <div style={{ height: 3, background: `linear-gradient(90deg, ${ORANGE} 0%, #1a1a2e 50%, ${BLUE} 100%)`, marginTop: -1 }} />
+          <div style={{ height: 3, background: `linear-gradient(90deg, ${ORANGE} 0%, #0f0a14 50%, ${BLUE} 100%)`, marginTop: -1 }} />
         </div>
       </div>
 

@@ -942,10 +942,10 @@ function computeLeaders(careers) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = {
-  page: { minHeight: '100vh', background: '#000', color: '#fff', fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 80, position: 'relative' },
+  page: { minHeight: '100vh', background: '#0a0a0f', color: '#fff', fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 80, position: 'relative' },
   arcadeBg: { position: 'fixed', inset: 0, backgroundImage: 'url(/arcade-bg.png)', backgroundSize: 'cover', backgroundPosition: 'center top', opacity: 0.06, pointerEvents: 'none', zIndex: 0, filter: 'saturate(1.4)' },
 
-  nav: { position: 'sticky', top: 0, zIndex: 200, background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(16px)', borderBottom: `1px solid rgba(168,85,247,0.2)`, boxShadow: `0 1px 24px rgba(168,85,247,0.06)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem', height: 52 },
+  nav: { position: 'sticky', top: 0, zIndex: 200, background: 'rgba(10,10,15,0.96)', backdropFilter: 'blur(16px)', borderBottom: `1px solid rgba(168,85,247,0.2)`, boxShadow: `0 1px 24px rgba(168,85,247,0.06)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem', height: 52 },
   logo: { display: 'flex', alignItems: 'center', gap: 7, textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: '1.15rem', letterSpacing: '0.28em', color: '#fff', textShadow: `0 0 20px ${NEON_P_GLOW}`, textTransform: 'uppercase' },
   navRight: { display: 'flex', alignItems: 'center', gap: '0.25rem' },
   navLink: { color: '#555', textDecoration: 'none', fontSize: '0.82rem', padding: '0.4rem 0.6rem', fontFamily: "'Inter', system-ui, sans-serif" },
@@ -971,7 +971,7 @@ const s = {
   activeBar: { height: '100%', background: VICE, borderRadius: 2, transition: 'width 0.6s ease', boxShadow: `0 0 8px ${NEON_P}` },
   activeFormat: { color: '#444', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' },
 
-  section: { padding: '1.5rem 1rem', borderBottom: `1px solid rgba(168,85,247,0.06)`, background: '#000' },
+  section: { padding: '1.5rem 1rem', borderBottom: `1px solid rgba(168,85,247,0.06)`, background: '#0a0a0f' },
   sectionHead: { marginBottom: '1.25rem' },
   eyebrow: { display: 'inline-flex', alignItems: 'center', gap: 5, color: NEON_P, fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '0.3rem' },
   h2: { fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '1.6rem', fontWeight: 900, margin: 0, letterSpacing: '0.06em', textTransform: 'uppercase' },
@@ -983,7 +983,7 @@ const s = {
   badgeName: { flex: 1, fontWeight: 700, fontSize: '0.9rem', color: '#fff' },
 
   leadersGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1, background: 'rgba(168,85,247,0.08)', border: `1px solid rgba(168,85,247,0.12)`, borderRadius: 10, overflow: 'hidden' },
-  leaderCard: { background: '#000', padding: '0.9rem 1rem', border: '0 solid transparent' },
+  leaderCard: { background: '#0a0a0f', padding: '0.9rem 1rem', border: '0 solid transparent' },
   leaderLabel: { fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: '0.3rem' },
   leaderStat: { fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '1.8rem', fontWeight: 900, lineHeight: 1, marginBottom: '0.2rem', letterSpacing: '0.02em' },
   leaderName: { color: '#555', fontSize: '0.75rem', fontWeight: 500, fontFamily: "'Inter', system-ui, sans-serif" },

@@ -2,11 +2,11 @@
 // Sporty NBA aesthetic: heavy type, orange/gold/white on black
 
 export const colors = {
-  bg: '#000',
-  surface: '#0a0a0a',
+  bg: '#0a0a0f',
+  surface: '#0d0d14',
   surfaceHover: '#111',
-  border: '#1a1a1a',
-  borderStrong: '#2a2a2a',
+  border: '#161616',
+  borderStrong: '#222',
 
   // Brand
   orange: '#f4701b',
