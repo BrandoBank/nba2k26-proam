@@ -17,6 +17,7 @@ function timeAgo(ts) {
 
 export default function Feed() {
   const navigate = useNavigate()
+  const { gamertag: authGamertag } = useAuth()
   const [searchParams] = useSearchParams()
   const defaultQuote = searchParams.get('quote') || ''
   const { session, loading: authLoading } = useAuth()
@@ -73,6 +74,11 @@ export default function Feed() {
       })
   }, [session])
 
+
+  async function deleteComment(id) {
+    await supabase.from('comments').delete().eq('id', id)
+    setComments(prev => prev.filter(c => c.id !== id))
+  }
 
   async function post() {
     if (!session || !gamertag.trim() || !body.trim()) return
@@ -169,7 +175,14 @@ export default function Feed() {
             <div style={s.cardBody}>{c.body}</div>
             <div style={s.cardMeta}>
               <span style={s.cardTag}>{c.gamertag}</span>
-              <span style={s.cardTime}>{timeAgo(c.created_at)}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={s.cardTime}>{timeAgo(c.created_at)}</span>
+                {authGamertag === 'BrandoBank' && (
+                  <button onClick={() => deleteComment(c.id)} style={s.deleteBtn} title="Delete">
+                    <IconX size={11} color="#555" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -415,5 +428,14 @@ const s = {
     fontSize: 10,
     color: colors.textDim || colors.textMuted,
     letterSpacing: '0.04em',
+  },
+  deleteBtn: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '2px 4px',
+    display: 'flex',
+    alignItems: 'center',
+    opacity: 0.6,
   },
 }
