@@ -23,5 +23,6 @@ export function useAuth() {
 
   const signOut = () => supabase.auth.signOut()
 
-  return { session, loading, signIn, signOut, isEditor: !!session }
+  const gamertag = session?.user?.user_metadata?.gamertag || null
+  return { session, loading, signIn, signOut, isEditor: !!session, gamertag }
 }

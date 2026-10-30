@@ -15,7 +15,7 @@ const NEON_P_GLOW = 'rgba(168,85,247,0.18)'
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Landing() {
-  const { isEditor, session, signOut } = useAuth()
+  const { isEditor, session, signOut, gamertag: authGamertag } = useAuth()
   const [activeSeries, setActiveSeries] = useState([])
   const [recentSeries, setRecentSeries] = useState([])
   const [careers, setCareers] = useState([])
@@ -91,10 +91,10 @@ export default function Landing() {
           {session ? (
             <div style={s.navProfile}>
               <div style={s.navAvatar}>
-                {(session.user.email?.[0] || 'U').toUpperCase()}
+                {(authGamertag?.[0] || session.user.email?.[0] || 'U').toUpperCase()}
               </div>
               <span style={s.navProfileLabel}>
-                {session.user.email?.split('@')[0].toUpperCase()}
+                {(authGamertag || session.user.email?.split('@')[0] || '').toUpperCase()}
               </span>
               <button onClick={signOut} style={s.navSignOut}>OUT</button>
             </div>

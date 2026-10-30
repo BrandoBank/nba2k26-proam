@@ -1,29 +1,75 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { colors, fonts } from '../lib/theme'
+import { IconBall, IconCheck } from '../lib/icons'
+
+const OR = colors.orange
 
 export default function Login() {
-  const { signIn } = useAuth()
+  const { signIn, session } = useAuth()
   const navigate = useNavigate()
+  const [tab, setTab] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
+  const [gamertag, setGamertag] = useState('')
+  const [players, setPlayers] = useState([])
+  const [showDrop, setShowDrop] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [signedUp, setSignedUp] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
   const [isRecovery, setIsRecovery] = useState(false)
   const [recovered, setRecovered] = useState(false)
 
-  // Detect Supabase password recovery token in the URL hash
+  useEffect(() => {
+    if (session) navigate('/')
+  }, [session])
+
   useEffect(() => {
     const hash = window.location.hash
     if (hash.includes('type=recovery') || hash.includes('type=email')) {
-      // Supabase auto-handles the hash and sets the session
       supabase.auth.onAuthStateChange((event) => {
         if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
       })
     }
   }, [])
+
+  useEffect(() => {
+    supabase.from('players').select('gamertag,display_name').order('gamertag').then(({ data }) => {
+      setPlayers(data || [])
+    })
+  }, [])
+
+  const filtered = gamertag.length >= 1
+    ? players.filter(p => p.gamertag.toLowerCase().includes(gamertag.toLowerCase())).slice(0, 6)
+    : []
+
+  async function handleSignIn(e) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    const { error } = await signIn(email, password)
+    setLoading(false)
+    if (error) setError(error.message)
+    else navigate('/')
+  }
+
+  async function handleSignUp(e) {
+    e.preventDefault()
+    if (!gamertag.trim()) { setError('Pick your gamertag so we can link your stats.'); return }
+    setError('')
+    setLoading(true)
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { gamertag: gamertag.trim() } },
+    })
+    setLoading(false)
+    if (error) { setError(error.message); return }
+    setSignedUp(true)
+  }
 
   async function handleSetPassword(e) {
     e.preventDefault()
@@ -37,39 +83,24 @@ export default function Login() {
     setTimeout(() => navigate('/'), 1500)
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-    const { error } = await signIn(email, password)
-    setLoading(false)
-    if (error) setError(error.message)
-    else navigate('/')
-  }
-
   if (isRecovery) {
     return (
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <h1 style={styles.title}>NEXT UP SERIES</h1>
-          <p style={styles.sub}>Set New Password</p>
+      <div style={s.page}>
+        <div style={s.card}>
+          <div style={s.logo}><IconBall size={18} color={OR} /><span>NEXT UP</span></div>
+          <p style={s.sub}>Set New Password</p>
           {recovered ? (
-            <p style={{ color: '#4caf50', fontSize: '0.9rem' }}>Password set! Redirecting...</p>
+            <p style={{ color: colors.statGreen, fontSize: '0.9rem', textAlign: 'center' }}>
+              <IconCheck size={14} color={colors.statGreen} /> Password set — redirecting...
+            </p>
           ) : (
-            <form onSubmit={handleSetPassword} style={styles.form}>
-              <input
-                type="password"
-                placeholder="New password (min 8 chars)"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                required
-                style={styles.input}
-                autoFocus
-              />
-              <button type="submit" disabled={loading} style={styles.btn}>
+            <form onSubmit={handleSetPassword} style={s.form}>
+              <input type="password" placeholder="New password (min 8 chars)" value={newPassword}
+                onChange={e => setNewPassword(e.target.value)} required style={s.input} autoFocus />
+              <button type="submit" disabled={loading} style={s.btn}>
                 {loading ? 'Saving...' : 'Set Password'}
               </button>
-              {error && <p style={styles.error}>{error}</p>}
+              {error && <p style={s.error}>{error}</p>}
             </form>
           )}
         </div>
@@ -77,86 +108,235 @@ export default function Login() {
     )
   }
 
+  if (signedUp) {
+    return (
+      <div style={s.page}>
+        <div style={s.card}>
+          <div style={s.logo}><IconBall size={18} color={OR} /><span>NEXT UP</span></div>
+          <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>
+              <IconCheck size={32} color={colors.statGreen} />
+            </div>
+            <p style={{ color: '#fff', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '1.1rem', fontWeight: 800, letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
+              ACCOUNT CREATED
+            </p>
+            <p style={{ color: '#666', fontSize: '0.85rem', lineHeight: 1.6 }}>
+              Check <strong style={{ color: '#aaa' }}>{email}</strong> for a confirmation link, then come back and sign in.
+            </p>
+            <button onClick={() => { setSignedUp(false); setTab('signin') }} style={{ ...s.btn, marginTop: '1.5rem' }}>
+              Go to Sign In
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>NEXT UP SERIES</h1>
-        <p style={styles.sub}>Editor Access</p>
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <input
-            type="email"
-            placeholder="your@email.com"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-            style={styles.input}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            style={styles.input}
-          />
-          <button type="submit" disabled={loading} style={styles.btn}>
-            {loading ? 'Signing in...' : 'Sign In'}
+    <div style={s.page}>
+      <div style={s.card}>
+        {/* Logo */}
+        <Link to="/" style={s.logo}>
+          <IconBall size={18} color={OR} />
+          <span>NEXT UP</span>
+        </Link>
+
+        {/* Tabs */}
+        <div style={s.tabs}>
+          <button onClick={() => { setTab('signin'); setError('') }} style={{ ...s.tabBtn, ...(tab === 'signin' ? s.tabActive : {}) }}>
+            Sign In
           </button>
-          {error && <p style={styles.error}>{error}</p>}
-        </form>
+          <button onClick={() => { setTab('signup'); setError('') }} style={{ ...s.tabBtn, ...(tab === 'signup' ? s.tabActive : {}) }}>
+            Create Account
+          </button>
+        </div>
+
+        {tab === 'signin' ? (
+          <form onSubmit={handleSignIn} style={s.form}>
+            <input type="email" placeholder="Email" value={email}
+              onChange={e => setEmail(e.target.value)} required style={s.input} autoComplete="email" />
+            <input type="password" placeholder="Password" value={password}
+              onChange={e => setPassword(e.target.value)} required style={s.input} autoComplete="current-password" />
+            <button type="submit" disabled={loading} style={s.btn}>
+              {loading ? 'Signing in...' : 'Sign In'}
+            </button>
+            {error && <p style={s.error}>{error}</p>}
+          </form>
+        ) : (
+          <form onSubmit={handleSignUp} style={s.form}>
+            <div style={s.fieldHint}>Your gamertag links your account to your stats.</div>
+
+            {/* Gamertag picker */}
+            <div style={{ position: 'relative' }}>
+              <input
+                placeholder="Your gamertag (e.g. BrandoBank)"
+                value={gamertag}
+                onChange={e => { setGamertag(e.target.value); setShowDrop(true) }}
+                onBlur={() => setTimeout(() => setShowDrop(false), 150)}
+                style={s.input}
+                autoComplete="off"
+              />
+              {showDrop && filtered.length > 0 && (
+                <div style={s.drop}>
+                  {filtered.map(p => (
+                    <div key={p.gamertag} style={s.dropItem}
+                      onMouseDown={() => { setGamertag(p.gamertag); setShowDrop(false) }}>
+                      <span style={{ color: '#fff', fontWeight: 700 }}>{p.gamertag}</span>
+                      {p.display_name && p.display_name !== p.gamertag &&
+                        <span style={{ color: '#555', fontSize: 11, marginLeft: 6 }}>({p.display_name})</span>
+                      }
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <input type="email" placeholder="Email" value={email}
+              onChange={e => setEmail(e.target.value)} required style={s.input} autoComplete="email" />
+            <input type="password" placeholder="Password (min 8 chars)" value={password}
+              onChange={e => setPassword(e.target.value)} required minLength={8} style={s.input} autoComplete="new-password" />
+            <button type="submit" disabled={loading} style={s.btn}>
+              {loading ? 'Creating account...' : 'Create Account'}
+            </button>
+            {error && <p style={s.error}>{error}</p>}
+          </form>
+        )}
       </div>
     </div>
   )
 }
 
-const styles = {
-  container: {
+const s = {
+  page: {
     minHeight: '100vh',
     background: '#000',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: '1rem',
+    fontFamily: fonts.display,
+    paddingBottom: 80,
   },
   card: {
-    background: '#111',
-    border: '1px solid #222',
-    borderRadius: 8,
-    padding: '2.5rem',
-    width: 360,
-    textAlign: 'center',
+    background: '#0a0a0a',
+    border: '1px solid #1a1a1a',
+    borderRadius: 12,
+    padding: '2rem 1.75rem',
+    width: '100%',
+    maxWidth: 380,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.25rem',
   },
-  title: {
+  logo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    textDecoration: 'none',
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 900,
+    fontSize: '1.3rem',
+    letterSpacing: '0.28em',
     color: '#fff',
-    fontSize: '1.4rem',
-    letterSpacing: '0.15em',
-    margin: '0 0 0.25rem',
+    textTransform: 'uppercase',
+    justifyContent: 'center',
   },
   sub: {
-    color: '#888',
-    margin: '0 0 2rem',
-    fontSize: '0.85rem',
+    color: '#555',
+    fontSize: '0.8rem',
     textTransform: 'uppercase',
-    letterSpacing: '0.1em',
+    letterSpacing: '0.12em',
+    textAlign: 'center',
+    margin: 0,
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 700,
   },
-  form: { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
+  tabs: {
+    display: 'flex',
+    background: '#111',
+    borderRadius: 8,
+    padding: 3,
+    gap: 3,
+  },
+  tabBtn: {
+    flex: 1,
+    background: 'none',
+    border: 'none',
+    borderRadius: 6,
+    color: '#555',
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 700,
+    fontSize: '0.85rem',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    padding: '0.5rem',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  },
+  tabActive: {
+    background: OR,
+    color: '#000',
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.65rem',
+  },
+  fieldHint: {
+    color: '#444',
+    fontSize: '0.75rem',
+    letterSpacing: '0.04em',
+    lineHeight: 1.5,
+  },
   input: {
     background: '#000',
-    border: '1px solid #333',
-    borderRadius: 4,
+    border: '1px solid #222',
+    borderRadius: 6,
     color: '#fff',
-    padding: '0.6rem 0.8rem',
-    fontSize: '0.95rem',
+    padding: '0.7rem 0.85rem',
+    fontSize: '0.9rem',
+    fontFamily: fonts.display,
     outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
+  },
+  drop: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    background: '#111',
+    border: '1px solid #222',
+    borderRadius: 6,
+    zIndex: 10,
+    maxHeight: 180,
+    overflowY: 'auto',
+    marginTop: 2,
+  },
+  dropItem: {
+    padding: '9px 12px',
+    cursor: 'pointer',
+    fontSize: '0.85rem',
+    borderBottom: '1px solid #1a1a1a',
+    color: '#ccc',
   },
   btn: {
-    background: '#1d6ef5',
-    color: '#fff',
+    background: OR,
+    color: '#000',
     border: 'none',
-    borderRadius: 4,
-    padding: '0.65rem',
+    borderRadius: 6,
+    padding: '0.75rem',
     fontSize: '0.95rem',
+    fontWeight: 800,
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    letterSpacing: '0.08em',
     cursor: 'pointer',
-    fontWeight: 600,
+    marginTop: '0.25rem',
   },
-  error: { color: '#e55', fontSize: '0.85rem', margin: 0 },
+  error: {
+    color: '#ef4444',
+    fontSize: '0.82rem',
+    margin: 0,
+    textAlign: 'center',
+  },
 }
