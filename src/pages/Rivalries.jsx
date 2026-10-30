@@ -2,17 +2,21 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useCareerStats } from '../hooks/useCareerStats'
+import { usePlayers } from '../hooks/usePlayers'
 
 const ORANGE = '#f4701b'
 const BLUE   = '#9333ea'
 
 export default function Rivalries() {
   const { session, gamertag } = useAuth()
+  const { data: players } = usePlayers()
+  const { data: careerRows } = useCareerStats()
+  const careers = Object.fromEntries(careerRows.map(r => [r.gamertag, r]))
+
   const [playerRow, setPlayerRow] = useState(null)
-  const [players, setPlayers] = useState([])
   const [playerA, setPlayerA] = useState('')
   const [playerB, setPlayerB] = useState('')
-  const [careers, setCareers] = useState({})
   const [h2hData, setH2hData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState(null)
@@ -28,22 +32,17 @@ export default function Rivalries() {
   }, [gamertag])
 
   useEffect(() => {
-    async function load() {
-      const [{ data: ps }, { data: careerRows }, { data: callouts }] = await Promise.all([
-        supabase.from('players').select('id,gamertag,display_name').order('gamertag'),
-        supabase.from('career_player_totals').select('*'),
-        supabase.from('callouts').select('*, challenger:challenger_id(gamertag,display_name), challenged:challenged_id(gamertag,display_name)').in('status', ['pending']),
-      ])
-      setPlayers(ps || [])
-      const map = {}
-      ;(careerRows || []).forEach(r => { map[r.gamertag] = r })
-      setCareers(map)
+    async function loadCallouts() {
+      const { data: callouts } = await supabase
+        .from('callouts')
+        .select('*, challenger:challenger_id(gamertag,display_name), challenged:challenged_id(gamertag,display_name)')
+        .in('status', ['pending'])
       if (gamertag) {
         setPendingCallouts((callouts || []).filter(c => c.challenged?.gamertag === gamertag))
         setMyCallouts((callouts || []).filter(c => c.challenger?.gamertag === gamertag))
       }
     }
-    load()
+    loadCallouts()
   }, [gamertag])
 
   useEffect(() => {

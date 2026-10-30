@@ -4,14 +4,17 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { colors, fonts } from '../lib/theme'
 import { IconBall, IconTrophy, IconCheck } from '../lib/icons'
+import { useCareerStats } from '../hooks/useCareerStats'
 
 const OR = colors.orange
 
 export default function Claim() {
   const { session } = useAuth()
   const navigate = useNavigate()
+  const { data: careerRows } = useCareerStats()
+  const careers = Object.fromEntries(careerRows.map(r => [r.gamertag, r]))
+
   const [players, setPlayers] = useState([])
-  const [careers, setCareers] = useState({})
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(true)
   const [claiming, setClaiming] = useState(false)
@@ -23,7 +26,6 @@ export default function Claim() {
   }, [session])
 
   async function loadPlayers() {
-    // Check if this user already claimed a player
     const { data: mine } = await supabase
       .from('players')
       .select('gamertag,display_name')
@@ -32,16 +34,13 @@ export default function Claim() {
 
     if (mine) { navigate('/'); return }
 
-    // Load unclaimed players + career stats
-    const [{ data: unclaimed }, { data: careerRows }] = await Promise.all([
-      supabase.from('players').select('gamertag,display_name').is('user_id', null).order('gamertag'),
-      supabase.from('career_player_totals').select('gamertag,career_ppg,career_apg,career_rpg,elite_count,total_gp'),
-    ])
+    const { data: unclaimed } = await supabase
+      .from('players')
+      .select('gamertag,display_name')
+      .is('user_id', null)
+      .order('gamertag')
 
     setPlayers(unclaimed || [])
-    const map = {}
-    ;(careerRows || []).forEach(r => { map[r.gamertag] = r })
-    setCareers(map)
     setLoading(false)
   }
 
