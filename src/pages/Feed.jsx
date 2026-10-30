@@ -112,6 +112,9 @@ export default function Feed() {
         </div>
       </div>
 
+      {/* Page accent stripe */}
+      <div style={{ height: 2, background: 'linear-gradient(90deg, #f4701b, rgba(244,112,27,0.3) 50%, transparent)', width: '100%' }} />
+
       {/* Compose — auth-gated */}
       {!authLoading && !session ? (
         <div style={s.signInPrompt}>
@@ -386,6 +389,7 @@ const s = {
   card: {
     background: colors.surface,
     border: `1px solid ${colors.border}`,
+    borderLeft: '2px solid rgba(244,112,27,0.25)',
     borderRadius: radius.lg,
     padding: '12px 14px',
   },

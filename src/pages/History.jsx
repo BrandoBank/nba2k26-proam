@@ -280,6 +280,9 @@ export default function History() {
         </div>
       </div>
 
+      {/* Page accent stripe */}
+      <div style={{ height: 2, background: 'linear-gradient(90deg, #f4701b, rgba(244,112,27,0.3) 50%, transparent)', width: '100%' }} />
+
       {/* Tabs */}
       <div style={s.tabBar}>
         {TABS.map(t => (
