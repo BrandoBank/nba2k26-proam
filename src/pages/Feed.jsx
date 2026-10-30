@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 import { colors, fonts, radius } from '../lib/theme'
 import { IconArrow, IconChat, IconX } from '../lib/icons'
 
@@ -18,18 +19,15 @@ export default function Feed() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const defaultQuote = searchParams.get('quote') || ''
+  const { session, loading: authLoading } = useAuth()
 
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
-  const [gamertag, setGamertag] = useState(() => {
-    try { return localStorage.getItem('feed_gtag') || '' } catch { return '' }
-  })
+  const [gamertag, setGamertag] = useState('')
   const [body, setBody] = useState('')
   const [quote, setQuote] = useState(defaultQuote)
   const [posting, setPosting] = useState(false)
   const [postError, setPostError] = useState('')
-  const [players, setPlayers] = useState([])
-  const [showDrop, setShowDrop] = useState(false)
   const composeRef = useRef(null)
 
   // Auto-scroll compose into view when a quote is pre-filled from landing
@@ -55,18 +53,29 @@ export default function Feed() {
     return () => clearInterval(id)
   }, [])
 
+  // Load player gamertag from auth session
   useEffect(() => {
-    supabase.from('players').select('gamertag,display_name').then(({ data }) => {
-      if (data) setPlayers(data)
-    })
-  }, [])
+    if (!session) { setGamertag(''); return }
+    supabase
+      .from('players')
+      .select('gamertag')
+      .eq('user_id', session.user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.gamertag) { setGamertag(data.gamertag); return }
+        // Fallback: match by email
+        supabase
+          .from('players')
+          .select('gamertag')
+          .eq('email', session.user.email)
+          .maybeSingle()
+          .then(({ data: d2 }) => { if (d2?.gamertag) setGamertag(d2.gamertag) })
+      })
+  }, [session])
 
-  const filtered = gamertag.length > 0
-    ? players.filter(p => p.gamertag.toLowerCase().includes(gamertag.toLowerCase()) && p.gamertag.toLowerCase() !== gamertag.toLowerCase())
-    : []
 
   async function post() {
-    if (!gamertag.trim() || !body.trim()) return
+    if (!session || !gamertag.trim() || !body.trim()) return
     setPosting(true)
     setPostError('')
     const { error } = await supabase.from('comments').insert({
@@ -77,7 +86,6 @@ export default function Feed() {
     if (error) {
       setPostError('Failed to post. Try again.')
     } else {
-      try { localStorage.setItem('feed_gtag', gamertag.trim()) } catch {}
       setBody('')
       setQuote('')
       await fetchComments()
@@ -98,65 +106,51 @@ export default function Feed() {
         </div>
       </div>
 
-      {/* Compose */}
-      <div style={s.compose} ref={composeRef}>
-        {/* Quote preview */}
-        {quote && (
-          <div style={s.quotePreview}>
-            <span style={s.quoteText}>{quote}</span>
-            <button onClick={() => setQuote('')} style={s.quoteClose}>
-              <IconX size={12} color={colors.textMuted} />
-            </button>
-          </div>
-        )}
-
-        {/* Gamertag input with autocomplete */}
-        <div style={{ position: 'relative' }}>
-          <input
-            style={s.input}
-            placeholder="Your gamertag..."
-            value={gamertag}
-            onChange={e => { setGamertag(e.target.value); setShowDrop(true) }}
-            onBlur={() => setTimeout(() => setShowDrop(false), 150)}
-            autoComplete="off"
-          />
-          {showDrop && filtered.length > 0 && (
-            <div style={s.drop}>
-              {filtered.map(p => (
-                <div
-                  key={p.gamertag}
-                  style={s.dropItem}
-                  onMouseDown={() => { setGamertag(p.gamertag); setShowDrop(false) }}
-                >
-                  <span style={{ color: colors.textPrimary, fontWeight: 700 }}>{p.gamertag}</span>
-                  {p.display_name && p.display_name !== p.gamertag && (
-                    <span style={{ color: colors.textMuted, fontSize: 11, marginLeft: 6 }}>({p.display_name})</span>
-                  )}
-                </div>
-              ))}
+      {/* Compose — auth-gated */}
+      {!authLoading && !session ? (
+        <div style={s.signInPrompt}>
+          <span style={s.signInText}>Sign in to post</span>
+          <button style={s.signInBtn} onClick={() => navigate('/login')}>Sign In</button>
+        </div>
+      ) : (
+        <div style={s.compose} ref={composeRef}>
+          {/* Quote preview */}
+          {quote && (
+            <div style={s.quotePreview}>
+              <span style={s.quoteText}>{quote}</span>
+              <button onClick={() => setQuote('')} style={s.quoteClose}>
+                <IconX size={12} color={colors.textMuted} />
+              </button>
             </div>
           )}
-        </div>
 
-        <textarea
-          style={s.textarea}
-          placeholder="Say something about the leaderboard, a series, anyone's stats..."
-          value={body}
-          onChange={e => setBody(e.target.value.slice(0, 300))}
-          rows={3}
-        />
-        <div style={s.composeFooter}>
-          <span style={s.charCount}>{body.length}/300</span>
-          {postError && <span style={{ color: colors.gTier, fontSize: 11 }}>{postError}</span>}
-          <button
-            style={{ ...s.postBtn, opacity: (!gamertag.trim() || !body.trim() || posting) ? 0.4 : 1 }}
-            onClick={post}
-            disabled={!gamertag.trim() || !body.trim() || posting}
-          >
-            {posting ? 'Posting...' : 'Post'}
-          </button>
+          {/* Gamertag — locked to session player */}
+          <input
+            style={{ ...s.input, opacity: 0.6, cursor: 'default' }}
+            value={gamertag || (authLoading ? 'Loading...' : 'No player linked')}
+            readOnly
+          />
+
+          <textarea
+            style={s.textarea}
+            placeholder="Say something about the leaderboard, a series, anyone's stats..."
+            value={body}
+            onChange={e => setBody(e.target.value.slice(0, 300))}
+            rows={3}
+          />
+          <div style={s.composeFooter}>
+            <span style={s.charCount}>{body.length}/300</span>
+            {postError && <span style={{ color: colors.gTier, fontSize: 11 }}>{postError}</span>}
+            <button
+              style={{ ...s.postBtn, opacity: (!gamertag.trim() || !body.trim() || posting) ? 0.4 : 1 }}
+              onClick={post}
+              disabled={!gamertag.trim() || !body.trim() || posting}
+            >
+              {posting ? 'Posting...' : 'Post'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Feed */}
       <div style={s.feed}>
@@ -227,6 +221,34 @@ const s = {
     marginTop: 2,
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
+  },
+  signInPrompt: {
+    margin: '16px 16px 0',
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.lg,
+    padding: '20px 16px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  signInText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontFamily: fonts.display,
+  },
+  signInBtn: {
+    background: colors.orange,
+    border: 'none',
+    borderRadius: radius.sm,
+    padding: '7px 18px',
+    color: '#000',
+    fontWeight: 800,
+    fontSize: 13,
+    fontFamily: fonts.display,
+    letterSpacing: '0.05em',
+    cursor: 'pointer',
   },
   compose: {
     margin: '16px 16px 0',
