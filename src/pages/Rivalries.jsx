@@ -146,6 +146,14 @@ export default function Rivalries() {
         .callout-btn:hover { opacity: 0.88; transform: translateY(-1px); }
         .callout-btn { transition: opacity 0.15s, transform 0.15s; }
         .series-row:hover { background: rgba(255,255,255,0.03); }
+        @media (max-width: 480px) {
+          .matchup-grid { grid-template-columns: 1fr !important; }
+          .matchup-grid .vs-col { border-radius: 0 !important; border-left: 1px solid #161616 !important; border-right: 1px solid #161616 !important; flex-direction: row !important; justify-content: space-between !important; padding: 12px 20px !important; }
+          .player-a-col { border-radius: 10px 10px 0 0 !important; border-right: 1px solid rgba(244,112,27,0.15) !important; border-bottom: none !important; }
+          .player-b-col { border-radius: 0 0 10px 10px !important; border-left: 1px solid rgba(147,51,234,0.15) !important; border-top: none !important; }
+          .stat-row-grid { grid-template-columns: 1fr 60px 1fr !important; }
+          .callout-section-grid { grid-template-columns: 1fr 1px 1fr !important; }
+        }
       `}</style>
 
       {/* Pending callout alert */}
@@ -180,9 +188,9 @@ export default function Rivalries() {
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: '#333', textTransform: 'uppercase', textAlign: 'center', marginBottom: 20 }}>Head-to-Head Matchup</div>
 
           {/* Player selector row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', alignItems: 'center', gap: 0 }}>
+          <div className="matchup-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', alignItems: 'center', gap: 0 }}>
             {/* Player A */}
-            <div style={{ background: `linear-gradient(135deg, rgba(244,112,27,0.08) 0%, transparent 70%)`, border: '1px solid rgba(244,112,27,0.15)', borderRight: 'none', borderRadius: '10px 0 0 0', padding: '16px 20px 20px' }}>
+            <div className="player-a-col" style={{ background: `linear-gradient(135deg, rgba(244,112,27,0.08) 0%, transparent 70%)`, border: '1px solid rgba(244,112,27,0.15)', borderRight: 'none', borderRadius: '10px 0 0 0', padding: '16px 20px 20px' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: ORANGE, textTransform: 'uppercase', marginBottom: 8 }}>Player A</div>
               <select className="rival-select" value={playerA} onChange={e => setPlayerA(e.target.value)} style={{ color: playerA ? '#fff' : '#444', fontSize: 18, textAlign: 'left' }}>
                 <option value="">Select player</option>
@@ -192,7 +200,7 @@ export default function Rivalries() {
             </div>
 
             {/* VS center */}
-            <div style={{ background: '#0d0d14', border: '1px solid #111', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 0', gap: 10, position: 'relative' }}>
+            <div className="vs-col" style={{ background: '#0d0d14', border: '1px solid #111', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 0', gap: 10, position: 'relative' }}>
               <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 2, color: '#222' }}>VS</div>
               <button
                 onClick={compare}
@@ -204,7 +212,7 @@ export default function Rivalries() {
             </div>
 
             {/* Player B */}
-            <div style={{ background: `linear-gradient(225deg, rgba(56,189,248,0.08) 0%, transparent 70%)`, border: '1px solid rgba(56,189,248,0.15)', borderLeft: 'none', borderRadius: '0 10px 0 0', padding: '16px 20px 20px' }}>
+            <div className="player-b-col" style={{ background: `linear-gradient(225deg, rgba(147,51,234,0.08) 0%, transparent 70%)`, border: '1px solid rgba(147,51,234,0.15)', borderLeft: 'none', borderRadius: '0 10px 0 0', padding: '16px 20px 20px' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: BLUE, textTransform: 'uppercase', marginBottom: 8, textAlign: 'right' }}>Player B</div>
               <select className="rival-select" value={playerB} onChange={e => setPlayerB(e.target.value)} style={{ color: playerB ? '#fff' : '#444', fontSize: 18, textAlign: 'right' }}>
                 <option value="">Select player</option>
@@ -283,7 +291,7 @@ export default function Rivalries() {
                       <div style={{ fontSize: 12, color: pctA > 0.5 ? ORANGE : '#333', fontWeight: 700, marginTop: 4 }}>{nameA}</div>
                     </div>
                     <div style={{ background: '#161616' }} />
-                    <div style={{ padding: '24px 20px', background: pctA < 0.5 ? 'rgba(56,189,248,0.06)' : 'transparent', textAlign: 'center' }}>
+                    <div style={{ padding: '24px 20px', background: pctA < 0.5 ? 'rgba(147,51,234,0.06)' : 'transparent', textAlign: 'center' }}>
                       <div style={{ fontSize: 52, fontWeight: 900, color: BLUE, lineHeight: 1 }}>{h2hData.seriesBWins}</div>
                       <div style={{ fontSize: 11, color: '#444', marginTop: 6, letterSpacing: 1 }}>{Math.round((1 - pctA) * 100)}% WIN RATE</div>
                       <div style={{ fontSize: 12, color: pctA < 0.5 ? BLUE : '#333', fontWeight: 700, marginTop: 4 }}>{nameB}</div>
@@ -319,7 +327,7 @@ export default function Rivalries() {
         )}
 
         {/* Callout CTA */}
-        {canCallout && (
+        {playerB && playerA !== playerB && (
           <div style={{ marginTop: 32, border: '1px solid #161616', borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ background: '#0d0d14', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 8 }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -329,6 +337,15 @@ export default function Rivalries() {
               </svg>
               <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, color: '#333', textTransform: 'uppercase' }}>Call that FN out — {nameB}</span>
             </div>
+            {!session ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#444', fontSize: 13 }}>
+                <span>Sign in to send a callout</span>
+              </div>
+            ) : !playerRow ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#444', fontSize: 13 }}>
+                <span>Claim your gamertag to send callouts</span>
+              </div>
+            ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr' }}>
               <button className="callout-btn" onClick={() => sendCallout('1v1')} style={{ background: 'transparent', border: 'none', padding: '20px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(244,112,27,0.1)', border: '1px solid rgba(244,112,27,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -343,7 +360,7 @@ export default function Rivalries() {
               </button>
               <div style={{ background: '#161616' }} />
               <button className="callout-btn" onClick={() => sendCallout('draft')} style={{ background: 'transparent', border: 'none', padding: '20px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(147,51,234,0.1)', border: '1px solid rgba(147,51,234,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={BLUE} strokeWidth="2" strokeLinecap="round">
                     <circle cx="12" cy="12" r="9"/><path d="M12 3c0 4.97 3 9 7 10.5M12 3c0 4.97-3 9-7 10.5"/>
                     <path d="M5.5 19.5C7 16 9 13 12 12s5-4 6.5-7.5"/>
@@ -353,6 +370,7 @@ export default function Rivalries() {
                 <div style={{ color: '#444', fontSize: 11 }}>Build your squads</div>
               </button>
             </div>
+            )}
           </div>
         )}
 
