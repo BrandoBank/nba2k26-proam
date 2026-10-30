@@ -15,7 +15,7 @@ const NEON_P_GLOW = 'rgba(168,85,247,0.18)'
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Landing() {
-  const { isEditor } = useAuth()
+  const { isEditor, session, signOut } = useAuth()
   const [activeSeries, setActiveSeries] = useState([])
   const [recentSeries, setRecentSeries] = useState([])
   const [careers, setCareers] = useState([])
@@ -88,9 +88,19 @@ export default function Landing() {
           <span>NEXT UP</span>
         </Link>
         <div style={s.navRight}>
-          <Link to="/leagues" style={s.navLink}>Series</Link>
-          <Link to="/history" style={s.navLink}>History</Link>
-          {isEditor && <Link to="/series/new" style={s.navCta}>+ New</Link>}
+          {session ? (
+            <div style={s.navProfile}>
+              <div style={s.navAvatar}>
+                {(session.user.email?.[0] || 'U').toUpperCase()}
+              </div>
+              <span style={s.navProfileLabel}>
+                {session.user.email?.split('@')[0].toUpperCase()}
+              </span>
+              <button onClick={signOut} style={s.navSignOut}>OUT</button>
+            </div>
+          ) : (
+            <Link to="/login" style={s.navCta}>Sign In</Link>
+          )}
         </div>
       </nav>
 
@@ -922,6 +932,10 @@ const s = {
   navRight: { display: 'flex', alignItems: 'center', gap: '0.25rem' },
   navLink: { color: '#555', textDecoration: 'none', fontSize: '0.82rem', padding: '0.4rem 0.6rem', fontFamily: "'Inter', system-ui, sans-serif" },
   navCta: { background: VICE, color: '#fff', textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.88rem', fontWeight: 800, padding: '0.35rem 0.9rem', borderRadius: 6, marginLeft: '0.25rem', letterSpacing: '0.1em', textTransform: 'uppercase' },
+  navProfile: { display: 'flex', alignItems: 'center', gap: 7 },
+  navAvatar: { width: 28, height: 28, borderRadius: '50%', background: OR, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: '0.85rem', color: '#000', flexShrink: 0 },
+  navProfileLabel: { fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em', color: '#888', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  navSignOut: { background: 'none', border: '1px solid #222', borderRadius: 4, color: '#444', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', padding: '0.2rem 0.45rem', cursor: 'pointer', fontFamily: "'Barlow Condensed', system-ui, sans-serif" },
 
   activeSection: { padding: '1rem 1rem 0' },
   sectionLabel: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: '0.75rem' },

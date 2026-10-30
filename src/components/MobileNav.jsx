@@ -20,10 +20,7 @@ export default function MobileNav() {
       <NavItem to="/leagues" label="Series" active={isSeriesActive} icon={<BallIcon />} />
       <NavItem to="/feed" label="Feed" active={active('/feed')} icon={<FeedIcon />} />
       <NavItem to="/history" label="History" active={active('/history')} icon={<ChartIcon />} />
-      {isEditor
-        ? <NavItem to="/series/new" label="+ New" active={active('/series/new')} icon={<PlusIcon />} accent />
-        : <NavItem to="/login" label="Sign In" active={active('/login')} icon={<UserIcon />} />
-      }
+      {isEditor && <NavItem to="/series/new" label="+ New" active={active('/series/new')} icon={<PlusIcon />} accent />}
     </nav>
   )
 }
