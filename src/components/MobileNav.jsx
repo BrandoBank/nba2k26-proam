@@ -1,13 +1,27 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { colors } from '../lib/theme'
+import { supabase } from '../lib/supabase'
 import './MobileNav.css'
 
 const OR = colors.orange
 
 export default function MobileNav() {
   const { pathname } = useLocation()
-  const { isEditor, session, signOut, gamertag } = useAuth()
+  const { isEditor, session, signOut, gamertag, playerRow } = useAuth()
+  const [calloutCount, setCalloutCount] = useState(0)
+
+  useEffect(() => {
+    if (!playerRow) return
+    supabase.from('callouts').select('id', { count: 'exact' }).eq('challenged_id', playerRow.id).eq('status', 'pending')
+      .then(({ count }) => setCalloutCount(count || 0))
+    const channel = supabase.channel('callout-nav')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'callouts', filter: `challenged_id=eq.${playerRow.id}` },
+        () => setCalloutCount(c => c + 1))
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [playerRow])
 
   const active = (path) => {
     if (path === '/') return pathname === '/'
@@ -29,13 +43,17 @@ export default function MobileNav() {
           <DesktopLink to="/leagues" label="Series" active={isSeriesActive} />
           <DesktopLink to="/feed" label="Feed" active={active('/feed')} />
           <DesktopLink to="/history" label="History" active={active('/history')} />
+          <DesktopLink to="/rivalries" label="Rivalries" active={active('/rivalries')} />
           {isEditor && <DesktopLink to="/series/new" label="+ New" active={active('/series/new')} accent />}
         </div>
         <div style={dt.right}>
           {session ? (
             <>
               <Link to={gamertag ? `/player/${gamertag}` : '/claim'} style={dt.profile}>
-                <div style={dt.avatar}>{(gamertag?.[0] || session.user.email?.[0] || 'U').toUpperCase()}</div>
+                <div style={{ position: 'relative' }}>
+                  <div style={dt.avatar}>{(gamertag?.[0] || session.user.email?.[0] || 'U').toUpperCase()}</div>
+                  {calloutCount > 0 && <div style={dt.badge}>{calloutCount}</div>}
+                </div>
                 <span style={dt.profileLabel}>{(gamertag || session.user.email?.split('@')[0] || '').toUpperCase()}</span>
               </Link>
               <button onClick={signOut} style={dt.signOut}>OUT</button>
@@ -52,6 +70,7 @@ export default function MobileNav() {
         <NavItem to="/leagues" label="Series" active={isSeriesActive} icon={<BallIcon />} />
         <NavItem to="/feed" label="Feed" active={active('/feed')} icon={<FeedIcon />} />
         <NavItem to="/history" label="History" active={active('/history')} icon={<ChartIcon />} />
+        <NavItem to="/rivalries" label="Rivals" active={active('/rivalries')} icon={<SwordsIcon />} badge={calloutCount} />
         {isEditor && <NavItem to="/series/new" label="+ New" active={active('/series/new')} icon={<PlusIcon />} accent />}
       </nav>
     </>
@@ -87,9 +106,10 @@ const dt = {
   profileLabel: { fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em', color: '#888', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   signOut: { background: 'none', border: '1px solid #222', borderRadius: 4, color: '#444', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', padding: '0.2rem 0.45rem', cursor: 'pointer', fontFamily: "'Barlow Condensed', system-ui, sans-serif" },
   signIn: { background: 'transparent', border: '1px solid #2a2a2a', color: '#666', textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.8rem', fontWeight: 700, padding: '0.3rem 0.8rem', borderRadius: 5, letterSpacing: '0.1em', textTransform: 'uppercase' },
+  badge: { position: 'absolute', top: -5, right: -5, background: '#ef4444', color: '#fff', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900, lineHeight: 1 },
 }
 
-function NavItem({ to, label, active, icon, accent }) {
+function NavItem({ to, label, active, icon, accent, badge }) {
   const c = accent ? colors.orange : active ? '#fff' : '#444'
   return (
     <Link to={to} style={{
@@ -106,6 +126,7 @@ function NavItem({ to, label, active, icon, accent }) {
       color: c,
     }}>
       <div style={{
+        position: 'relative',
         width: 38,
         height: 30,
         display: 'flex',
@@ -116,6 +137,7 @@ function NavItem({ to, label, active, icon, accent }) {
         border: `1px solid ${(active || accent) ? 'rgba(244,112,27,0.2)' : 'transparent'}`,
       }}>
         {icon}
+        {badge > 0 && <div style={{ position: 'absolute', top: -4, right: -4, background: '#ef4444', color: '#fff', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900 }}>{badge}</div>}
       </div>
       <span style={{
         fontSize: '0.58rem',
@@ -151,4 +173,7 @@ function ImportIcon() {
 }
 function FeedIcon() {
   return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+}
+function SwordsIcon() {
+  return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" y1="14" x2="9" y2="18"/><line x1="7" y1="21" x2="9" y2="19"/></svg>
 }
