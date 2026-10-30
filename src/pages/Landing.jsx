@@ -25,6 +25,16 @@ export default function Landing() {
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // Poll comments separately so deletions reflect without full reload
+  useEffect(() => {
+    async function fetchComments() {
+      const { data } = await supabase.from('comments').select('*').order('created_at', { ascending: false }).limit(30)
+      if (data) setComments(data)
+    }
+    const id = setInterval(fetchComments, 20_000)
+    return () => clearInterval(id)
+  }, [])
+
   useEffect(() => {
     async function fetchAll() {
       const [
