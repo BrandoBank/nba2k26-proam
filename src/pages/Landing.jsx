@@ -421,10 +421,10 @@ function Jumbotron({ careers }) {
             ...jb.tab,
             ...(i === statIdx && st.rainbow ? {
               background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent',
-              borderBottom: '2px solid', borderImageSlice: 1, borderImageSource: RAINBOW,
+              borderBottomWidth: '2px', borderBottomStyle: 'solid', borderImageSlice: 1, borderImageSource: RAINBOW,
             } : {
               color: i === statIdx ? st.color : '#2a2a2a',
-              borderBottom: i === statIdx ? `2px solid ${st.color}` : '2px solid transparent',
+              borderBottomColor: i === statIdx ? st.color : 'transparent',
               textShadow: i === statIdx ? `0 0 8px ${st.color}` : 'none',
             }),
           }}>{st.label}</button>
@@ -554,8 +554,10 @@ const jb = {
   },
   tab: {
     background: 'none',
-    border: 'none',
-    borderBottom: '2px solid transparent',
+    borderWidth: 0,
+    borderBottomWidth: '2px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'transparent',
     color: '#2a2a2a',
     fontSize: '0.62rem',
     fontWeight: 800,
@@ -745,7 +747,7 @@ function AllTimeLeaderboard() {
               ...lb.tab,
               color: active ? (isRainbow ? 'transparent' : st.color) : '#333',
               borderBottomColor: isRainbow ? 'transparent' : active ? st.color : 'transparent',
-              ...(isRainbow ? { background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', borderBottom: '2px solid', borderImageSlice: 1, borderImageSource: RAINBOW } : {}),
+              ...(isRainbow ? { background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', borderBottomWidth: '2px', borderBottomStyle: 'solid', borderImageSlice: 1, borderImageSource: RAINBOW } : {}),
             }}>
               {st.label}
             </button>
@@ -1135,7 +1137,7 @@ const lb = {
   title: { display: 'flex', alignItems: 'center', gap: 5, color: NEON_P, fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' },
   more: { color: '#444', fontSize: '0.7rem', textDecoration: 'none' },
   tabs: { display: 'flex', padding: '0 0.5rem', borderBottom: `1px solid rgba(168,85,247,0.1)`, overflowX: 'auto', scrollbarWidth: 'none' },
-  tab: { background: 'none', border: 'none', borderBottom: '2px solid transparent', color: '#333', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', padding: '0.4rem 0.5rem', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
+  tab: { background: 'none', borderWidth: 0, borderBottomWidth: '2px', borderBottomStyle: 'solid', borderBottomColor: 'transparent', color: '#333', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', padding: '0.4rem 0.5rem', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
   list: { padding: '0.5rem 0.75rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' },
   row: { display: 'flex', alignItems: 'center', gap: '0.5rem' },
   rank: { fontSize: '0.7rem', fontWeight: 900, minWidth: 14, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },

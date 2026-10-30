@@ -14,18 +14,23 @@ export default function MobileNav() {
 
   useEffect(() => {
     if (!gamertag) return
-    let playerId = null
+    let channel = null
+    let cancelled = false
     supabase.from('players').select('id').eq('gamertag', gamertag).maybeSingle()
       .then(({ data }) => {
-        if (!data) return
-        playerId = data.id
+        if (cancelled || !data) return
+        const playerId = data.id
         supabase.from('callouts').select('id', { count: 'exact', head: true }).eq('challenged_id', playerId).eq('status', 'pending')
-          .then(({ count }) => setCalloutCount(count || 0))
-        const channel = supabase.channel('callout-nav-' + playerId)
+          .then(({ count }) => { if (!cancelled) setCalloutCount(count || 0) })
+        channel = supabase.channel('callout-nav-' + playerId)
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'callouts', filter: `challenged_id=eq.${playerId}` },
             () => setCalloutCount(c => c + 1))
           .subscribe()
       })
+    return () => {
+      cancelled = true
+      if (channel) supabase.removeChannel(channel)
+    }
   }, [gamertag])
 
   const active = (path) => {
