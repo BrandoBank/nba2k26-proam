@@ -204,18 +204,20 @@ export default function Landing() {
           </div>
           <div style={s.recentGrid}>
             {recentSeries.map(ser => {
-              const w = ser.our_wins > ser.opp_wins
+              const highScore = Math.max(ser.our_wins, ser.opp_wins)
+              const lowScore = Math.min(ser.our_wins, ser.opp_wins)
+              const winner = ser.our_wins > ser.opp_wins ? ser.our_team_name : ser.opp_team_name
               return (
                 <Link key={ser.id} to={`/series/${ser.id}`} style={s.recentCard}>
-                  <div style={{...s.recentAccent, background: w ? colors.statGreen : colors.statRed}} />
+                  <div style={{...s.recentAccent, background: OR}} />
                   <div style={s.recentBody}>
                     <div style={s.recentName}>{ser.name}</div>
                     <div style={s.recentTeams}>{ser.our_team_name} <span style={{color:'#2a2a2a'}}>vs</span> {ser.opp_team_name}</div>
                     {ser.storyline && <div style={s.recentStory}>{ser.storyline}</div>}
                     <div style={s.recentBottom}>
-                      <span style={s.recentScore}>{ser.our_wins}–{ser.opp_wins}</span>
-                      <span style={{color: w ? colors.statGreen : colors.statRed, fontWeight: 800, fontSize: '0.75rem', letterSpacing: '0.06em'}}>
-                        {ser.result_label || (w ? 'W' : 'L')}
+                      <span style={s.recentScore}>{highScore}–{lowScore}</span>
+                      <span style={{color: OR, fontWeight: 800, fontSize: '0.75rem', letterSpacing: '0.06em'}}>
+                        {winner ? `${winner} wins` : 'FINAL'}
                       </span>
                     </div>
                   </div>
@@ -752,7 +754,7 @@ function CommentTicker({ comments }) {
     let frame
     function scroll() {
       if (!el) return
-      el.scrollLeft += 0.5
+      el.scrollLeft += 0.7
       if (el.scrollLeft >= el.scrollWidth / 2) el.scrollLeft = 0
       frame = requestAnimationFrame(scroll)
     }
@@ -764,14 +766,21 @@ function CommentTicker({ comments }) {
 
   return (
     <div style={tk.wrap}>
-      <div style={tk.tag}>LOBBY TALK</div>
+      {/* ESPN-style left badge */}
+      <div style={tk.badge}>
+        <span style={tk.badgeTop}>NEXT UP</span>
+        <span style={tk.badgeBottom}>CREW FEED</span>
+      </div>
+      <div style={tk.divider} />
+      {/* scrolling content */}
       <div ref={ref} style={tk.track}>
         {doubled.map((c, i) => (
-          <div key={i} style={tk.chip}>
-            <span style={tk.who}>{c.gamertag}</span>
-            <span style={tk.sep}>·</span>
-            <span style={tk.text}>{c.content}</span>
-          </div>
+          <span key={i} style={tk.item}>
+            <span style={tk.who}>{(c.gamertag || '').toUpperCase()}</span>
+            <span style={tk.colon}>:</span>
+            <span style={tk.text}>{c.body || c.content}</span>
+            <span style={tk.pipe}>|</span>
+          </span>
         ))}
       </div>
     </div>
@@ -981,13 +990,88 @@ const s = {
 }
 
 const tk = {
-  wrap: { display: 'flex', alignItems: 'center', background: 'linear-gradient(90deg,#0a0018,#08000f)', borderBottom: `1px solid rgba(168,85,247,0.2)`, overflow: 'hidden', height: 36 },
-  tag: { color: NEON_P, fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.18em', padding: '0 0.75rem', whiteSpace: 'nowrap', borderRight: `1px solid rgba(168,85,247,0.2)`, height: '100%', display: 'flex', alignItems: 'center', flexShrink: 0, textShadow: `0 0 12px ${NEON_P}` },
-  track: { display: 'flex', alignItems: 'center', gap: '2rem', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1, userSelect: 'none' },
-  chip: { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, padding: '0 0.5rem' },
-  who: { color: NEON_P, fontSize: '0.72rem', fontWeight: 700 },
-  sep: { color: '#2a2a2a', fontSize: '0.65rem' },
-  text: { color: '#555', fontSize: '0.72rem' },
+  wrap: {
+    display: 'flex',
+    alignItems: 'stretch',
+    background: '#0d0d0d',
+    borderTop: '1px solid #1a1a1a',
+    borderBottom: '1px solid #1a1a1a',
+    overflow: 'hidden',
+    height: 38,
+    flexShrink: 0,
+  },
+  badge: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: OR,
+    padding: '0 10px',
+    flexShrink: 0,
+    lineHeight: 1,
+    gap: 1,
+  },
+  badgeTop: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 900,
+    fontSize: '0.62rem',
+    letterSpacing: '0.16em',
+    color: '#000',
+    textTransform: 'uppercase',
+  },
+  badgeBottom: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 700,
+    fontSize: '0.5rem',
+    letterSpacing: '0.12em',
+    color: 'rgba(0,0,0,0.6)',
+    textTransform: 'uppercase',
+  },
+  divider: {
+    width: 3,
+    background: '#222',
+    flexShrink: 0,
+  },
+  track: {
+    display: 'flex',
+    alignItems: 'center',
+    overflow: 'hidden',
+    whiteSpace: 'nowrap',
+    flex: 1,
+    userSelect: 'none',
+    paddingLeft: 12,
+  },
+  item: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    flexShrink: 0,
+  },
+  who: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 800,
+    fontSize: '0.78rem',
+    letterSpacing: '0.08em',
+    color: OR,
+  },
+  colon: {
+    color: '#555',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+  },
+  text: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 600,
+    fontSize: '0.8rem',
+    letterSpacing: '0.03em',
+    color: '#e0e0e0',
+  },
+  pipe: {
+    color: '#2a2a2a',
+    fontSize: '0.85rem',
+    fontWeight: 300,
+    margin: '0 14px',
+  },
 }
 
 const lb = {
