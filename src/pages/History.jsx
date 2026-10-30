@@ -722,24 +722,30 @@ function RivalriesTab({ h2h }) {
           const pctA = total > 0 ? winsA / total : 0.5
           const dominant = winsA > winsB ? pA : winsB > winsA ? pB : null
 
+          const COL_A = '#f4701b'   // orange
+          const COL_B = '#38bdf8'   // sky blue — complementary, readable on black
+
           return (
             <div key={i} style={s.rivalCard}>
               <div style={s.rivalPlayers}>
-                <span style={{ ...s.rivalName, color: winsA > winsB ? colors.orange : colors.textSecondary }}>{pA}</span>
+                <span style={{ ...s.rivalName, color: COL_A, opacity: winsA >= winsB ? 1 : 0.45 }}>{pA}</span>
                 <span style={s.rivalVs}>VS</span>
-                <span style={{ ...s.rivalName, color: winsB > winsA ? colors.orange : colors.textSecondary }}>{pB}</span>
+                <span style={{ ...s.rivalName, color: COL_B, opacity: winsB >= winsA ? 1 : 0.45, textAlign: 'right' }}>{pB}</span>
               </div>
-              {/* Win bar */}
+              {/* Split win bar: A fills from left in orange, B fills from right in blue */}
               <div style={s.rivalBar}>
-                <div style={{ ...s.rivalBarFill, width: `${pctA * 100}%`, background: colors.orange }} />
+                <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+                  <div style={{ width: `${pctA * 100}%`, background: `linear-gradient(90deg, ${COL_A}cc, ${COL_A})`, borderRadius: '2px 0 0 2px', transition: 'width 0.4s ease' }} />
+                  <div style={{ flex: 1, background: `linear-gradient(90deg, ${COL_B}, ${COL_B}cc)`, borderRadius: '0 2px 2px 0', transition: 'width 0.4s ease' }} />
+                </div>
               </div>
               <div style={s.rivalRecord}>
-                <span style={s.rivalWins}>{winsA}W</span>
+                <span style={{ ...s.rivalWins, color: COL_A }}>{winsA}W</span>
                 <span style={s.rivalGP}>{total} games</span>
-                <span style={s.rivalWins}>{winsB}W</span>
+                <span style={{ ...s.rivalWins, color: COL_B }}>{winsB}W</span>
               </div>
               {dominant && (
-                <div style={s.rivalDominant}>
+                <div style={{ ...s.rivalDominant, color: dominant === pA ? COL_A : COL_B }}>
                   {dominant} leads this rivalry
                 </div>
               )}
@@ -1244,11 +1250,11 @@ const s = {
     padding: '0 12px',
   },
   rivalBar: {
-    height: 4,
-    background: `${colors.border}`,
+    height: 5,
+    background: 'transparent',
     borderRadius: 2,
     overflow: 'hidden',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   rivalBarFill: {
     height: '100%',
