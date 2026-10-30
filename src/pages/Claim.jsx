@@ -86,7 +86,13 @@ export default function Claim() {
 
         {/* Player grid */}
         {players.length === 0 ? (
-          <p style={s.dim}>All players have been claimed. Contact the commissioner to add you to the roster.</p>
+          <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🏀</div>
+            <p style={{ color: '#fff', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.08em', marginBottom: 8 }}>ALL TAGS CLAIMED</p>
+            <p style={{ color: '#555', fontSize: '0.85rem', lineHeight: 1.7, maxWidth: 340, margin: '0 auto' }}>
+              Every player tag in the system is already linked to an account. If you play in the league and your name isn't here, text the commissioner to get added to the roster.
+            </p>
+          </div>
         ) : (
           <div style={s.grid}>
             {players.map(p => {
@@ -127,6 +133,13 @@ export default function Claim() {
               )
             })}
           </div>
+        )}
+
+        {/* "Not seeing your name?" help text */}
+        {players.length > 0 && (
+          <p style={{ ...s.dim, fontSize: '0.75rem', marginBottom: 16, textAlign: 'center' }}>
+            Don't see your name? Text the commissioner to get added to the roster.
+          </p>
         )}
 
         {/* Confirm */}

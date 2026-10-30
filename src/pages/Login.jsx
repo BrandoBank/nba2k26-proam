@@ -19,9 +19,16 @@ export default function Login() {
   const [newPassword, setNewPassword] = useState('')
   const [isRecovery, setIsRecovery] = useState(false)
   const [recovered, setRecovered] = useState(false)
+  const [forgotMode, setForgotMode] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   useEffect(() => {
-    if (session) navigate('/')
+    if (!session) return
+    async function routeUser() {
+      const { data } = await supabase.from('players').select('gamertag').eq('user_id', session.user.id).maybeSingle()
+      navigate(data?.gamertag ? '/' : '/claim', { replace: true })
+    }
+    routeUser()
   }, [session])
 
   useEffect(() => {
@@ -53,10 +60,27 @@ export default function Login() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: window.location.origin },
+    })
     setLoading(false)
     if (error) { setError(error.message); return }
     setSignedUp(true)
+  }
+
+  async function handleForgotPassword(e) {
+    e.preventDefault()
+    if (!email) { setError('Enter your email above first.'); return }
+    setError('')
+    setLoading(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/login',
+    })
+    setLoading(false)
+    if (error) { setError(error.message); return }
+    setResetSent(true)
   }
 
   async function handleSetPassword(e) {
@@ -140,6 +164,33 @@ export default function Login() {
         </div>
 
         {tab === 'signin' ? (
+          forgotMode ? (
+            <div style={s.form}>
+              {resetSent ? (
+                <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
+                  <IconCheck size={28} color="#22c55e" />
+                  <p style={{ color: '#fff', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 800, letterSpacing: '0.08em', marginTop: 10, marginBottom: 6 }}>CHECK YOUR EMAIL</p>
+                  <p style={{ color: '#555', fontSize: '0.82rem', lineHeight: 1.6 }}>A password reset link was sent to <strong style={{ color: '#aaa' }}>{email}</strong>.</p>
+                  <button onClick={() => { setForgotMode(false); setResetSent(false) }} style={{ ...s.btn, marginTop: '1.25rem', background: '#111', color: '#aaa' }}>
+                    Back to Sign In
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} style={s.form}>
+                  <p style={s.fieldHint}>Enter your email and we'll send a reset link.</p>
+                  <input type="email" placeholder="Email" value={email}
+                    onChange={e => setEmail(e.target.value)} required style={s.input} autoFocus autoComplete="email" />
+                  <button type="submit" disabled={loading} style={s.btn}>
+                    {loading ? 'Sending...' : 'Send Reset Link'}
+                  </button>
+                  {error && <p style={s.error}>{error}</p>}
+                  <button type="button" onClick={() => { setForgotMode(false); setError('') }} style={{ background: 'none', border: 'none', color: '#444', fontSize: '0.8rem', cursor: 'pointer', textAlign: 'center' }}>
+                    ← Back to Sign In
+                  </button>
+                </form>
+              )}
+            </div>
+          ) : (
           <form onSubmit={handleSignIn} style={s.form}>
             <input type="email" placeholder="Email" value={email}
               onChange={e => setEmail(e.target.value)} required style={s.input} autoComplete="email" />
@@ -149,7 +200,11 @@ export default function Login() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
             {error && <p style={s.error}>{error}</p>}
+            <button type="button" onClick={() => { setForgotMode(true); setError('') }} style={{ background: 'none', border: 'none', color: '#444', fontSize: '0.8rem', cursor: 'pointer', textAlign: 'center' }}>
+              Forgot password?
+            </button>
           </form>
+          )
         ) : (
           <form onSubmit={handleSignUp} style={s.form}>
             <div style={s.fieldHint}>Create your account — you'll pick your player profile after confirming your email.</div>

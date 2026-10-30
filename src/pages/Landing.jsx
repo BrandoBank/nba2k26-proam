@@ -15,7 +15,7 @@ const NEON_P_GLOW = 'rgba(168,85,247,0.18)'
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Landing() {
-  const { isEditor, session, signOut, gamertag: authGamertag } = useAuth()
+  const { isEditor, session, signOut, gamertag: authGamertag, gamertagLoading } = useAuth()
   const [activeSeries, setActiveSeries] = useState([])
   const [recentSeries, setRecentSeries] = useState([])
   const [careers, setCareers] = useState([])
@@ -94,6 +94,23 @@ export default function Landing() {
         .landing-nav { display: flex; }
         @media (min-width: 900px) { .landing-nav { display: none !important; } }
       `}</style>
+      {/* Unclaimed-user banner */}
+      {session && !gamertagLoading && !authGamertag && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          background: 'linear-gradient(90deg, #f4701b, #d4580f)',
+          padding: '10px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <span style={{ color: '#000', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 800, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            You're in! Claim your player tag to unlock your profile.
+          </span>
+          <Link to="/claim" style={{ background: '#000', color: '#f4701b', padding: '6px 14px', borderRadius: 6, fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+            Claim Now →
+          </Link>
+        </div>
+      )}
+
       {/* ARCADE BACKGROUND */}
       <div style={s.arcadeBg} />
 
