@@ -181,8 +181,8 @@ export default function SeriesDetail() {
       supabase.from('games').select('*').eq('series_id', id).order('game_number'),
       supabase.from('series_player_stats').select('*').eq('series_id', id),
       supabase.from('series_rankings').select('*, players(gamertag,display_name)').eq('series_id', id).eq('finalized', true),
-      supabase.from('game_matchups').select('game_id, defender_player_id, offensive_player_id').eq('series_id', id),
-      supabase.from('game_stats').select('game_id, player_id, pts').eq('series_id', id),
+      supabase.rpc('get_series_matchups', { p_series_id: id }),
+      supabase.rpc('get_series_game_pts', { p_series_id: id }),
     ])
     setSeries(ser)
     setGames(gms || [])

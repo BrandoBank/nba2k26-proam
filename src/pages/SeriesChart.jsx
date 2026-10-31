@@ -35,8 +35,8 @@ export default function SeriesChart() {
       supabase.from('series_rankings').select('*, players(gamertag,display_name,default_position)').eq('series_id', seriesId).order('tier').order('rank_in_tier'),
       supabase.from('series_player_stats').select('*').eq('series_id', seriesId),
       supabase.from('game_stats').select('player_id,grade').eq('series_id', seriesId).not('grade', 'is', null),
-      supabase.from('game_matchups').select('game_id, defender_player_id, offensive_player_id').eq('series_id', seriesId),
-      supabase.from('game_stats').select('game_id, player_id, pts').eq('series_id', seriesId),
+      supabase.rpc('get_series_matchups', { p_series_id: seriesId }),
+      supabase.rpc('get_series_game_pts', { p_series_id: seriesId }),
     ])
     // Pick best grade per player (A+ > A > A- > B+ > B > B- > C+ > C > C- > D)
     const GRADE_RANK = ['A+','A','A-','B+','B','B-','C+','C','C-','D','F']
