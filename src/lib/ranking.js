@@ -107,35 +107,14 @@ export function computeImpactScores(playerStats, defensiveDeltas = {}) {
   // Sort by impact_score descending for tier assignment
   players.sort((a, b) => b.impact_score - a.impact_score)
 
-  // Assign raw tiers
+  // Assign tiers — no FG% override, no proximity promotions.
+  // The formula already penalizes poor shooting via the efficiency weight;
+  // let it evaluate holistically. Thresholds calibrated for 2K27.
   for (const p of players) {
-    // G_TIER override: shot heavy volume and hit nothing (≤30%) — wasted possessions
-    // Escape hatch: if non-scoring contribution (reb/ast/stl/blk) is strong enough
-    // they may still be a net positive despite poor shooting
-    const fgaPG = p.gp > 0 ? (p.total_fga || 0) / p.gp : 0
-    const fgPct = (p.fg_pct || 0) * 100
-    const nonScoringPG = (p.rpg || 0) + (p.apg || 0) * 1.5 + ((p.spg || 0) + (p.bpg || 0)) * 2
-    if (fgaPG >= 4 && fgPct > 0 && fgPct <= 30 && nonScoringPG < 10.0) {
-      p.tier = 'G_TIER'
-    } else if (p.impact_score >= 75) p.tier = 'ELITE'
-    else if (p.impact_score >= 55) p.tier = 'STRONG'
-    else if (p.impact_score >= 35) p.tier = 'SOLID'
-    else p.tier = 'G_TIER'
-  }
-
-  // Sanity pass — if a lower-tier player is within 2 pts of upper-tier player, promote
-  // We scan adjacent pairs after sort
-  const tierOrder = ['ELITE', 'STRONG', 'SOLID', 'G_TIER']
-  for (let i = 0; i < players.length - 1; i++) {
-    const upper = players[i]
-    const lower = players[i + 1]
-    if (upper.tier !== lower.tier) {
-      const gap = upper.impact_score - lower.impact_score
-      if (gap <= 2) {
-        // Promote lower player to upper's tier
-        lower.tier = upper.tier
-      }
-    }
+    if (p.impact_score >= 75)      p.tier = 'ELITE'
+    else if (p.impact_score >= 58) p.tier = 'STRONG'
+    else if (p.impact_score >= 42) p.tier = 'SOLID'
+    else                           p.tier = 'G_TIER'
   }
 
   // Assign rank_in_tier (1-based, sorted by impact_score desc within tier)
