@@ -43,7 +43,10 @@ export function computeImpactScores(playerStats, defensiveDeltas = {}) {
   for (const p of players) {
     const defComposite = (p.spg || 0) * 2 + (p.bpg || 0)
 
-    // Efficiency — FG% normalized on absolute scale (60% = 100)
+    // Efficiency — FG% normalized on absolute scale.
+    // 2K27 calibration: neutral ~48%, steeper penalty below 40%.
+    // normalizePct maps 60% → 100; keep that scale but the Python formula's
+    // piecewise curve is the authoritative one for DB rankings.
     const effScore = normalizePct((p.fg_pct || 0) * 100)
 
     // Three-point — only counts if enough attempts
@@ -107,14 +110,24 @@ export function computeImpactScores(playerStats, defensiveDeltas = {}) {
   // Sort by impact_score descending for tier assignment
   players.sort((a, b) => b.impact_score - a.impact_score)
 
-  // Assign tiers — no FG% override, no proximity promotions.
-  // The formula already penalizes poor shooting via the efficiency weight;
-  // let it evaluate holistically. Thresholds calibrated for 2K27.
+  // Assign tiers — thresholds calibrated for 2K27.
+  // G_TIER gate: IMP/G must be below +1.5. A positive contributor who was just
+  // outclassed in a great series hasn't EARNED G_TIER — it needs to be earned.
+  // Formula: [PTS - 0.90×FGA] + 0.5×AST + 0.4×REB + 1.0×STL + 0.6×BLK - 1.0×TOV
   for (const p of players) {
-    if (p.impact_score >= 75)      p.tier = 'ELITE'
-    else if (p.impact_score >= 58) p.tier = 'STRONG'
-    else if (p.impact_score >= 42) p.tier = 'SOLID'
-    else                           p.tier = 'G_TIER'
+    if (p.impact_score >= 75)      { p.tier = 'ELITE'; continue }
+    if (p.impact_score >= 58)      { p.tier = 'STRONG'; continue }
+    if (p.impact_score >= 42)      { p.tier = 'SOLID'; continue }
+    // Below threshold — check IMP/G before assigning G_TIER
+    const fgaPG  = p.gp > 0 ? (p.total_fga || 0) / p.gp : 0
+    const impG   = (p.ppg || 0) - 0.90 * fgaPG
+                 + 0.5  * (p.apg  || 0)
+                 + 0.4  * (p.rpg  || 0)
+                 + 1.0  * (p.spg  || 0)
+                 + 0.6  * (p.bpg  || 0)
+                 - 1.0  * (p.tovpg || 0)
+    p.imp_g = Math.round(impG * 100) / 100
+    p.tier = impG >= 1.5 ? 'SOLID' : 'G_TIER'
   }
 
   // Assign rank_in_tier (1-based, sorted by impact_score desc within tier)
