@@ -255,9 +255,12 @@ export default function GameEntry() {
         <TotalCheck label={`${series?.our_team_name || 'Our'} PTS`} sum={ourPtsSum} score={Number(game.our_score)} ok={ourMatch} />
         <TotalCheck label={`${series?.opp_team_name || 'Opp'} PTS`} sum={oppPtsSum} score={Number(game.opp_score)} ok={oppMatch} />
         {!totalsOk && (
-          <label style={s.overrideLabel}>
-            <input type="checkbox" checked={overrideTotal} onChange={e => setOverrideTotal(e.target.checked)} />
-            <span style={{marginLeft:6, color:'#ffc107'}}>Override (stat totals don't match — acknowledge discrepancy)</span>
+          <label style={{...s.overrideLabel, background:'#1a1200', border:'1px solid #4a3000', borderRadius:5, padding:'0.5rem 0.75rem', marginTop:4}}>
+            <input type="checkbox" checked={overrideTotal} onChange={e => setOverrideTotal(e.target.checked)} style={{width:16,height:16,cursor:'pointer',accentColor:'#f4701b'}} />
+            <div style={{marginLeft:8}}>
+              <div style={{color:'#fbbf24', fontWeight:700, fontSize:'0.82rem'}}>Totals don't match the score</div>
+              <div style={{color:'#888', fontSize:'0.75rem', marginTop:2}}>Check this box to save anyway (partial stats, missing players, etc.)</div>
+            </div>
           </label>
         )}
       </div>
@@ -296,6 +299,11 @@ export default function GameEntry() {
       >
         {saving ? 'Saving...' : 'Save Game'}
       </button>
+      {!totalsOk && !overrideTotal && !duplicateGame && (
+        <p style={{color:'#888', fontSize:'0.78rem', marginTop:'0.5rem'}}>
+          ↑ Check the override box above to save with mismatched totals
+        </p>
+      )}
     </div>
   )
 }

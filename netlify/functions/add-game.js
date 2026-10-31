@@ -142,7 +142,7 @@ export default async function handler(req) {
     await supabaseAdmin.from('series').update({
       our_wins: wins,
       opp_wins: losses,
-      ...(isComplete ? { status: 'completed' } : {}),
+      ...(isComplete ? { status: 'complete', ended_at: new Date().toISOString() } : {}),
     }).eq('id', series_id)
 
     return new Response(JSON.stringify({ success: true, game_id: gameRow.id }), {

@@ -17,10 +17,9 @@ function timeAgo(ts) {
 
 export default function Feed() {
   const navigate = useNavigate()
-  const { gamertag: authGamertag } = useAuth()
+  const { gamertag: authGamertag, session, loading: authLoading } = useAuth()
   const [searchParams] = useSearchParams()
   const defaultQuote = searchParams.get('quote') || ''
-  const { session, loading: authLoading } = useAuth()
 
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -54,25 +53,10 @@ export default function Feed() {
     return () => clearInterval(id)
   }, [])
 
-  // Load player gamertag from auth session
+  // Sync gamertag from auth hook
   useEffect(() => {
-    if (!session) { setGamertag(''); return }
-    supabase
-      .from('players')
-      .select('gamertag')
-      .eq('user_id', session.user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.gamertag) { setGamertag(data.gamertag); return }
-        // Fallback: match by email
-        supabase
-          .from('players')
-          .select('gamertag')
-          .eq('email', session.user.email)
-          .maybeSingle()
-          .then(({ data: d2 }) => { if (d2?.gamertag) setGamertag(d2.gamertag) })
-      })
-  }, [session])
+    setGamertag(authGamertag || '')
+  }, [authGamertag])
 
 
   async function deleteComment(id) {
@@ -183,7 +167,7 @@ export default function Feed() {
               <span style={s.cardTag}>{c.gamertag}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={s.cardTime}>{timeAgo(c.created_at)}</span>
-                {authGamertag === 'BrandoBank' && (
+                {(authGamertag === c.gamertag || authGamertag === 'BrandoBank') && (
                   <button onClick={() => deleteComment(c.id)} style={s.deleteBtn} title="Delete">
                     <IconX size={11} color="#555" />
                   </button>
