@@ -3,6 +3,7 @@
 -- bypassing all GRANT and RLS checks on game_matchups.
 CREATE OR REPLACE FUNCTION save_matchup(
   p_game_id              uuid,
+  p_series_id            uuid,
   p_defender_player_id   uuid,
   p_offensive_player_id  uuid,
   p_quarter_switches     jsonb DEFAULT '[]',
@@ -14,11 +15,11 @@ SET search_path = public
 AS $$
 BEGIN
   INSERT INTO game_matchups (
-    game_id, defender_player_id, offensive_player_id,
+    game_id, series_id, defender_player_id, offensive_player_id,
     quarter_switches, submitted_by_gamertag
   )
   VALUES (
-    p_game_id, p_defender_player_id, p_offensive_player_id,
+    p_game_id, p_series_id, p_defender_player_id, p_offensive_player_id,
     p_quarter_switches, p_submitted_by_gamertag
   )
   ON CONFLICT (game_id, defender_player_id)

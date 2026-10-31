@@ -151,6 +151,7 @@ export default function LogMatchup() {
     // Call SECURITY DEFINER function — runs as DB owner, bypasses GRANT/RLS
     const { error: err } = await supabase.rpc('save_matchup', {
       p_game_id: gameId,
+      p_series_id: seriesId,
       p_defender_player_id: myPlayerId,
       p_offensive_player_id: offPlayer.id,
       p_quarter_switches: switchData,
