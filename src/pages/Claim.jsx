@@ -22,6 +22,7 @@ export default function Claim() {
   const [releasing, setReleasing] = useState(false)
   const [confirmRelease, setConfirmRelease] = useState(false)
   const [error, setError] = useState('')
+  const [showInstall, setShowInstall] = useState(false)
 
   useEffect(() => {
     if (!session) { navigate('/login'); return }
@@ -70,7 +71,7 @@ export default function Claim() {
       await loadPlayers()
       return
     }
-    navigate('/')
+    setShowInstall(true)
   }
 
   async function handleRelease() {
@@ -229,6 +230,70 @@ export default function Claim() {
           </div>
         )}
       </div>
+
+      {/* Add to Home Screen modal — shown after first-time claim */}
+      {showInstall && (
+        <div style={s.modalOverlay}>
+          <div style={s.modal}>
+            <img src="/apple-touch-icon.png" alt="Next Up" style={{ width: 80, height: 80, borderRadius: 18, marginBottom: 16, boxShadow: '0 0 24px rgba(244,112,27,0.4)' }} />
+            <div style={{ fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: '1.5rem', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+              YOU'RE IN
+            </div>
+            <div style={{ color: '#22c55e', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 20 }}>
+              ✓ Player Claimed
+            </div>
+            <div style={{ background: '#0d0d14', border: '1px solid #1e1e2e', borderRadius: 12, padding: '1.25rem', marginBottom: 20, textAlign: 'left' }}>
+              <div style={{ fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 800, fontSize: '0.85rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: OR, marginBottom: 12 }}>
+                📲 Add to Your Home Screen
+              </div>
+              <div style={{ color: '#888', fontSize: '0.82rem', lineHeight: 1.7, marginBottom: 12 }}>
+                Get the full app experience — no browser bar, instant access.
+              </div>
+              {/* iOS instructions */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ color: '#ccc', fontSize: '0.78rem', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>iPhone / iPad (Safari)</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {[
+                    ['1', 'Tap the Share button', '(the box with an arrow pointing up)'],
+                    ['2', 'Scroll down and tap', '"Add to Home Screen"'],
+                    ['3', 'Tap', '"Add" — done'],
+                  ].map(([n, a, b]) => (
+                    <div key={n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ minWidth: 20, height: 20, borderRadius: '50%', background: 'rgba(244,112,27,0.15)', border: '1px solid rgba(244,112,27,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700, color: OR, flexShrink: 0 }}>{n}</div>
+                      <div style={{ fontSize: '0.78rem', color: '#aaa', lineHeight: 1.5 }}>{a} <span style={{ color: '#666' }}>{b}</span></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Android instructions */}
+              <div style={{ paddingTop: 10, borderTop: '1px solid #1a1a1a' }}>
+                <div style={{ color: '#ccc', fontSize: '0.78rem', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Android (Chrome)</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {[
+                    ['1', 'Tap the three-dot menu', '(top right)'],
+                    ['2', 'Tap', '"Add to Home Screen"'],
+                    ['3', 'Tap', '"Add" — done'],
+                  ].map(([n, a, b]) => (
+                    <div key={n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ minWidth: 20, height: 20, borderRadius: '50%', background: 'rgba(244,112,27,0.15)', border: '1px solid rgba(244,112,27,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700, color: OR, flexShrink: 0 }}>{n}</div>
+                      <div style={{ fontSize: '0.78rem', color: '#aaa', lineHeight: 1.5 }}>{a} <span style={{ color: '#666' }}>{b}</span></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div style={{ color: '#555', fontSize: '0.72rem', marginBottom: 20, lineHeight: 1.6 }}>
+              The app will be named <strong style={{ color: '#888' }}>Next Up</strong> on your home screen.
+            </div>
+            <button onClick={() => navigate('/')} style={{ ...s.btn, marginBottom: 8 }}>
+              Let's Go →
+            </button>
+            <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#444', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', padding: '4px 0' }}>
+              Skip for now
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -419,5 +484,28 @@ const s = {
     fontSize: '0.85rem',
     textAlign: 'center',
     lineHeight: 1.6,
+  },
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.9)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    zIndex: 1000,
+    padding: '0 0 env(safe-area-inset-bottom, 0px)',
+  },
+  modal: {
+    background: '#0a0a0a',
+    border: '1px solid #1a1a1a',
+    borderRadius: '20px 20px 0 0',
+    padding: '2rem 1.5rem calc(2rem + env(safe-area-inset-bottom, 0px))',
+    width: '100%',
+    maxWidth: 520,
+    textAlign: 'center',
+    maxHeight: '92vh',
+    overflowY: 'auto',
   },
 }
