@@ -1,20 +1,21 @@
 /**
  * save-matchup — upsert a defensive matchup for a game
  * POST { game_id, defender_player_id, offensive_player_id, quarter_switches, submitted_by_gamertag }
- * Uses service role key to bypass RLS/GRANT issues on the game_matchups table.
+ * Uses Supabase REST API directly with service role key to bypass RLS/GRANT.
  */
-
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseAdmin = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
 
 export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+  }
+
+  const supabaseUrl = process.env.VITE_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceKey) {
+    return new Response(JSON.stringify({
+      error: `Missing env vars: url=${!!supabaseUrl} key=${!!serviceKey}`,
+    }), { status: 500 })
   }
 
   let body
@@ -28,21 +29,32 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400 })
   }
 
-  const { data, error } = await supabaseAdmin
-    .from('game_matchups')
-    .upsert({
-      game_id,
-      defender_player_id,
-      offensive_player_id,
-      quarter_switches: quarter_switches || [],
-      submitted_by_gamertag: submitted_by_gamertag || null,
-    }, { onConflict: 'game_id,defender_player_id' })
-    .select()
-    .single()
-
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 })
+  // Use raw REST API to guarantee service role is applied
+  const payload = {
+    game_id,
+    defender_player_id,
+    offensive_player_id,
+    quarter_switches: quarter_switches || [],
+    submitted_by_gamertag: submitted_by_gamertag || null,
   }
 
-  return new Response(JSON.stringify({ data }), { status: 200 })
+  const res = await fetch(`${supabaseUrl}/rest/v1/game_matchups?on_conflict=game_id%2Cdefender_player_id`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates,return=minimal',
+      'apikey': serviceKey,
+      'Authorization': `Bearer ${serviceKey}`,
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    let msg
+    try { msg = JSON.parse(text).message || text } catch { msg = text }
+    return new Response(JSON.stringify({ error: msg }), { status: res.status })
+  }
+
+  return new Response(JSON.stringify({ ok: true }), { status: 200 })
 }
