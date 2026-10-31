@@ -53,14 +53,20 @@ export default function SeriesChart() {
   async function handleExport() {
     if (!chartRef.current) return
     setExporting(true)
+    const el = chartRef.current
+    // Force 1200px desktop width so PNG layout matches the template regardless of viewport
+    const prev = { width: el.style.width, minWidth: el.style.minWidth, maxWidth: el.style.maxWidth }
+    el.style.width = '1200px'
+    el.style.minWidth = '1200px'
+    el.style.maxWidth = '1200px'
+    await new Promise(r => setTimeout(r, 120))
     try {
-      // skipFonts avoids SecurityError from cross-origin Google Fonts CSS;
-      // fonts already rendered by browser so the PNG still looks correct
-      const dataUrl = await toPng(chartRef.current, {
+      const dataUrl = await toPng(el, {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: '#000',
         skipFonts: true,
+        width: 1200,
       })
       const a = document.createElement('a')
       a.download = `${series?.name?.replace(/\s+/g, '-') || 'series'}-chart.png`
@@ -69,8 +75,12 @@ export default function SeriesChart() {
     } catch (e) {
       console.error('Export failed:', e)
       alert('Download failed. Try again or use a screenshot.')
+    } finally {
+      el.style.width = prev.width
+      el.style.minWidth = prev.minWidth
+      el.style.maxWidth = prev.maxWidth
+      setExporting(false)
     }
-    setExporting(false)
   }
 
   function copyLink() {
