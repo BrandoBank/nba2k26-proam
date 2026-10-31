@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { computeImpactScores } from '../lib/ranking'
 import { IconCrystal, IconLock, IconStar } from '../lib/icons'
+import { colors } from '../lib/theme'
 
 // ─── Series Predictions Widget ────────────────────────────────────────────────
 function PredictionsWidget({ seriesId, seriesStatus, players, ourTeam, oppTeam }) {

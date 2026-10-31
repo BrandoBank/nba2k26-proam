@@ -86,6 +86,7 @@ export default async function handler(req) {
     const statsRows = [
       ...(our_players || []).filter(p => p.gamertag?.trim()).map(p => ({
         game_id: gameRow.id,
+        series_id,
         player_id: playerMap[p.gamertag.trim()],
         side: 'our',
         grade: p.grade || null,
@@ -97,6 +98,7 @@ export default async function handler(req) {
       })),
       ...(opp_players || []).filter(p => p.gamertag?.trim()).map(p => ({
         game_id: gameRow.id,
+        series_id,
         player_id: playerMap[p.gamertag.trim()],
         side: 'opp',
         grade: p.grade || null,
@@ -109,7 +111,11 @@ export default async function handler(req) {
     ]
     if (statsRows.length > 0) {
       const { error: statsErr } = await supabaseAdmin.from('game_stats').insert(statsRows)
-      if (statsErr) throw new Error(statsErr.message)
+      if (statsErr) {
+        // Roll back the game row so the user can retry
+        await supabaseAdmin.from('games').delete().eq('id', gameRow.id)
+        throw new Error(statsErr.message)
+      }
     }
 
     // 4. Insert matchups from opp players' matchup_gamertag field
