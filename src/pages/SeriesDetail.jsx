@@ -256,178 +256,189 @@ export default function SeriesDetail() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const isLive = series.status !== 'complete'
+  const heroGradient = isLive
+    ? 'linear-gradient(135deg, #0c0010 0%, #08000f 40%, #000 100%)'
+    : 'linear-gradient(135deg, #030d03 0%, #050505 40%, #000 100%)'
+  const accentGlow = isLive ? '#9333ea' : '#16a34a'
+
   return (
     <div style={s.page} className="sd-page">
       <style>{`
         @media (max-width: 899px) {
-          .sd-back        { display: none !important; }
-          .sd-page        { padding: 0 !important; }
-          .sd-hero        { padding: 1.25rem 1rem 1rem !important; border-radius: 0 !important; margin-bottom: 0 !important; border-bottom: 1px solid #111 !important; }
-          .sd-add-game    { margin: 0 !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; border-top: none !important; }
-          .sd-ranking-wrap { border-radius: 0 !important; border-left: none !important; border-right: none !important; margin-bottom: 0 !important; }
-          .sd-game-strip  { padding: 1rem !important; overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch !important; gap: 0.6rem !important; }
-          .sd-game-card   { min-width: 88px !important; flex-shrink: 0 !important; }
-          .sd-action-grid { grid-template-columns: 1fr 1fr !important; padding: 0.75rem 1rem !important; gap: 0.5rem !important; }
-          .sd-matchup-cta { border-radius: 0 !important; border-left: none !important; border-right: none !important; }
-          .sd-stats       { padding: 1rem !important; }
-          .sd-predictions { padding: 0 1rem !important; }
+          .sd-back     { display: none !important; }
+          .sd-page     { padding: 0 !important; }
+          .sd-hero     { padding: 1.5rem 1.1rem 1.25rem !important; border-radius: 0 !important; }
+          .sd-add      { padding: 0.8rem 1.1rem !important; border-radius: 0 !important; }
+          .sd-ranks    { padding: 1rem 1.1rem !important; border-radius: 0 !important; }
+          .sd-games    { padding: 0.85rem 1.1rem !important; overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; }
+          .sd-games > * { flex-shrink: 0 !important; }
+          .sd-actions  { grid-template-columns: 1fr 1fr !important; padding: 0.85rem 1.1rem !important; }
+          .sd-cta      { padding: 0.6rem 1.1rem !important; border-radius: 0 !important; }
+          .sd-preds    { padding: 0 1.1rem !important; }
+          .sd-stats    { padding: 0 1.1rem 3rem !important; }
         }
       `}</style>
 
       <Link to="/" style={s.back} className="sd-back">← All Series</Link>
 
-      {/* ── HERO ── */}
-      <div style={s.hero} className="sd-hero">
-        <div style={s.heroTop}>
-          <div style={{flex: 1, minWidth: 0}}>
-            <span style={{
-              ...s.statusBadge,
-              background: series.status === 'complete' ? '#0f2a0f' : '#150826',
-              color:      series.status === 'complete' ? '#4caf50'  : '#9333ea',
-              border:     series.status === 'complete' ? '1px solid #1f4a1f' : '1px solid #2a1050',
-            }}>
-              {series.status === 'complete' ? series.result_label || 'FINAL' : 'LIVE'}
-            </span>
-            <h1 style={s.title}>{series.name}</h1>
-            <div style={s.meta}>{series.our_team_name} vs {series.opp_team_name}</div>
-            {series.storyline && <div style={s.storyline}>{series.storyline}</div>}
+      {/* ══ HERO ══ */}
+      <div style={{...s.hero, background: heroGradient}} className="sd-hero">
+        {/* Glow accent line */}
+        <div style={{...s.heroGlowBar, background: accentGlow}} />
+        <div style={s.heroInner}>
+          <div style={s.heroLeft}>
+            <div style={s.heroMeta}>{series.our_team_name} vs {series.opp_team_name}</div>
+            <h1 style={s.heroTitle}>{series.name}</h1>
+            {series.storyline && <div style={s.heroStory}>{series.storyline}</div>}
           </div>
-          <div style={s.scoreBlock}>
-            <span style={s.score}>{wins}–{losses}</span>
-            <span style={s.scoreSub}>SERIES</span>
+          <div style={s.heroRight}>
+            <div style={s.heroScore}>{wins}–{losses}</div>
+            <div style={{...s.heroBadge, color: accentGlow, borderColor: accentGlow + '44', background: accentGlow + '14'}}>
+              {isLive ? 'LIVE' : series.result_label || 'FINAL'}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── ADD GAME — primary CTA when series is live ── */}
-      {series.status !== 'complete' && (
-        <div style={s.addGameWrap} className="sd-add-game">
-          <button onClick={() => navigate(`/series/${id}/add-game`)} style={s.addGameBtn}>
-            <IconPlus size={16} color="#fff" />
-            <span>Add Game</span>
+      {/* ══ ADD GAME — top CTA ══ */}
+      {isLive && (
+        <div style={s.addWrap} className="sd-add">
+          <button onClick={() => navigate(`/series/${id}/add-game`)} style={s.addBtn}>
+            <IconPlus size={15} color="#fff" />
+            Add Game
           </button>
           {isEditor && seriesOver && (
             <button onClick={markComplete} style={s.completeBtn}>
-              <IconCheck size={16} color="#4caf50" />
-              <span>Mark Complete</span>
+              <IconCheck size={15} color="#4caf50" />
+              Mark Complete
             </button>
           )}
         </div>
       )}
 
-      {/* ── RANKINGS ── */}
+      {/* ══ RANKINGS ══ */}
       {liveRankings.length > 0 && (
-        <div style={s.rankingWrap} className="sd-ranking-wrap">
-          <div style={s.rankingHeader}>
-            <div style={s.rankingTitle}>
+        <div style={s.ranksWrap} className="sd-ranks">
+          <div style={s.ranksHead}>
+            <span style={s.ranksSectionLabel}>
+              {isFinalized ? 'FINAL RANKINGS' : 'LIVE RANKINGS'}
+            </span>
+            <div style={s.ranksHeadRight}>
               {isFinalized
-                ? <span style={s.finalBadge}>FINAL RANKINGS</span>
-                : <span style={s.liveBadge}>LIVE RANKINGS</span>
+                ? <Link to={`/series/${id}/chart`} style={s.ranksChartLink}>View Chart →</Link>
+                : <button onClick={fetchAll} style={s.refreshBtn}>↻</button>
               }
-            </div>
-            <div style={s.rankingMeta}>
-              {isFinalized
-                ? <Link to={`/series/${id}/chart`} style={s.rankingChartLink}>View Chart →</Link>
-                : <button onClick={fetchAll} style={s.refreshBtn}>↻ Refresh</button>
-              }
+              {!isFinalized && isEditor && (
+                <Link to={`/series/${id}/rankings`} style={s.ranksEditLink}>Edit</Link>
+              )}
             </div>
           </div>
+
           {TIER_ORDER.map(tier => {
             const players = liveRankings.filter(r => r.tier === tier)
             if (players.length === 0) return null
+            const tc = TIER_COLORS[tier]
             return (
-              <div key={tier} style={{...s.tierRow, borderLeftColor: TIER_COLORS[tier]}}>
-                <div style={{...s.tierTag, color: TIER_COLORS[tier]}}>{tierLabel(tier)}</div>
-                <div style={s.tierPlayers}>
-                  {players.map(r => (
-                    <Link key={r.player_id} to={`/player/${r.gamertag}`} style={{...s.rankPlayer, textDecoration: 'none'}}>
-                      {r.is_mvp && <IconStar size={12} color={colors.gold} filled />}
-                      <span style={{color: '#fff', fontWeight: 700}}>{r.display_name || r.gamertag}</span>
-                      <span style={s.impactScore}>{Number(r.impact_score || 0).toFixed(1)}</span>
-                    </Link>
-                  ))}
+              <div key={tier} style={s.tierSection}>
+                {/* Tier header */}
+                <div style={{...s.tierHeader, borderLeftColor: tc}}>
+                  <span style={{...s.tierLabel, color: tc}}>{tierLabel(tier)}</span>
                 </div>
-              </div>
-            )
-          })}
-          {!isFinalized && isEditor && (
-            <div style={s.rankingFooter}>
-              <Link to={`/series/${id}/rankings`} style={{color: '#f4701b', textDecoration: 'none'}}>Open editor to adjust & publish →</Link>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── GAME STRIP ── */}
-      {games.length > 0 && (
-        <div style={s.gameStrip} className="sd-game-strip">
-          {games.map(g => {
-            const isW = g.our_result === 'W'
-            const isL = g.our_result === 'L'
-            const accentColor = isW ? '#16a34a' : isL ? '#dc2626' : '#333'
-            return (
-              <div key={g.id} style={{...s.gameCard, borderLeftColor: accentColor}} className="sd-game-card">
-                <div style={s.gameLabel}>GAME {g.game_number}</div>
-                <div style={s.gameScore}>{g.our_score}–{g.opp_score}</div>
-                <div style={{...s.gameResult, color: accentColor}}>
-                  {isW ? 'W' : isL ? 'L' : '—'} +{Math.abs(g.our_score - g.opp_score)}
-                </div>
-                <Link to={`/series/${id}/game/${g.id}/matchup`} style={s.matchupLink}>matchup</Link>
-                {isEditor && <Link to={`/series/${id}/game/${g.id}/edit`} style={s.editLink}>edit</Link>}
+                {/* Player rows */}
+                {players.map((r, i) => (
+                  <Link key={r.player_id} to={`/player/${r.gamertag}`} style={{...s.playerRow, textDecoration: 'none', background: i % 2 === 0 ? 'transparent' : '#050505'}}>
+                    <div style={s.playerRowLeft}>
+                      <span style={{...s.playerRank, color: tc}}>{i + 1}</span>
+                      <div style={s.playerInfo}>
+                        <span style={s.playerName}>{r.display_name || r.gamertag}</span>
+                        {r.display_name && r.display_name !== r.gamertag && (
+                          <span style={s.playerTag}>{r.gamertag}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={s.playerRowRight}>
+                      {r.is_mvp && <IconStar size={11} color={colors.gold} filled />}
+                      <span style={s.playerScore}>{Number(r.impact_score || 0).toFixed(1)}</span>
+                    </div>
+                  </Link>
+                ))}
               </div>
             )
           })}
         </div>
       )}
-      {games.length === 0 && series.status !== 'complete' && (
-        <div style={s.emptyGames}>No games yet — tap Add Game above to get started.</div>
-      )}
 
-      {/* ── MATCHUP CTA ── */}
+      {/* ══ GAME RESULTS ══ */}
       {games.length > 0 && (
-        <div style={s.matchupCta} className="sd-matchup-cta">
-          <div style={s.matchupCtaLeft}>
-            <span style={{color: '#f4701b', fontWeight: 800, fontSize: '0.82rem'}}>Log matchups</span>
-            <span style={{color: '#444', fontSize: '0.75rem', marginLeft: 5}}>— updates your defensive score</span>
+        <div style={s.gamesSection}>
+          <div style={s.gamesSectionLabel}>RESULTS</div>
+          <div style={s.gamesStrip} className="sd-games">
+            {games.map(g => {
+              const isW = g.our_result === 'W'
+              const isL = g.our_result === 'L'
+              const color = isW ? '#16a34a' : isL ? '#dc2626' : '#333'
+              return (
+                <div key={g.id} style={{...s.gameCard, borderColor: color + '60', background: isW ? '#020a02' : isL ? '#0a0202' : '#060606'}}>
+                  <div style={{...s.gameCardResult, color}}>{isW ? 'W' : isL ? 'L' : '?'}</div>
+                  <div style={s.gameCardScore}>{g.our_score}–{g.opp_score}</div>
+                  <div style={{...s.gameCardMargin, color: color + 'cc'}}>+{Math.abs(g.our_score - g.opp_score)}</div>
+                  <div style={s.gameCardNum}>G{g.game_number}</div>
+                  <Link to={`/series/${id}/game/${g.id}/matchup`} style={s.gameCardLink}>matchup</Link>
+                  {isEditor && <Link to={`/series/${id}/game/${g.id}/edit`} style={s.gameCardEdit}>edit</Link>}
+                </div>
+              )
+            })}
           </div>
-          <div style={s.matchupCtaGames}>
+        </div>
+      )}
+      {games.length === 0 && isLive && (
+        <div style={s.emptyGames}>No games logged yet.</div>
+      )}
+
+      {/* ══ MATCHUP CTA ══ */}
+      {games.length > 0 && (
+        <div style={s.ctaWrap} className="sd-cta">
+          <span style={s.ctaText}>Log your matchup</span>
+          <span style={s.ctaSubtext}>— affects your defensive impact score</span>
+          <div style={s.ctaGames}>
             {games.map(g => (
-              <Link key={g.id} to={`/series/${id}/game/${g.id}/matchup`} style={s.matchupCtaBtn}>G{g.game_number}</Link>
+              <Link key={g.id} to={`/series/${id}/game/${g.id}/matchup`} style={s.ctaGameBtn}>Game {g.game_number}</Link>
             ))}
           </div>
         </div>
       )}
 
-      {/* ── ACTION GRID ── */}
-      <div style={s.actionGrid} className="sd-action-grid">
-        <Link to={`/series/${id}/chart`} style={s.actionBtn}>
-          <IconChart size={18} color="#888" />
-          <span style={s.actionLabel}>Chart</span>
+      {/* ══ ACTIONS ══ */}
+      <div style={s.actionsGrid} className="sd-actions">
+        <Link to={`/series/${id}/chart`} style={s.actionTile}>
+          <IconChart size={20} color="#555" />
+          <span style={s.actionTileLabel}>Chart</span>
         </Link>
-        <Link to={`/series/${id}/accolades`} style={s.actionBtn}>
-          <IconTrophy size={18} color="#888" />
-          <span style={s.actionLabel}>Accolades</span>
+        <Link to={`/series/${id}/accolades`} style={s.actionTile}>
+          <IconTrophy size={20} color="#555" />
+          <span style={s.actionTileLabel}>Accolades</span>
         </Link>
         {isEditor && (
-          <Link to={`/series/${id}/rankings`} style={s.actionBtn}>
-            <IconEdit size={18} color="#888" />
-            <span style={s.actionLabel}>Rankings</span>
+          <Link to={`/series/${id}/rankings`} style={s.actionTile}>
+            <IconEdit size={20} color="#555" />
+            <span style={s.actionTileLabel}>Rankings</span>
           </Link>
         )}
-        {isEditor && series.status === 'complete' && (
-          <button onClick={togglePublish} style={s.actionBtn}>
-            <IconPublish size={18} color="#888" />
-            <span style={s.actionLabel}>{series.published ? 'Unpublish' : 'Publish'}</span>
+        {isEditor && !isLive && (
+          <button onClick={togglePublish} style={s.actionTile}>
+            <IconPublish size={20} color="#555" />
+            <span style={s.actionTileLabel}>{series.published ? 'Unpublish' : 'Publish'}</span>
           </button>
         )}
-        <button onClick={handleShare} style={{...s.actionBtn, ...(copied ? s.actionBtnCopied : {})}}>
-          <IconShare size={18} color={copied ? '#4caf50' : '#888'} />
-          <span style={{...s.actionLabel, color: copied ? '#4caf50' : '#555'}}>{copied ? 'Copied!' : 'Share'}</span>
+        <button onClick={handleShare} style={{...s.actionTile, ...(copied ? {borderColor: '#1a4a1a', background: '#020f02'} : {})}}>
+          <IconShare size={20} color={copied ? '#4caf50' : '#555'} />
+          <span style={{...s.actionTileLabel, color: copied ? '#4caf50' : '#444'}}>{copied ? 'Copied!' : 'Share'}</span>
         </button>
       </div>
 
-      {/* ── PREDICTIONS ── */}
-      <div style={{padding: '0 2rem'}} className="sd-predictions">
+      {/* ══ PREDICTIONS ══ */}
+      <div style={{padding: '0 2rem'}} className="sd-preds">
         <PredictionsWidget
           seriesId={id}
           seriesStatus={series.status}
@@ -437,9 +448,9 @@ export default function SeriesDetail() {
         />
       </div>
 
-      {/* ── STATS ── */}
+      {/* ══ STATS ══ */}
       {stats.length > 0 && (
-        <div style={s.tableWrap} className="sd-stats">
+        <div style={{padding: '0 2rem 3rem'}} className="sd-stats">
           <StatsTable players={ourStats} teamName={series.our_team_name || 'Team A'} />
           {oppStats.length > 0 && <StatsTable players={oppStats} teamName={series.opp_team_name || 'Team B'} />}
         </div>
@@ -469,7 +480,7 @@ function StatCell({ value, type }) {
 function StatsTable({ players, teamName }) {
   return (
     <div style={{marginBottom: '2rem'}}>
-      <div style={{...s.teamLabel, color: '#aaa'}}>{teamName}</div>
+      <div style={s.teamLabel}>{teamName}</div>
       <div style={{overflowX: 'auto'}}>
         <table style={s.table}>
           <thead>
@@ -510,69 +521,78 @@ function StatsTable({ players, teamName }) {
 }
 
 const s = {
-  page: { minHeight: '100vh', background: '#000', color: '#fff', padding: '2rem', maxWidth: 1100, margin: '0 auto' },
-  back: { color: '#444', textDecoration: 'none', fontSize: '0.8rem', display: 'block', marginBottom: '1.5rem', letterSpacing: '0.02em' },
+  page: { minHeight: '100vh', background: '#000', color: '#fff', padding: '2rem', maxWidth: 900, margin: '0 auto' },
+  back: { color: '#444', textDecoration: 'none', fontSize: '0.8rem', display: 'block', marginBottom: '1.5rem' },
 
   // Hero
-  hero: { background: '#060606', padding: '1.75rem 2rem 1.5rem', marginBottom: 0 },
-  heroTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' },
-  statusBadge: { display: 'inline-block', fontSize: '0.62rem', padding: '0.2rem 0.55rem', borderRadius: 3, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.6rem' },
-  title: { margin: '0 0 0.3rem', fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1.15 },
-  meta: { color: '#444', fontSize: '0.8rem', marginBottom: '0.3rem' },
-  storyline: { color: '#666', fontSize: '0.85rem', fontStyle: 'italic', marginTop: '0.4rem' },
-  scoreBlock: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0, flexShrink: 0 },
-  score: { fontSize: '3rem', fontWeight: 900, color: '#fff', lineHeight: 1, letterSpacing: '-0.02em' },
-  scoreSub: { color: '#333', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.15em', textAlign: 'right' },
+  hero: { padding: '2rem', position: 'relative', overflow: 'hidden' },
+  heroGlowBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 2, opacity: 0.8 },
+  heroInner: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1.5rem' },
+  heroLeft: { flex: 1, minWidth: 0 },
+  heroMeta: { fontSize: '0.72rem', color: '#555', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.5rem' },
+  heroTitle: { margin: '0 0 0.4rem', fontSize: '1.6rem', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 },
+  heroStory: { color: '#555', fontSize: '0.82rem', fontStyle: 'italic', marginTop: '0.35rem' },
+  heroRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem', flexShrink: 0 },
+  heroScore: { fontSize: '3.25rem', fontWeight: 900, lineHeight: 1, letterSpacing: '-0.04em', color: '#fff' },
+  heroBadge: { fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.14em', padding: '0.22rem 0.6rem', borderRadius: 3, border: '1px solid', textTransform: 'uppercase' },
 
-  // Add Game CTA strip
-  addGameWrap: { display: 'flex', gap: '0.6rem', padding: '0.85rem 2rem', background: '#060606', borderTop: '1px solid #111', borderBottom: '1px solid #111', marginBottom: 0 },
-  addGameBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: '#f4701b', color: '#fff', border: 'none', borderRadius: 8, padding: '0.7rem 1rem', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.02em' },
-  completeBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: '#0a1a0a', color: '#4caf50', border: '1px solid #1a4a1a', borderRadius: 8, padding: '0.7rem 1rem', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
+  // Add game
+  addWrap: { display: 'flex', gap: '0.6rem', padding: '0.75rem 2rem', borderTop: '1px solid #111', borderBottom: '1px solid #0d0d0d' },
+  addBtn: { flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', background: '#f4701b', color: '#fff', border: 'none', borderRadius: 9, padding: '0.7rem', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.01em' },
+  completeBtn: { display: 'inline-flex', alignItems: 'center', gap: '0.45rem', background: '#071207', color: '#4caf50', border: '1px solid #1a4a1a', borderRadius: 9, padding: '0.7rem 1rem', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
 
   // Rankings
-  rankingWrap: { background: '#060606', borderTop: '1px solid #111', borderBottom: '1px solid #111', padding: '1.1rem 2rem 1.25rem', marginBottom: 0 },
-  rankingHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '0.5rem' },
-  rankingTitle: { display: 'flex', alignItems: 'center', gap: '0.6rem' },
-  rankingMeta: { display: 'flex', alignItems: 'center', gap: '0.4rem' },
-  rankingChartLink: { color: '#f4701b', textDecoration: 'none', fontWeight: 700, fontSize: '0.8rem' },
-  liveBadge: { background: '#0a1a0a', border: '1px solid #1a4a1a', color: '#4caf50', fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.12em', padding: '0.18rem 0.55rem', borderRadius: 3 },
-  finalBadge: { background: '#1a1000', border: '1px solid #3a2200', color: '#f4701b', fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.12em', padding: '0.18rem 0.55rem', borderRadius: 3 },
-  refreshBtn: { background: 'transparent', border: 'none', color: '#9333ea', fontSize: '0.75rem', cursor: 'pointer', padding: '0.2rem 0.4rem', borderRadius: 4 },
-  tierRow: { display: 'flex', alignItems: 'flex-start', gap: '0.85rem', borderLeft: '2px solid', paddingLeft: '0.85rem', marginBottom: '0.7rem' },
-  tierTag: { fontWeight: 800, fontSize: '0.6rem', letterSpacing: '0.13em', textTransform: 'uppercase', minWidth: 76, paddingTop: '0.3rem', flexShrink: 0 },
-  tierPlayers: { display: 'flex', flexWrap: 'wrap', gap: '0.35rem' },
-  rankPlayer: { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: '#0c0c0c', border: '1px solid #161616', borderRadius: 6, padding: '0.3rem 0.65rem', fontSize: '0.82rem', cursor: 'pointer' },
-  impactScore: { color: '#2e2e2e', fontSize: '0.68rem', marginLeft: 1 },
-  rankingFooter: { marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid #0f0f0f', color: '#444', fontSize: '0.76rem' },
+  ranksWrap: { padding: '1.25rem 2rem', borderBottom: '1px solid #0d0d0d' },
+  ranksHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.1rem' },
+  ranksSectionLabel: { fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.14em', color: '#444', textTransform: 'uppercase' },
+  ranksHeadRight: { display: 'flex', alignItems: 'center', gap: '0.75rem' },
+  ranksChartLink: { fontSize: '0.75rem', fontWeight: 700, color: '#f4701b', textDecoration: 'none' },
+  ranksEditLink: { fontSize: '0.72rem', fontWeight: 600, color: '#555', textDecoration: 'none', border: '1px solid #222', borderRadius: 5, padding: '0.18rem 0.5rem' },
+  refreshBtn: { background: 'transparent', border: '1px solid #1e1e1e', color: '#555', fontSize: '0.78rem', cursor: 'pointer', padding: '0.18rem 0.5rem', borderRadius: 5 },
+
+  tierSection: { marginBottom: '0.9rem' },
+  tierHeader: { borderLeft: '2px solid', paddingLeft: '0.7rem', marginBottom: '0.3rem' },
+  tierLabel: { fontSize: '0.6rem', fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase' },
+
+  playerRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.7rem', borderRadius: 7, cursor: 'pointer' },
+  playerRowLeft: { display: 'flex', alignItems: 'center', gap: '0.7rem' },
+  playerRank: { fontSize: '0.72rem', fontWeight: 800, minWidth: 16, textAlign: 'right', flexShrink: 0 },
+  playerInfo: { display: 'flex', alignItems: 'baseline', gap: '0.4rem' },
+  playerName: { fontSize: '0.9rem', fontWeight: 700, color: '#fff' },
+  playerTag: { fontSize: '0.72rem', color: '#444' },
+  playerRowRight: { display: 'flex', alignItems: 'center', gap: '0.4rem' },
+  playerScore: { fontSize: '0.78rem', fontWeight: 700, color: '#2a2a2a' },
 
   // Game strip
-  gameStrip: { display: 'flex', gap: '0.65rem', padding: '1rem 2rem', borderBottom: '1px solid #111', overflowX: 'auto', flexWrap: 'wrap' },
-  gameCard: { background: '#080808', border: '1px solid #161616', borderLeft: '2px solid', borderRadius: 8, padding: '0.7rem 0.9rem', minWidth: 108, flexShrink: 0 },
-  gameLabel: { fontSize: '0.62rem', color: '#444', marginBottom: '0.3rem', fontWeight: 700, letterSpacing: '0.12em' },
-  gameScore: { fontSize: '1.05rem', fontWeight: 800, color: '#fff', marginBottom: '0.2rem', letterSpacing: '-0.01em' },
-  gameResult: { fontSize: '0.7rem', fontWeight: 700, marginBottom: '0.1rem' },
-  editLink: { display: 'block', fontSize: '0.65rem', color: '#333', textDecoration: 'none', marginTop: '0.35rem' },
-  matchupLink: { display: 'block', fontSize: '0.65rem', color: '#f4701b', textDecoration: 'none', marginTop: '0.4rem', fontWeight: 600 },
-  emptyGames: { color: '#333', fontSize: '0.82rem', padding: '1.5rem 2rem', textAlign: 'center' },
+  gamesSection: { padding: '1rem 2rem', borderBottom: '1px solid #0d0d0d' },
+  gamesSectionLabel: { fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.14em', color: '#333', marginBottom: '0.7rem' },
+  gamesStrip: { display: 'flex', gap: '0.6rem', flexWrap: 'wrap' },
+  gameCard: { border: '1px solid', borderRadius: 10, padding: '0.8rem 1rem', minWidth: 100, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '0.1rem' },
+  gameCardResult: { fontSize: '1.1rem', fontWeight: 900, lineHeight: 1, letterSpacing: '-0.02em' },
+  gameCardScore: { fontSize: '0.85rem', fontWeight: 800, color: '#fff', marginTop: '0.2rem' },
+  gameCardMargin: { fontSize: '0.7rem', fontWeight: 700 },
+  gameCardNum: { fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', color: '#333', marginTop: '0.3rem' },
+  gameCardLink: { display: 'block', fontSize: '0.65rem', color: '#f4701b', textDecoration: 'none', marginTop: '0.4rem', fontWeight: 600 },
+  gameCardEdit: { display: 'block', fontSize: '0.62rem', color: '#2a2a2a', textDecoration: 'none', marginTop: '0.15rem' },
+  emptyGames: { color: '#2a2a2a', fontSize: '0.82rem', padding: '1rem 2rem' },
 
   // Matchup CTA
-  matchupCta: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', background: '#08060a', borderBottom: '1px solid #111', padding: '0.7rem 2rem' },
-  matchupCtaLeft: { fontSize: '0.82rem' },
-  matchupCtaGames: { display: 'flex', gap: '0.35rem', flexWrap: 'wrap' },
-  matchupCtaBtn: { background: '#12090e', border: '1px solid #2a1020', borderRadius: 6, padding: '0.3rem 0.65rem', fontSize: '0.72rem', color: '#f4701b', fontWeight: 800, textDecoration: 'none', letterSpacing: '0.04em' },
+  ctaWrap: { padding: '0.65rem 2rem', borderBottom: '1px solid #0d0d0d', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem', background: '#030005' },
+  ctaText: { fontSize: '0.78rem', fontWeight: 800, color: '#f4701b' },
+  ctaSubtext: { fontSize: '0.72rem', color: '#333' },
+  ctaGames: { display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginLeft: 'auto' },
+  ctaGameBtn: { background: '#0d0012', border: '1px solid #2a0050', borderRadius: 6, padding: '0.25rem 0.6rem', fontSize: '0.7rem', color: '#9333ea', fontWeight: 800, textDecoration: 'none' },
 
-  // Action grid — icon+label buttons
-  actionGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', padding: '0.85rem 2rem', borderBottom: '1px solid #111' },
-  actionBtn: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', background: '#0a0a0a', border: '1px solid #161616', borderRadius: 10, padding: '0.75rem 0.5rem', cursor: 'pointer', textDecoration: 'none', transition: 'border-color 0.15s' },
-  actionLabel: { fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#555' },
-  actionBtnCopied: { borderColor: '#1a4a1a', background: '#060f06' },
+  // Actions
+  actionsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.6rem', padding: '1rem 2rem', borderBottom: '1px solid #0d0d0d' },
+  actionTile: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', background: '#080808', border: '1px solid #141414', borderRadius: 12, padding: '0.9rem 0.5rem', cursor: 'pointer', textDecoration: 'none' },
+  actionTileLabel: { fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#444' },
 
   // Stats
-  tableWrap: { padding: '0 2rem 2rem' },
-  teamLabel: { fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '0.5rem', color: '#555' },
+  teamLabel: { fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '0.5rem', color: '#444', paddingTop: '1.5rem', paddingBottom: '0.3rem' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' },
-  th: { color: '#444', fontWeight: 600, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '0.45rem 0.75rem', textAlign: 'left', borderBottom: '1px solid #111', whiteSpace: 'nowrap' },
-  td: { color: '#ccc', padding: '0.5rem 0.75rem', borderBottom: '1px solid #0a0a0a' },
+  th: { color: '#333', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '0.4rem 0.75rem', textAlign: 'left', borderBottom: '1px solid #0d0d0d', whiteSpace: 'nowrap' },
+  td: { color: '#bbb', padding: '0.5rem 0.75rem', borderBottom: '1px solid #070707' },
   tr: {},
-  dim: { color: '#444' },
+  dim: { color: '#333' },
 }
