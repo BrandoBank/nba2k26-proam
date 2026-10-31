@@ -28,16 +28,25 @@ export default function SeriesChart() {
   useEffect(() => { fetchAll() }, [seriesId])
 
   async function fetchAll() {
-    const [{ data: ser }, { data: gms }, { data: rnk }, { data: sts }] = await Promise.all([
+    const [{ data: ser }, { data: gms }, { data: rnk }, { data: sts }, { data: grds }] = await Promise.all([
       supabase.from('series').select('*').eq('id', seriesId).single(),
       supabase.from('games').select('*').eq('series_id', seriesId).order('game_number'),
       supabase.from('series_rankings').select('*, players(gamertag,display_name,default_position)').eq('series_id', seriesId).order('tier').order('rank_in_tier'),
       supabase.from('series_player_stats').select('*').eq('series_id', seriesId),
+      supabase.from('game_stats').select('player_id,grade').eq('series_id', seriesId).not('grade', 'is', null),
     ])
+    // Pick best grade per player (A+ > A > A- > B+ > B > B- > C+ > C > C- > D)
+    const GRADE_RANK = ['A+','A','A-','B+','B','B-','C+','C','C-','D','F']
+    const bestGrade = {}
+    for (const g of (grds || [])) {
+      if (!g.grade) continue
+      const cur = bestGrade[g.player_id]
+      if (!cur || GRADE_RANK.indexOf(g.grade) < GRADE_RANK.indexOf(cur)) bestGrade[g.player_id] = g.grade
+    }
     setSeries(ser)
     setGames(gms || [])
     setRankings(rnk || [])
-    setStats(sts || [])
+    setStats((sts || []).map(s => ({ ...s, grade: bestGrade[s.player_id] || null })))
     setLoading(false)
   }
 
