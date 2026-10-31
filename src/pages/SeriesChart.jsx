@@ -54,12 +54,22 @@ export default function SeriesChart() {
     if (!chartRef.current) return
     setExporting(true)
     try {
-      const dataUrl = await toPng(chartRef.current, { cacheBust: true, pixelRatio: 2, backgroundColor: '#000' })
+      // skipFonts avoids SecurityError from cross-origin Google Fonts CSS;
+      // fonts already rendered by browser so the PNG still looks correct
+      const dataUrl = await toPng(chartRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#000',
+        skipFonts: true,
+      })
       const a = document.createElement('a')
       a.download = `${series?.name?.replace(/\s+/g, '-') || 'series'}-chart.png`
       a.href = dataUrl
       a.click()
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error('Export failed:', e)
+      alert('Download failed. Try again or use a screenshot.')
+    }
     setExporting(false)
   }
 
