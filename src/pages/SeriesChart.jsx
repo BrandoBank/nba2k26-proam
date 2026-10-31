@@ -8,7 +8,7 @@ import { IconStar, IconArrow, IconCheck } from '../lib/icons'
 const TIER_META = {
   ELITE:  { label: 'ELITE TIER — SERIES-DEFINING IMPACT',      spine: '#9333ea', bg: 'rgba(147,51,234,0.07)',  text: '#c084fc' },
   STRONG: { label: 'STRONG TIER — ELITE SPECIALISTS OR CONSISTENT CONTRIBUTORS', spine: '#2563eb', bg: 'rgba(37,99,235,0.07)',   text: '#60a5fa' },
-  SOLID:  { label: 'SOLID TIER — RELIABLE ROLE PRODUCTION',    spine: '#16a34a', bg: 'rgba(22,163,74,0.07)',   text: '#4ade80' },
+  SOLID:  { label: 'ROLE PLAYER TIER — RELIABLE ROLE PRODUCTION',    spine: '#16a34a', bg: 'rgba(22,163,74,0.07)',   text: '#4ade80' },
   G_TIER: { label: 'G TIER — NEGATIVE NET IMPACT',             spine: '#dc2626', bg: 'rgba(220,38,38,0.07)',   text: '#f87171' },
 }
 
@@ -256,7 +256,7 @@ export default function SeriesChart() {
               <span style={ch.footerSep}>·</span>
               <span style={{ color: TIER_META.STRONG.text }}>STRONG</span> real two-way/specialist
               <span style={ch.footerSep}>·</span>
-              <span style={{ color: TIER_META.SOLID.text }}>SOLID</span> reliable role
+              <span style={{ color: TIER_META.SOLID.text }}>ROLE PLAYER</span> reliable role
               <span style={ch.footerSep}>·</span>
               <span style={{ color: TIER_META.G_TIER.text }}>G TIER</span> low/negative impact
             </span>

@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { colors } from '../lib/theme'
-import { computeImpactScores, computeDefensiveDeltas } from '../lib/ranking'
+import { computeImpactScores, computeDefensiveDeltas, tierLabel } from '../lib/ranking'
 import { IconStar, IconTrophy, IconFlame, IconBolt } from '../lib/icons'
 
 const TIERS = ['ELITE', 'STRONG', 'SOLID', 'G_TIER']
@@ -200,7 +200,7 @@ export default function RankingEditor() {
         return (
           <div key={tier} style={{ ...s.tierBlock, borderLeftColor: tierColor }}>
             <div style={{ ...s.tierLabel, color: tierColor }}>
-              {tier === 'G_TIER' ? 'G TIER' : tier}
+              {tierLabel(tier)}
               <span style={s.tierCount}>{tierRows.length} player{tierRows.length !== 1 ? 's' : ''}</span>
             </div>
 
@@ -229,7 +229,7 @@ export default function RankingEditor() {
                     value={row.tier}
                     onChange={e => updateRow(row.player_id, 'tier', e.target.value)}
                   >
-                    {TIERS.map(t => <option key={t} value={t}>{t === 'G_TIER' ? 'G TIER' : t}</option>)}
+                    {TIERS.map(t => <option key={t} value={t}>{tierLabel(t)}</option>)}
                   </select>
 
                   <div style={s.tagRow}>

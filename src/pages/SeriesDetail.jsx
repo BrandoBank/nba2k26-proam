@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate, NavLink } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { computeImpactScores } from '../lib/ranking'
+import { computeImpactScores, tierLabel } from '../lib/ranking'
 import { IconCrystal, IconLock, IconStar } from '../lib/icons'
 import { colors } from '../lib/theme'
 
@@ -370,7 +370,7 @@ export default function SeriesDetail() {
             if (players.length === 0) return null
             return (
               <div key={tier} style={{...s.tierRow, borderLeftColor: TIER_COLORS[tier]}}>
-                <div style={{...s.tierTag, color: TIER_COLORS[tier]}}>{tier === 'G_TIER' ? 'G TIER' : tier}</div>
+                <div style={{...s.tierTag, color: TIER_COLORS[tier]}}>{tierLabel(tier)}</div>
                 <div style={s.tierPlayers}>
                   {players.map(r => (
                     <Link key={r.player_id} to={`/player/${r.gamertag}`} style={{...s.rankPlayer, textDecoration: 'none'}}>

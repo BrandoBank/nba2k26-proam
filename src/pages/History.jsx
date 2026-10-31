@@ -13,7 +13,7 @@ const TIER_ORDER = ['ELITE', 'STRONG', 'SOLID', 'G_TIER']
 const TIER_META = {
   ELITE:  { label: 'E',  short: 'ELITE',  color: colors.elite,  bg: colors.eliteBg },
   STRONG: { label: 'S',  short: 'STR',    color: colors.strong, bg: colors.strongBg },
-  SOLID:  { label: 'SO', short: 'SOLID',  color: colors.solid,  bg: colors.solidBg },
+  SOLID:  { label: 'RP', short: 'ROLE PLAYER',  color: colors.solid,  bg: colors.solidBg },
   G_TIER: { label: 'G',  short: 'G',      color: colors.gTier,  bg: colors.gTierBg },
 }
 
@@ -82,7 +82,7 @@ const COLUMNS = [
   { key: 'mvp_count',    label: 'MVPs',    numeric: true,  colorType: null },
   { key: 'elite_count',  label: 'ELITE',   numeric: true,  colorType: null },
   { key: 'strong_count', label: 'STRONG',  numeric: true,  colorType: null },
-  { key: 'solid_count',  label: 'SOLID',   numeric: true,  colorType: null },
+  { key: 'solid_count',  label: 'ROLE PL', numeric: true,  colorType: null },
   { key: 'g_tier_count', label: 'G TIER',  numeric: true,  colorType: null },
 ]
 

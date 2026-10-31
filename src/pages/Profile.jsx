@@ -12,6 +12,7 @@ const RAINBOW = 'linear-gradient(90deg,#f87171,#fb923c,#facc15,#4ade80,#60a5fa,#
 const TIER_COLOR = {
   ELITE: colors.elite,
   STRONG: colors.statGreen,
+  SOLID: colors.solid,
   AVERAGE: '#60a5fa',
   WEAK: '#f97316',
   G_TIER: colors.gTier,
@@ -19,6 +20,7 @@ const TIER_COLOR = {
 const TIER_LABEL = {
   ELITE: 'ELITE',
   STRONG: 'STRONG',
+  SOLID: 'ROLE PLAYER',
   AVERAGE: 'AVG',
   WEAK: 'WEAK',
   G_TIER: 'G TIER',
