@@ -9,7 +9,7 @@ const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4', 'OT']
 
 export default function LogMatchup() {
   const { id: seriesId, gameId } = useParams()
-  const { isEditor } = useAuth()
+  const { isEditor, gamertag: authGamertag, gamertagLoading } = useAuth()
   const [series, setSeries] = useState(null)
   const [game, setGame] = useState(null)
   const [players, setPlayers] = useState([])
@@ -34,6 +34,33 @@ export default function LogMatchup() {
   const [showDropdown, setShowDropdown] = useState(false)
 
   useEffect(() => { fetchData() }, [gameId])
+
+  // Auto-confirm identity when signed in with a claimed gamertag
+  useEffect(() => {
+    if (!gamertagLoading && authGamertag && players.length > 0 && gamePlayers.length > 0 && !myGtagConfirmed) {
+      setMyGamertag(authGamertag)
+      setGtagQuery(authGamertag)
+      // Run the same logic as confirmGamertag
+      const found = players.find(p => p.gamertag.toLowerCase() === authGamertag.toLowerCase())
+      if (found) {
+        const statRow = gamePlayers.find(gs => gs.player_id === found.id)
+        if (statRow) {
+          setMyPlayerId(found.id)
+          setMySide(statRow.side)
+          setMyGtagConfirmed(true)
+          const existing = existingMatchups.find(m => m.defender_player_id === found.id)
+          if (existing) {
+            const oppP = players.find(p => p.id === existing.offensive_player_id)
+            if (oppP) setPrimaryMatchup(oppP.gamertag)
+            if (existing.quarter_switches) setSwitches(existing.quarter_switches)
+            const owner = existing.submitted_by_gamertag
+            setExistingOwner(owner)
+            setEditingLocked(!isEditor && owner && owner.toLowerCase() !== authGamertag.toLowerCase())
+          }
+        }
+      }
+    }
+  }, [gamertagLoading, authGamertag, players, gamePlayers])
 
   async function fetchData() {
     const [{ data: ser }, { data: gm }, { data: allP }, { data: stats }, { data: matchups }] = await Promise.all([

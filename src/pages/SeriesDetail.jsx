@@ -316,16 +316,17 @@ export default function SeriesDetail() {
         </div>
       )}
 
-      {/* Matchup CTA */}
-      {games.length > 0 && series.status === 'in_progress' && (
+      {/* Matchup CTA — show for in_progress and complete series */}
+      {games.length > 0 && (series.status === 'in_progress' || series.status === 'complete') && (
         <div style={s.matchupCta}>
           <div style={s.matchupCtaText}>
-            <span style={{color: '#f4701b', fontWeight: 700}}>Players:</span> Log who you guarded to improve ranking accuracy.
+            <span style={{color: '#f4701b', fontWeight: 700}}>Log your matchups</span>
+            <span style={{color: '#555', fontSize: '0.8rem', marginLeft: 6}}>— who you guarded affects your defensive impact score</span>
           </div>
           <div style={s.matchupCtaGames}>
             {games.map(g => (
               <Link key={g.id} to={`/series/${id}/game/${g.id}/matchup`} style={s.matchupCtaBtn}>
-                G{g.game_number}
+                Game {g.game_number}
               </Link>
             ))}
           </div>
