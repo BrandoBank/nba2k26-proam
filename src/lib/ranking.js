@@ -109,10 +109,10 @@ export function computeImpactScores(playerStats, defensiveDeltas = {}) {
 
   // Assign raw tiers
   for (const p of players) {
-    // G_TIER override: shot heavy volume and hit almost nothing — wasted possessions
+    // G_TIER override: shot heavy volume and hit nothing (≤30%) — wasted possessions
     const fgaPG = p.gp > 0 ? (p.total_fga || 0) / p.gp : 0
     const fgPct = (p.fg_pct || 0) * 100  // fg_pct is stored as decimal (0–1) in player stats
-    if (fgaPG >= 4 && fgPct > 0 && fgPct < 30) {
+    if (fgaPG >= 4 && fgPct > 0 && fgPct <= 30) {
       p.tier = 'G_TIER'
     } else if (p.impact_score >= 75) p.tier = 'ELITE'
     else if (p.impact_score >= 55) p.tier = 'STRONG'
