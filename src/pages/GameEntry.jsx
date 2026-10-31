@@ -155,11 +155,15 @@ export default function GameEntry() {
   const duplicateGame = game && existingGames.some(g => g.game_number === Number(game.game_number))
 
   // ── Save ─────────────────────────────────────────────────────────────
-  async function handleSave() {
+  const [forceSubmit, setForceSubmit] = useState(false)
+  const [duplicateWarning, setDuplicateWarning] = useState(null)
+
+  async function handleSave(force = false) {
     if (!totalsOk && !overrideTotal) return
     if (duplicateGame) { setSaveError(`Game ${game.game_number} already exists in this series.`); return }
     setSaving(true)
     setSaveError('')
+    setDuplicateWarning(null)
 
     try {
       const res = await fetch('/.netlify/functions/add-game', {
@@ -174,9 +178,16 @@ export default function GameEntry() {
           played_at: game.played_at || new Date().toISOString(),
           our_players: game.our_players,
           opp_players: game.opp_players,
+          ...(force ? { force: true } : {}),
         }),
       })
       const data = await res.json()
+      if (res.status === 409 && (data.error === 'duplicate_score' || data.error === 'duplicate_stats')) {
+        // Surface the warning and let the user decide whether to force through
+        setDuplicateWarning(data.message)
+        setSaving(false)
+        return
+      }
       if (!res.ok) throw new Error(data.error || 'Save failed')
       navigate(`/series/${seriesId}`)
     } catch (err) {
@@ -292,8 +303,19 @@ export default function GameEntry() {
 
       {saveError && <p style={s.error}>{saveError}</p>}
 
+      {duplicateWarning && (
+        <div style={{background:'rgba(255,165,0,0.12)', border:'1px solid #f97316', borderRadius:8, padding:'0.75rem 1rem', marginBottom:'0.75rem'}}>
+          <p style={{color:'#fb923c', fontSize:'0.85rem', margin:'0 0 0.5rem 0', fontWeight:700}}>⚠️ Possible Duplicate Detected</p>
+          <p style={{color:'#fcd34d', fontSize:'0.8rem', margin:'0 0 0.75rem 0'}}>{duplicateWarning}</p>
+          <div style={{display:'flex', gap:'0.5rem'}}>
+            <button onClick={() => handleSave(true)} style={{background:'#f97316', color:'#fff', border:'none', borderRadius:6, padding:'0.4rem 0.8rem', fontSize:'0.8rem', cursor:'pointer', fontWeight:700}}>Submit Anyway</button>
+            <button onClick={() => setDuplicateWarning(null)} style={{background:'none', color:'#fb923c', border:'1px solid #f97316', borderRadius:6, padding:'0.4rem 0.8rem', fontSize:'0.8rem', cursor:'pointer'}}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       <button
-        onClick={handleSave}
+        onClick={() => handleSave(false)}
         disabled={saving || duplicateGame || (!totalsOk && !overrideTotal)}
         style={{...s.btnSave, opacity: (saving || duplicateGame || (!totalsOk && !overrideTotal)) ? 0.4 : 1}}
       >

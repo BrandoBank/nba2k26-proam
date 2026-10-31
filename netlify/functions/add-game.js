@@ -44,6 +44,50 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ error: `Game ${game_number} already exists in this series` }), { status: 409 })
   }
 
+  // Check for duplicate scoreline — same score in same series = likely resubmission
+  // Allow bypass with force: true if user confirms it's intentionally a repeated score
+  const { data: sameScore } = await supabaseAdmin
+    .from('games')
+    .select('id, game_number')
+    .eq('series_id', series_id)
+    .eq('our_score', Number(our_score))
+    .eq('opp_score', Number(opp_score))
+  if (sameScore?.length > 0 && !body.force) {
+    return new Response(JSON.stringify({
+      error: 'duplicate_score',
+      message: `A game with score ${our_score}–${opp_score} already exists in this series (Game ${sameScore[0].game_number}). If this is genuinely a different game with the same final score, resubmit with force: true.`,
+      existing_game_id: sameScore[0].id,
+    }), { status: 409 })
+  }
+
+  // Check for stat-row fingerprint: same series + same player set + same total pts = almost certainly a resubmission
+  // Build a simple fingerprint from sorted player gamertags + total points
+  const allTags = [...(our_players || []), ...(opp_players || [])]
+    .map(p => p.gamertag?.trim().toLowerCase()).filter(Boolean).sort().join(',')
+  const totalPts = [...(our_players || []), ...(opp_players || [])].reduce((s, p) => s + (+p.pts || 0), 0)
+  const { data: existingStats } = await supabaseAdmin
+    .from('game_stats')
+    .select('game_id, player_id, pts')
+    .eq('series_id', series_id)
+  if (existingStats?.length > 0 && !body.force) {
+    // Group by game_id to check fingerprint per game
+    const gameGroups = {}
+    for (const row of existingStats) {
+      if (!gameGroups[row.game_id]) gameGroups[row.game_id] = []
+      gameGroups[row.game_id].push(row)
+    }
+    for (const [gid, rows] of Object.entries(gameGroups)) {
+      const existingTotal = rows.reduce((s, r) => s + (r.pts || 0), 0)
+      if (existingTotal === totalPts && rows.length === allTags.split(',').length) {
+        return new Response(JSON.stringify({
+          error: 'duplicate_stats',
+          message: `A game with the same player count and total points already exists in this series. This looks like a resubmission. If it is genuinely a new game, resubmit with force: true.`,
+          existing_game_id: gid,
+        }), { status: 409 })
+      }
+    }
+  }
+
   try {
     // 1. Upsert all players (create if gamertag not found)
     const allPlayerRows = [...(our_players || []), ...(opp_players || [])]
