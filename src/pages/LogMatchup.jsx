@@ -148,14 +148,20 @@ export default function LogMatchup() {
       note: sw.note.trim() || null,
     }))
 
-    // Upsert matchup
-    const { error: err } = await supabase.from('game_matchups').upsert({
-      game_id: gameId,
-      defender_player_id: myPlayerId,
-      offensive_player_id: offPlayer.id,
-      quarter_switches: switchData,
-      submitted_by_gamertag: myGamertag,
-    }, { onConflict: 'game_id,defender_player_id' })
+    // Upsert via Netlify function (service role bypasses GRANT/RLS issues)
+    const res = await fetch('/.netlify/functions/save-matchup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        game_id: gameId,
+        defender_player_id: myPlayerId,
+        offensive_player_id: offPlayer.id,
+        quarter_switches: switchData,
+        submitted_by_gamertag: myGamertag,
+      }),
+    })
+    const json = await res.json()
+    const err = res.ok ? null : { message: json.error || 'Save failed' }
 
     setSaving(false)
     if (err) { setError(err.message); return }
