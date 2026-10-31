@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate, NavLink } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { computeImpactScores, tierLabel } from '../lib/ranking'
+import { computeImpactScores, computeDefensiveDeltas, tierLabel } from '../lib/ranking'
 import { IconCrystal, IconLock, IconStar, IconChart, IconTrophy, IconEdit, IconShare, IconPlus, IconPublish, IconCheck } from '../lib/icons'
 import { colors } from '../lib/theme'
 
@@ -168,22 +168,28 @@ export default function SeriesDetail() {
   const [games, setGames] = useState([])
   const [stats, setStats] = useState([]) // series_player_stats view
   const [finalizedRankings, setFinalizedRankings] = useState([])
+  const [matchups, setMatchups] = useState([])
+  const [perGameStats, setPerGameStats] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lastUpdated, setLastUpdated] = useState(null)
   const [copied, setCopied] = useState(false)
 
   const fetchAll = useCallback(async () => {
-    const [{ data: ser }, { data: gms }, { data: sts }, { data: rankings }] = await Promise.all([
+    const [{ data: ser }, { data: gms }, { data: sts }, { data: rankings }, { data: mups }, { data: pgs }] = await Promise.all([
       supabase.from('series').select('*').eq('id', id).single(),
       supabase.from('games').select('*').eq('series_id', id).order('game_number'),
       supabase.from('series_player_stats').select('*').eq('series_id', id),
       supabase.from('series_rankings').select('*, players(gamertag,display_name)').eq('series_id', id).eq('finalized', true),
+      supabase.from('game_matchups').select('game_id, defender_player_id, offensive_player_id').eq('series_id', id),
+      supabase.from('game_stats').select('game_id, player_id, pts').eq('series_id', id),
     ])
     setSeries(ser)
     setGames(gms || [])
     setStats(sts || [])
     setFinalizedRankings(rankings || [])
+    setMatchups(mups || [])
+    setPerGameStats(pgs || [])
     setLastUpdated(new Date())
     setLoading(false)
   }, [id])
@@ -195,6 +201,7 @@ export default function SeriesDetail() {
       .channel(`series-${id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `series_id=eq.${id}` }, fetchAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'game_stats' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_matchups', filter: `series_id=eq.${id}` }, fetchAll)
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [fetchAll])
@@ -244,7 +251,8 @@ export default function SeriesDetail() {
       finalized: true,
     }))
     if (stats.length === 0) return []
-    return computeImpactScores(stats).map(r => ({ ...r, finalized: false }))
+    const defDeltas = computeDefensiveDeltas(matchups, perGameStats, stats)
+    return computeImpactScores(stats, defDeltas).map(r => ({ ...r, finalized: false }))
   })()
 
   const isFinalized = liveRankings[0]?.finalized
