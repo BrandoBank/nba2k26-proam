@@ -238,9 +238,12 @@ export default function SeriesDetail() {
   const ourStats = stats.filter(p => p.primary_side === 'our').sort((a,b) => b.ppg - a.ppg)
   const oppStats = stats.filter(p => p.primary_side === 'opp').sort((a,b) => b.ppg - a.ppg)
 
-  // Live rankings — use finalized if available, else compute deterministically
+  // Live rankings: for an active (in_progress) series always recompute from
+  // current stats + matchup defensive deltas so new matchup saves update the
+  // display immediately. Finalized rankings are used for completed/unfinished.
   const liveRankings = (() => {
-    if (finalizedRankings.length > 0) return finalizedRankings.map(r => ({
+    const isSeriesLive = series.status === 'in_progress'
+    if (!isSeriesLive && finalizedRankings.length > 0) return finalizedRankings.map(r => ({
       player_id: r.player_id,
       gamertag: r.players?.gamertag || '',
       display_name: r.players?.display_name,

@@ -49,9 +49,11 @@ export default function SeriesChart() {
     const seriesStats = sts || []
     const statsWithGrade = seriesStats.map(s => ({ ...s, grade: bestGrade[s.player_id] || null }))
 
-    // If no finalized rankings, compute live from stats + matchup defensive deltas
+    // For live series always recompute from stats + matchup defensive deltas so
+    // chart reflects new matchups immediately. Use finalized rankings otherwise.
     let resolvedRankings = rnk || []
-    if (resolvedRankings.length === 0 && seriesStats.length > 0) {
+    const isSeriesLive = ser?.status === 'in_progress'
+    if ((isSeriesLive || resolvedRankings.length === 0) && seriesStats.length > 0) {
       const defDeltas = computeDefensiveDeltas(mups || [], pgs || [], seriesStats)
       resolvedRankings = computeImpactScores(seriesStats, defDeltas)
         .map(r => ({
