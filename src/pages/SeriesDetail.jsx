@@ -256,11 +256,15 @@ export default function SeriesDetail() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const isLive = series.status !== 'complete'
+  const isLive = series.status === 'in_progress'
+  const isUnfinished = series.status === 'unfinished'
+  const isActive = isLive || isUnfinished  // can still add games
   const heroGradient = isLive
     ? 'linear-gradient(135deg, #0c0010 0%, #08000f 40%, #000 100%)'
-    : 'linear-gradient(135deg, #030d03 0%, #050505 40%, #000 100%)'
-  const accentGlow = isLive ? '#9333ea' : '#16a34a'
+    : isUnfinished
+      ? 'linear-gradient(135deg, #0a0800 0%, #080500 40%, #000 100%)'
+      : 'linear-gradient(135deg, #030d03 0%, #050505 40%, #000 100%)'
+  const accentGlow = isLive ? '#9333ea' : isUnfinished ? '#ca8a04' : '#16a34a'
 
   return (
     <div style={s.page} className="sd-page">
@@ -295,14 +299,14 @@ export default function SeriesDetail() {
           <div style={s.heroRight}>
             <div style={s.heroScore}>{wins}–{losses}</div>
             <div style={{...s.heroBadge, color: accentGlow, borderColor: accentGlow + '44', background: accentGlow + '14'}}>
-              {isLive ? 'LIVE' : series.result_label || 'FINAL'}
+              {isLive ? 'LIVE' : isUnfinished ? 'UNFINISHED' : series.result_label || 'FINAL'}
             </div>
           </div>
         </div>
       </div>
 
       {/* ══ ADD GAME — top CTA ══ */}
-      {isLive && (
+      {isActive && (
         <div style={s.addWrap} className="sd-add">
           <button onClick={() => navigate(`/series/${id}/add-game`)} style={s.addBtn}>
             <IconPlus size={15} color="#fff" />
@@ -392,7 +396,7 @@ export default function SeriesDetail() {
           </div>
         </div>
       )}
-      {games.length === 0 && isLive && (
+      {games.length === 0 && isActive && (
         <div style={s.emptyGames}>No games logged yet.</div>
       )}
 

@@ -125,6 +125,12 @@ export default function NewSeries() {
     const d2 = form.drafter_2.trim()
     const drafted_by = d1 && d2 ? `${d1} vs ${d2}` : (d1 || d2 || null)
 
+    // Any currently live series becomes unfinished — rankings preserved, games still addable
+    await supabase
+      .from('series')
+      .update({ status: 'unfinished' })
+      .eq('status', 'in_progress')
+
     const { data, error } = await supabase
       .from('series')
       .insert({

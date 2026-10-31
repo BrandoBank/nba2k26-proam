@@ -3,13 +3,13 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { colors } from '../lib/theme'
-import { IconShield, IconArrow, IconPlus, IconLock } from '../lib/icons'
+import { IconShield, IconArrow, IconPlus, IconLock, IconCheck } from '../lib/icons'
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4', 'OT']
 
 export default function LogMatchup() {
   const { id: seriesId, gameId } = useParams()
-  const { isEditor, gamertag: authGamertag, gamertagLoading } = useAuth()
+  const { isEditor, gamertag: authGamertag, gamertagLoading, session, loading: authLoading, signIn } = useAuth()
   const [series, setSeries] = useState(null)
   const [game, setGame] = useState(null)
   const [players, setPlayers] = useState([])
@@ -28,6 +28,13 @@ export default function LogMatchup() {
   const [error, setError] = useState('')
   const [existingOwner, setExistingOwner] = useState(null) // gamertag who originally submitted
   const [editingLocked, setEditingLocked] = useState(false) // true when someone else owns the matchup
+  const [logForOther, setLogForOther] = useState(false) // signed-in user logging on behalf of someone else
+
+  // Sign-in form state (shown when not authenticated)
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [authLoggingIn, setAuthLoggingIn] = useState(false)
 
   // Gamertag autocomplete
   const [gtagQuery, setGtagQuery] = useState('')
@@ -35,9 +42,9 @@ export default function LogMatchup() {
 
   useEffect(() => { fetchData() }, [gameId])
 
-  // Auto-confirm identity when signed in with a claimed gamertag
+  // Auto-confirm identity when signed in with a claimed gamertag (unless logging for someone else)
   useEffect(() => {
-    if (!gamertagLoading && authGamertag && players.length > 0 && gamePlayers.length > 0 && !myGtagConfirmed) {
+    if (!gamertagLoading && authGamertag && players.length > 0 && gamePlayers.length > 0 && !myGtagConfirmed && !logForOther) {
       setMyGamertag(authGamertag)
       setGtagQuery(authGamertag)
       // Run the same logic as confirmGamertag
@@ -60,7 +67,7 @@ export default function LogMatchup() {
         }
       }
     }
-  }, [gamertagLoading, authGamertag, players, gamePlayers])
+  }, [gamertagLoading, authGamertag, players, gamePlayers, logForOther])
 
   async function fetchData() {
     const [{ data: ser }, { data: gm }, { data: allP }, { data: stats }, { data: matchups }] = await Promise.all([
@@ -160,7 +167,59 @@ export default function LogMatchup() {
     ? players.filter(p => p.gamertag.toLowerCase().includes(gtagQuery.toLowerCase())).slice(0, 6)
     : []
 
+  async function handleAuthSignIn() {
+    setAuthLoggingIn(true)
+    setAuthError('')
+    const { error } = await signIn(authEmail, authPassword)
+    setAuthLoggingIn(false)
+    if (error) setAuthError(error.message)
+  }
+
+  if (authLoading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
   if (!game || !series) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
+
+  // Not signed in — prompt to sign in before anything else
+  if (!session) {
+    return (
+      <div style={s.page}>
+        <Link to={`/series/${seriesId}`} style={s.back}>← Back to Series</Link>
+        <div style={s.header}>
+          <div style={s.eyebrow}>
+            <IconShield size={14} color={colors.orange} />
+            <span>LOG YOUR MATCHUP</span>
+          </div>
+          <h1 style={s.title}>{series?.name} · Game {game?.game_number}</h1>
+        </div>
+        <div style={s.card}>
+          <div style={s.cardTitle}>Sign in to continue</div>
+          <p style={s.cardSub}>You need to be signed in to log a matchup.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <input
+              style={s.input}
+              type="email"
+              placeholder="Email"
+              value={authEmail}
+              onChange={e => setAuthEmail(e.target.value)}
+              autoComplete="email"
+            />
+            <input
+              style={s.input}
+              type="password"
+              placeholder="Password"
+              value={authPassword}
+              onChange={e => setAuthPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAuthSignIn()}
+              autoComplete="current-password"
+            />
+            {authError && <p style={s.error}>{authError}</p>}
+            <button style={s.btnOrange} onClick={handleAuthSignIn} disabled={authLoggingIn}>
+              {authLoggingIn ? 'Signing in...' : 'Sign In'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={s.page}>
@@ -201,11 +260,11 @@ export default function LogMatchup() {
         </div>
       )}
 
-      {/* Step 1: Identify yourself */}
+      {/* Step 1: Identify yourself — only shown when logging for someone else (signed-in users are auto-confirmed) */}
       {!myGtagConfirmed ? (
         <div style={s.card}>
-          <div style={s.cardTitle}>Who are you?</div>
-          <p style={s.cardSub}>Enter your gamertag to log your defensive matchup for this game.</p>
+          <div style={s.cardTitle}>{logForOther ? 'Log for a teammate' : 'Who are you?'}</div>
+          <p style={s.cardSub}>{logForOther ? 'Enter the gamertag you\'re logging on behalf of.' : 'Enter your gamertag to log your defensive matchup for this game.'}</p>
           <div style={s.gtagRow}>
             <div style={{ position: 'relative', flex: 1 }}>
               <input
@@ -328,9 +387,16 @@ export default function LogMatchup() {
             ) : null}
           </div>
 
-          <button style={s.switchUser} onClick={() => { setMyGtagConfirmed(false); setMyGamertag(''); setGtagQuery('') }}>
-            Not {myGamertag}? Switch
-          </button>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+            <button style={s.switchUser} onClick={() => { setMyGtagConfirmed(false); setMyGamertag(''); setGtagQuery(''); setLogForOther(false) }}>
+              Not {myGamertag}? Switch
+            </button>
+            {authGamertag && (
+              <button style={{ ...s.switchUser, color: '#555' }} onClick={() => { setMyGtagConfirmed(false); setMyGamertag(''); setGtagQuery(''); setLogForOther(true) }}>
+                Log for a teammate instead
+              </button>
+            )}
+          </div>
         </>
       )}
 
