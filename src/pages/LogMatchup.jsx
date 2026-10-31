@@ -75,7 +75,7 @@ export default function LogMatchup() {
       supabase.from('games').select('*').eq('id', gameId).single(),
       supabase.from('players').select('*').order('gamertag'),
       supabase.from('game_stats').select('*, players(gamertag, display_name)').eq('game_id', gameId),
-      supabase.from('game_matchups').select('*, players!game_matchups_defender_player_id_fkey(gamertag), opp:players!game_matchups_offensive_player_id_fkey(gamertag)').eq('game_id', gameId),
+      supabase.rpc('get_game_matchups', { p_game_id: gameId }),
     ])
     setSeries(ser)
     setGame(gm)

@@ -162,7 +162,7 @@ const TIER_COLORS = { ELITE: '#9333ea', STRONG: '#2563eb', SOLID: '#16a34a', G_T
 
 export default function SeriesDetail() {
   const { id } = useParams()
-  const { isEditor, session } = useAuth()
+  const { isEditor, session, gamertag: authGamertag } = useAuth()
   const navigate = useNavigate()
   const [series, setSeries] = useState(null)
   const [games, setGames] = useState([])
@@ -393,13 +393,18 @@ export default function SeriesDetail() {
               const isW = g.our_result === 'W'
               const isL = g.our_result === 'L'
               const color = isW ? '#16a34a' : isL ? '#dc2626' : '#333'
+              // Check if the signed-in user already has a matchup logged for this game
+              const myRankRow = authGamertag && liveRankings.find(r => r.gamertag?.toLowerCase() === authGamertag.toLowerCase())
+              const myMatchup = myRankRow && matchups.find(m => m.game_id === g.id && m.defender_player_id === myRankRow.player_id)
               return (
                 <div key={g.id} style={{...s.gameCard, borderColor: color + '60', background: isW ? '#020a02' : isL ? '#0a0202' : '#060606'}}>
                   <div style={{...s.gameCardResult, color}}>{isW ? 'W' : isL ? 'L' : '?'}</div>
                   <div style={s.gameCardScore}>{g.our_score}–{g.opp_score}</div>
                   <div style={{...s.gameCardMargin, color: color + 'cc'}}>+{Math.abs(g.our_score - g.opp_score)}</div>
                   <div style={s.gameCardNum}>G{g.game_number}</div>
-                  <Link to={`/series/${id}/game/${g.id}/matchup`} style={s.gameCardLink}>matchup</Link>
+                  <Link to={`/series/${id}/game/${g.id}/matchup`} style={myMatchup ? {...s.gameCardLink, color: '#4caf50'} : s.gameCardLink}>
+                    {myMatchup ? '✓ matchup' : 'matchup'}
+                  </Link>
                   {isEditor && <Link to={`/series/${id}/game/${g.id}/edit`} style={s.gameCardEdit}>edit</Link>}
                 </div>
               )
