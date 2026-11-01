@@ -22,6 +22,7 @@ export default function SeriesChart() {
   const [games, setGames] = useState([])
   const [rankings, setRankings] = useState([])
   const [stats, setStats] = useState([])
+  const [matchups, setMatchups] = useState([])
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -66,6 +67,7 @@ export default function SeriesChart() {
     setGames(gms || [])
     setRankings(resolvedRankings)
     setStats(statsWithGrade)
+    setMatchups(mups || [])
     setLoading(false)
   }
 
@@ -114,6 +116,24 @@ export default function SeriesChart() {
   // Build stat lookup
   const statMap = {}
   stats.forEach(p => { statMap[p.player_id] = p })
+
+  // Build matchup summary per defender: { [defender_player_id]: "Guarded: Spiderboy_305" }
+  const matchupSummary = {}
+  if (matchups.length > 0 && rankings.length > 0) {
+    const playerById = {}
+    // rankings may be computed (gamertag on root) or finalized (gamertag under .players)
+    rankings.forEach(r => { if (r.player_id) playerById[r.player_id] = r.gamertag || r.players?.gamertag || '' })
+    // Group by defender
+    const byDefender = {}
+    matchups.forEach(m => {
+      if (!byDefender[m.defender_player_id]) byDefender[m.defender_player_id] = []
+      byDefender[m.defender_player_id].push(m)
+    })
+    Object.entries(byDefender).forEach(([defId, ms]) => {
+      const oppNames = [...new Set(ms.map(m => playerById[m.offensive_player_id]).filter(Boolean))]
+      if (oppNames.length > 0) matchupSummary[defId] = `Guarded: ${oppNames.join(', ')}`
+    })
+  }
 
   // Use rankings if available, otherwise sort by stats
   const hasRankings = rankings.length > 0
@@ -194,7 +214,8 @@ export default function SeriesChart() {
           </div>
         )}
 
-        {/* Stat table */}
+        {/* Stat table — scrollable on small screens */}
+        <div style={{ overflowX: 'auto' }}>
         <div style={ch.tableWrap}>
           {/* Column headers */}
           <div style={ch.colHeaders}>
@@ -233,6 +254,7 @@ export default function SeriesChart() {
                         isMvp={r.is_mvp}
                         tags={r.tags || []}
                         impactNote={r.impact_note}
+                        matchupLine={matchupSummary[r.player_id]}
                         stats={p}
                         seriesWon={wins > losses}
                         brandoGtag="BrandoBank"
@@ -294,12 +316,13 @@ export default function SeriesChart() {
             </span>
           </div>
         </div>
+        </div>
       </div>
     </div>
   )
 }
 
-function PlayerRow({ gtag, displayName, side, teamLabel, tier, tierMeta, isMvp, tags, impactNote, stats, seriesWon, brandoGtag }) {
+function PlayerRow({ gtag, displayName, side, teamLabel, tier, tierMeta, isMvp, tags, impactNote, matchupLine, stats, seriesWon, brandoGtag }) {
   const p = stats || {}
   const teamColor = TEAM_COLORS[side] || '#888'
 
@@ -345,9 +368,11 @@ function PlayerRow({ gtag, displayName, side, teamLabel, tier, tierMeta, isMvp, 
         ) : <span style={{ color: '#333' }}>—</span>}
       </div>
 
-      {/* Impact notes */}
-      <div style={{ ...ch.col, flex: 1, color: '#aaa', fontSize: '0.72rem', lineHeight: 1.45, padding: '0.5rem 0.75rem' }}>
-        {impactNote || ''}
+      {/* Impact notes + matchup line */}
+      <div style={{ ...ch.col, flex: 1, flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem', fontSize: '0.72rem', lineHeight: 1.45, padding: '0.5rem 0.75rem' }}>
+        {impactNote && <span style={{ color: '#aaa' }}>{impactNote}</span>}
+        {matchupLine && <span style={{ color: '#555', fontSize: '0.65rem' }}>{matchupLine}</span>}
+        {!impactNote && !matchupLine && ''}
       </div>
     </div>
   )

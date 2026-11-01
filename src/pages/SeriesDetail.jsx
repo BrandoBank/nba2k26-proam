@@ -600,7 +600,7 @@ const s = {
   ctaWrap: { padding: '0.65rem 2rem', borderBottom: '1px solid #0d0d0d', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem', background: '#030005' },
   ctaText: { fontSize: '0.78rem', fontWeight: 800, color: '#f4701b' },
   ctaSubtext: { fontSize: '0.72rem', color: '#333' },
-  ctaGames: { display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginLeft: 'auto' },
+  ctaGames: { display: 'flex', gap: '0.3rem', flexWrap: 'wrap' },
   ctaGameBtn: { background: '#0d0012', border: '1px solid #2a0050', borderRadius: 6, padding: '0.25rem 0.6rem', fontSize: '0.7rem', color: '#9333ea', fontWeight: 800, textDecoration: 'none' },
 
   // Actions
