@@ -50,13 +50,6 @@ export default async function handler(req, context) {
     return new Response(JSON.stringify({ error: 'Max 50 series per import' }), { status: 400 })
   }
 
-  // Use the user's own token for inserts (RLS allows authenticated users)
-  const supabaseUser = createClient(
-    process.env.VITE_SUPABASE_URL,
-    process.env.VITE_SUPABASE_ANON_KEY,
-    { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { autoRefreshToken: false, persistSession: false } }
-  )
-
   const logs = []
   const errors = []
   let seriesCreated = 0, gamesCreated = 0, statsCreated = 0
@@ -75,12 +68,12 @@ export default async function handler(req, context) {
     // Upsert players
     const playerMap = {}
     for (const gtag of allGamertags) {
-      const { data: existing } = await supabaseUser
+      const { data: existing } = await supabaseAdmin
         .from('players').select('id').eq('gamertag', gtag).maybeSingle()
       if (existing) {
         playerMap[gtag] = existing.id
       } else {
-        const { data: created, error } = await supabaseUser
+        const { data: created, error } = await supabaseAdmin
           .from('players').insert({ gamertag: gtag, display_name: gtag }).select('id').single()
         if (error) { logs.push(`  ⚠ Player ${gtag}: ${error.message}`); continue }
         playerMap[gtag] = created.id
