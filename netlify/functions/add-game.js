@@ -1,7 +1,7 @@
 /**
- * add-game — public endpoint for submitting a box score game
+ * add-game — submit a box score game for a series
  * POST { series_id, game_number, our_score, opp_score, our_result, our_players, opp_players }
- * Uses service role key — no auth required, open to any user with a series link
+ * Requires Authorization: Bearer <session_token> from a commissioner account.
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -13,10 +13,27 @@ const supabaseAdmin = createClient(
 )
 
 const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C']
+const COMMISSIONERS = ['BrandoBank']
 
 export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+  }
+
+  // Verify caller is authenticated commissioner
+  const authHeader = req.headers.get('authorization') || ''
+  const token = authHeader.replace(/^Bearer\s+/i, '')
+  if (!token) {
+    return new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401 })
+  }
+  const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
+  if (authErr || !user) {
+    return new Response(JSON.stringify({ error: 'Invalid or expired session' }), { status: 401 })
+  }
+  const { data: callerPlayer } = await supabaseAdmin
+    .from('players').select('gamertag').eq('user_id', user.id).maybeSingle()
+  if (!callerPlayer || !COMMISSIONERS.includes(callerPlayer.gamertag)) {
+    return new Response(JSON.stringify({ error: 'Commissioner access required' }), { status: 403 })
   }
 
   let body

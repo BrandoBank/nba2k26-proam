@@ -79,9 +79,13 @@ export default function RankingEditor() {
     setAiLoading(true)
     setAiError('')
     try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
       const res = await fetch('/.netlify/functions/rank-series', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentSession?.access_token ? { 'Authorization': `Bearer ${currentSession.access_token}` } : {}),
+        },
         body: JSON.stringify({
           series_id: seriesId,
           stats,

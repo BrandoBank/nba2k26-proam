@@ -166,9 +166,13 @@ export default function GameEntry() {
     setDuplicateWarning(null)
 
     try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
       const res = await fetch('/.netlify/functions/add-game', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentSession?.access_token ? { 'Authorization': `Bearer ${currentSession.access_token}` } : {}),
+        },
         body: JSON.stringify({
           series_id: seriesId,
           game_number: Number(game.game_number),
