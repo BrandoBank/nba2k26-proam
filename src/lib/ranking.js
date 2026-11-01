@@ -47,11 +47,12 @@ export function computeImpactScores(playerStats, defensiveDeltas = {}) {
     // 2K27 calibration: neutral ~48%, steeper penalty below 40%.
     // normalizePct maps 60% → 100; keep that scale but the Python formula's
     // piecewise curve is the authoritative one for DB rankings.
-    const effScore = normalizePct((p.fg_pct || 0) * 100)
+    // fg_pct and three_pct come from the DB view already multiplied by 100 (e.g. 48.0 not 0.48)
+    const effScore = normalizePct(p.fg_pct || 0)
 
     // Three-point — only counts if enough attempts
     const hasThrees = (p.total_tpa || 0) >= 3
-    const threeScore = hasThrees ? normalizePct((p.three_pct || 0) * 100) : 0
+    const threeScore = hasThrees ? normalizePct(p.three_pct || 0) : 0
 
     // Scoring — relative to group
     const scoringScore = normalize(p.ppg || 0, maxPPG)
@@ -168,13 +169,13 @@ export function computeImpactScores(playerStats, defensiveDeltas = {}) {
   // Impact note prompt — short descriptor of what drove their score
   for (const p of players) {
     const notes = []
-    const fgPct = ((p.fg_pct || 0) * 100).toFixed(1)
-    const threePct = ((p.three_pct || 0) * 100).toFixed(1)
+    const fgPct = (p.fg_pct || 0).toFixed(1)
+    const threePct = (p.three_pct || 0).toFixed(1)
 
-    if ((p.fg_pct || 0) >= 0.55) notes.push(`elite ${fgPct}% shooting`)
-    else if ((p.fg_pct || 0) <= 0.35 && (p.total_fga || 0) > 5) notes.push(`struggled from the field at ${fgPct}%`)
+    if ((p.fg_pct || 0) >= 55) notes.push(`elite ${fgPct}% shooting`)
+    else if ((p.fg_pct || 0) <= 35 && (p.total_fga || 0) > 5) notes.push(`struggled from the field at ${fgPct}%`)
 
-    if ((p.total_tpa || 0) >= 3 && (p.three_pct || 0) >= 0.40) notes.push(`hit ${threePct}% from three`)
+    if ((p.total_tpa || 0) >= 3 && (p.three_pct || 0) >= 40) notes.push(`hit ${threePct}% from three`)
 
     if (maxPPG > 0 && (p.ppg || 0) / maxPPG >= 0.8) notes.push(`led scoring at ${p.ppg} PPG`)
     else if ((p.ppg || 0) >= 15) notes.push(`scored ${p.ppg} PPG`)
