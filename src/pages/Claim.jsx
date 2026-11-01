@@ -9,7 +9,7 @@ import { useCareerStats } from '../hooks/useCareerStats'
 const OR = colors.orange
 
 export default function Claim() {
-  const { session } = useAuth()
+  const { session, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const { data: careerRows } = useCareerStats()
   const careers = Object.fromEntries(careerRows.map(r => [r.gamertag, r]))
@@ -25,9 +25,10 @@ export default function Claim() {
   const [showInstall, setShowInstall] = useState(false)
 
   useEffect(() => {
+    if (authLoading) return
     if (!session) { navigate('/login'); return }
     loadPlayers()
-  }, [session])
+  }, [session, authLoading])
 
   async function loadPlayers() {
     setLoading(true)
