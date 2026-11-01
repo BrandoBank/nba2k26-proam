@@ -11,15 +11,19 @@ const SURF = '#0d0d14'
 const BORDER = '#161616'
 
 export default function Dashboard() {
-  const { isEditor, signOut } = useAuth()
+  const { isEditor, session, loading: authLoading, signOut } = useAuth()
   const [series, setSeries] = useState([])
   const [loading, setLoading] = useState(true)
   const [heroData, setHeroData] = useState({ games: [], stats: [] })
 
   useEffect(() => {
+    // Wait for auth to resolve so we fetch with the correct session state (one fetch, no flash)
+    if (authLoading) return
     async function fetchSeries() {
       const q = supabase.from('series').select('*').order('created_at', { ascending: false })
-      if (!isEditor) q.eq('published', true)
+      // Only unauthenticated visitors are limited to published series
+      // Signed-in friends can see all series BrandoBank has created
+      if (!session) q.eq('published', true)
       const { data } = await q
       setSeries(data || [])
       setLoading(false)
@@ -30,7 +34,7 @@ export default function Dashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'series' }, fetchSeries)
       .subscribe()
     return () => supabase.removeChannel(channel)
-  }, [isEditor])
+  }, [session, authLoading])
 
   // Load hero data for the first active series
   useEffect(() => {
