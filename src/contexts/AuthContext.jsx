@@ -52,6 +52,12 @@ export function AuthProvider({ children }) {
 
   const signOut = () => supabase.auth.signOut()
 
+  // Call this after a player claim so the context gamertag updates without re-login
+  async function refreshGamertag(userId) {
+    if (!userId) return
+    await fetchGamertag(userId)
+  }
+
   // isEditor is false during loading so we never flash editor UI prematurely.
   // Once gamertag resolves, it's true only for commissioners.
   const isEditor = !loading && !gamertagLoading && !!gamertag && COMMISSIONERS.includes(gamertag)
@@ -66,6 +72,7 @@ export function AuthProvider({ children }) {
       gamertagLoading,
       isEditor,
       isPlayer: !!session,
+      refreshGamertag,
     }}>
       {children}
     </AuthContext.Provider>

@@ -24,14 +24,14 @@ export default function Login() {
 
   useEffect(() => {
     if (!session) return
-    // Don't route away when we're in password-recovery mode
+    if (signedUp) return  // let the "check your email" screen stay visible
     if (window.location.hash.includes('type=recovery')) return
     async function routeUser() {
       const { data } = await supabase.from('players').select('gamertag').eq('user_id', session.user.id).maybeSingle()
       navigate(data?.gamertag ? '/' : '/claim', { replace: true })
     }
     routeUser()
-  }, [session])
+  }, [session, signedUp])
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
@@ -54,13 +54,20 @@ export default function Login() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: window.location.origin + '/login' },
     })
     setLoading(false)
     if (error) { setError(error.message); return }
+    // If Supabase returned a session immediately, email confirmation is disabled —
+    // navigate directly to claim instead of showing a "check your email" screen.
+    if (data?.session) {
+      const { data: playerData } = await supabase.from('players').select('gamertag').eq('user_id', data.session.user.id).maybeSingle()
+      navigate(playerData?.gamertag ? '/' : '/claim', { replace: true })
+      return
+    }
     setSignedUp(true)
   }
 
@@ -127,10 +134,10 @@ export default function Login() {
               ACCOUNT CREATED
             </p>
             <p style={{ color: '#666', fontSize: '0.85rem', lineHeight: 1.6 }}>
-              Check <strong style={{ color: '#aaa' }}>{email}</strong> for a confirmation link, then come back and sign in.
+              Check <strong style={{ color: '#aaa' }}>{email}</strong> for a confirmation link. Once confirmed, come back and sign in.
             </p>
             <button onClick={() => { setSignedUp(false); setTab('signin') }} style={{ ...s.btn, marginTop: '1.5rem' }}>
-              Go to Sign In
+              Already confirmed? Sign In
             </button>
           </div>
         </div>
@@ -210,7 +217,7 @@ export default function Login() {
           )
         ) : (
           <form onSubmit={handleSignUp} style={s.form}>
-            <div style={s.fieldHint}>Create your account — you'll pick your player profile after confirming your email.</div>
+            <div style={s.fieldHint}>Create your account — then link it to your player profile.</div>
             <input type="email" placeholder="Email" value={email}
               onChange={e => setEmail(e.target.value)} required style={s.input} autoComplete="email" />
             <input type="password" placeholder="Password (min 8 chars)" value={password}

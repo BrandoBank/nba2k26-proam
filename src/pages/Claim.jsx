@@ -9,7 +9,7 @@ import { useCareerStats } from '../hooks/useCareerStats'
 const OR = colors.orange
 
 export default function Claim() {
-  const { session, loading: authLoading } = useAuth()
+  const { session, loading: authLoading, refreshGamertag } = useAuth()
   const navigate = useNavigate()
   const { data: careerRows } = useCareerStats()
   const careers = Object.fromEntries(careerRows.map(r => [r.gamertag, r]))
@@ -72,6 +72,8 @@ export default function Claim() {
       await loadPlayers()
       return
     }
+    // Refresh the shared auth context so gamertag updates everywhere immediately
+    await refreshGamertag(session.user.id)
     setShowInstall(true)
   }
 
