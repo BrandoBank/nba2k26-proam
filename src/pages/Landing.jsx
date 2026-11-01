@@ -839,6 +839,7 @@ function CommentBox({ onPost }) {
   const [text, setText] = useState('')
   const [posting, setPosting] = useState(false)
   const [done, setDone] = useState(false)
+  const [postError, setPostError] = useState('')
   const [players, setPlayers] = useState([])
   const [showDrop, setShowDrop] = useState(false)
 
@@ -852,6 +853,7 @@ function CommentBox({ onPost }) {
 
   async function post() {
     if (!gtag.trim() || !text.trim()) return
+    setPostError('')
     setPosting(true)
     const { data, error } = await supabase.from('comments').insert({
       gamertag: gtag.trim(),
@@ -863,6 +865,8 @@ function CommentBox({ onPost }) {
       setText('')
       setDone(true)
       setTimeout(() => setDone(false), 3000)
+    } else {
+      setPostError('Sign in and claim your gamertag to post.')
     }
   }
 
@@ -899,6 +903,7 @@ function CommentBox({ onPost }) {
           onChange={e => setText(e.target.value.slice(0, 200))}
           rows={2}
         />
+        {postError && <p style={{color:'#e55', fontSize:'0.78rem', margin:'0.25rem 0 0'}}>{postError}</p>}
         <div style={cb.footer}>
           <span style={cb.count}>{text.length}/200</span>
           {done ? (
