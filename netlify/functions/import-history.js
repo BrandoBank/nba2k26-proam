@@ -29,6 +29,14 @@ export default async function handler(req, context) {
     return new Response(JSON.stringify({ error: 'Invalid session' }), { status: 401 })
   }
 
+  // Verify the caller is a commissioner
+  const COMMISSIONERS = ['BrandoBank']
+  const { data: callerPlayer } = await supabaseAdmin
+    .from('players').select('gamertag').eq('user_id', user.id).maybeSingle()
+  if (!callerPlayer || !COMMISSIONERS.includes(callerPlayer.gamertag)) {
+    return new Response(JSON.stringify({ error: 'Commissioner access required' }), { status: 403 })
+  }
+
   let body
   try { body = await req.json() } catch {
     return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400 })
@@ -124,10 +132,11 @@ export default async function handler(req, context) {
         if (!pid) { logs.push(`  ⚠ Unknown: ${stat.gamertag}`); continue }
         statRows.push({
           game_id: game.id,
+          series_id: series.id,
           player_id: pid,
           side: stat.side,
           pts: stat.pts ?? 0, reb: stat.reb ?? 0, ast: stat.ast ?? 0,
-          stl: stat.stl ?? 0, blk: stat.blk ?? 0, tov: stat.tov ?? 0,
+          stl: stat.stl ?? 0, blk: stat.blk ?? 0, fouls: stat.fouls ?? 0, tov: stat.tov ?? 0,
           fgm: stat.fgm ?? 0, fga: stat.fga ?? 0,
           tpm: stat.tpm ?? 0, tpa: stat.tpa ?? 0,
           ftm: stat.ftm ?? 0, fta: stat.fta ?? 0,
