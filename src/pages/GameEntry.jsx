@@ -207,6 +207,7 @@ export default function GameEntry() {
   }
 
   if (!game) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
+  if (!isEditor) return <div style={s.page}><p style={s.dim}>Commissioner access required.</p></div>
 
   return (
     <div style={s.page}>

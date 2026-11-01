@@ -52,7 +52,9 @@ export function AuthProvider({ children }) {
 
   const signOut = () => supabase.auth.signOut()
 
-  const isCommissioner = !gamertagLoading && !!gamertag && COMMISSIONERS.includes(gamertag)
+  // isEditor is false during loading so we never flash editor UI prematurely.
+  // Once gamertag resolves, it's true only for commissioners.
+  const isEditor = !loading && !gamertagLoading && !!gamertag && COMMISSIONERS.includes(gamertag)
 
   return (
     <AuthContext.Provider value={{
@@ -62,8 +64,8 @@ export function AuthProvider({ children }) {
       signOut,
       gamertag,
       gamertagLoading,
-      isEditor: isCommissioner,   // editor = commissioner only
-      isPlayer: !!session,        // any signed-in user
+      isEditor,
+      isPlayer: !!session,
     }}>
       {children}
     </AuthContext.Provider>
