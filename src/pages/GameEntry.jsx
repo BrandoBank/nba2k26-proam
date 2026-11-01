@@ -74,9 +74,13 @@ export default function GameEntry() {
 
     try {
       const base64 = await fileToBase64(file)
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
       const res = await fetch('/.netlify/functions/parse-screenshot', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentSession?.access_token ? { 'Authorization': `Bearer ${currentSession.access_token}` } : {}),
+        },
         body: JSON.stringify({ image_base64: base64, media_type: file.type, series_id: seriesId }),
       })
       const data = await res.json()
