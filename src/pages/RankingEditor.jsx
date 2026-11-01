@@ -11,7 +11,7 @@ const TIER_COLORS = { ELITE: colors.elite, STRONG: colors.strong, SOLID: colors.
 
 export default function RankingEditor() {
   const { id: seriesId } = useParams()
-  const { isEditor } = useAuth()
+  const { isEditor, loading: authLoading, gamertagLoading } = useAuth()
   const navigate = useNavigate()
 
   const [series, setSeries] = useState(null)
@@ -158,6 +158,7 @@ export default function RankingEditor() {
     if (finalize) navigate(`/series/${seriesId}/chart`)
   }
 
+  if (authLoading || gamertagLoading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
   if (!isEditor) return <div style={s.page}><p style={s.dim}>Editor access required.</p></div>
   if (loading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
 

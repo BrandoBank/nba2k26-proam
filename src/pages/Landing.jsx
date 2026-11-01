@@ -822,7 +822,7 @@ function CommentTicker({ comments }) {
             <span key={i} style={tk.item}>
               <span style={tk.who}>{(c.gamertag || '').toUpperCase()}</span>
               <span style={tk.colon}>:</span>
-              <span style={tk.text}>{c.body || c.content}</span>
+              <span style={tk.text}>{c.body}</span>
               <span style={tk.pipe}>|</span>
             </span>
           ))}
@@ -855,7 +855,7 @@ function CommentBox({ onPost }) {
     setPosting(true)
     const { data, error } = await supabase.from('comments').insert({
       gamertag: gtag.trim(),
-      content: text.trim().slice(0, 200),
+      body: text.trim().slice(0, 200),
     }).select().single()
     setPosting(false)
     if (!error && data) {

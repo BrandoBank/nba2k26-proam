@@ -97,7 +97,7 @@ function PlayerSearch({ value, onChange, placeholder }) {
 }
 
 export default function NewSeries() {
-  const { isEditor } = useAuth()
+  const { isEditor, loading: authLoading, gamertagLoading } = useAuth()
   const navigate = useNavigate()
   const [form, setForm] = useState({
     name: '',
@@ -111,6 +111,7 @@ export default function NewSeries() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  if (authLoading || gamertagLoading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
   if (!isEditor) return <div style={s.page}><p style={s.dim}>Not authorized.</p></div>
 
   async function handleSubmit(e) {

@@ -31,7 +31,7 @@ const emptyGame = (series) => ({
 
 export default function GameEntry() {
   const { id: seriesId } = useParams()
-  const { isEditor, session } = useAuth()
+  const { isEditor, session, loading: authLoading, gamertagLoading } = useAuth()
   const navigate = useNavigate()
 
   const [series, setSeries] = useState(null)
@@ -206,7 +206,7 @@ export default function GameEntry() {
     }))
   }
 
-  if (!game) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
+  if (!game || authLoading || gamertagLoading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
   if (!isEditor) return <div style={s.page}><p style={s.dim}>Commissioner access required.</p></div>
 
   return (

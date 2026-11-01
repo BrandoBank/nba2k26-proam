@@ -317,13 +317,13 @@ export default function SeriesDetail() {
       </div>
 
       {/* ══ ADD GAME — top CTA ══ */}
-      {isActive && (
+      {isActive && isEditor && (
         <div style={s.addWrap} className="sd-add">
           <button onClick={() => navigate(`/series/${id}/add-game`)} style={s.addBtn}>
             <IconPlus size={15} color="#fff" />
             Add Game
           </button>
-          {isEditor && seriesOver && (
+          {seriesOver && (
             <button onClick={markComplete} style={s.completeBtn}>
               <IconCheck size={15} color="#4caf50" />
               Mark Complete
