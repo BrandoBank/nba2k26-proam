@@ -85,6 +85,7 @@ export default function MobileNav() {
         <NavItem to="/history" label="History" active={active('/history')} icon={<ChartIcon />} />
         <NavItem to="/rivalries" label="Rivals" active={active('/rivalries')} icon={<SwordsIcon />} badge={calloutCount} />
         {isEditor && <NavItem to="/series/new" label="+ New" active={active('/series/new')} icon={<PlusIcon />} accent />}
+        {!session && <NavItem to="/login" label="Sign In" active={active('/login')} icon={<UserIcon />} accent />}
       </nav>
     </>
   )

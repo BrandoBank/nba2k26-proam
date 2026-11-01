@@ -163,9 +163,9 @@ export default function Claim() {
         {!currentClaim && (players.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>🏀</div>
-            <p style={{ color: '#fff', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.08em', marginBottom: 8 }}>ALL TAGS CLAIMED</p>
+            <p style={{ color: '#fff', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.08em', marginBottom: 8 }}>NO UNCLAIMED TAGS</p>
             <p style={{ color: '#555', fontSize: '0.85rem', lineHeight: 1.7, maxWidth: 340, margin: '0 auto' }}>
-              Every player tag in the system is already linked to an account. If you play in the league and your name isn't here, text the commissioner to get added to the roster.
+              Your gamertag hasn't been added to the roster yet, or it's already linked to another account. Text BrandoBank your gamertag to get added — then come back here and refresh.
             </p>
           </div>
         ) : (
