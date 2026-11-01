@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext'
 import { colors, fonts } from '../lib/theme'
 import { IconBall, IconTrophy, IconCheck } from '../lib/icons'
 import { useCareerStats } from '../hooks/useCareerStats'

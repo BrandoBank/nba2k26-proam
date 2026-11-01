@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext'
 import { colors } from '../lib/theme'
 import { computeImpactScores, computeDefensiveDeltas, tierLabel } from '../lib/ranking'
 import { IconStar, IconTrophy, IconFlame, IconBolt } from '../lib/icons'

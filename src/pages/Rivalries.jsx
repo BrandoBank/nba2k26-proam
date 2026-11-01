@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext'
 import { useCareerStats } from '../hooks/useCareerStats'
 import { usePlayers } from '../hooks/usePlayers'
 import CustomSelect from '../components/CustomSelect'

@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Import from './pages/Import'
-import { useAuth } from './hooks/useAuth'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import MobileNav from './components/MobileNav'
 import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
@@ -51,6 +51,7 @@ function RecoveryRedirect() {
 export default function App() {
   return (
     <BrowserRouter>
+      <AuthProvider>
       <RecoveryRedirect />
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -74,6 +75,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <MobileNav />
+      </AuthProvider>
     </BrowserRouter>
   )
 }

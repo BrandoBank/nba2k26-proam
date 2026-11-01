@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext'
 import { colors, fonts, radius } from '../lib/theme'
 import { IconArrow, IconChat, IconX } from '../lib/icons'
 
@@ -17,7 +17,7 @@ function timeAgo(ts) {
 
 export default function Feed() {
   const navigate = useNavigate()
-  const { gamertag: authGamertag, session, loading: authLoading } = useAuth()
+  const { gamertag: authGamertag, session, loading: authLoading, gamertagLoading } = useAuth()
   const [searchParams] = useSearchParams()
   const defaultQuote = searchParams.get('quote') || ''
 
@@ -104,6 +104,11 @@ export default function Feed() {
         <div style={s.signInPrompt}>
           <span style={s.signInText}>Sign in to post</span>
           <button style={s.signInBtn} onClick={() => navigate('/login')}>Sign In</button>
+        </div>
+      ) : !authLoading && session && !gamertagLoading && !gamertag ? (
+        <div style={s.signInPrompt}>
+          <span style={s.signInText}>Claim your player to post</span>
+          <button style={s.signInBtn} onClick={() => navigate('/claim')}>Claim</button>
         </div>
       ) : (
         <div style={s.compose} ref={composeRef}>

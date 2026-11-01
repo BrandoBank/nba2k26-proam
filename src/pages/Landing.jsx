@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext'
 import { colors } from '../lib/theme'
 import { useNavigate } from 'react-router-dom'
 import { IconBall, IconFlame, IconTrophy, IconShield, IconStar, IconSnowflake, IconChat, IconX, IconCheck } from '../lib/icons'
