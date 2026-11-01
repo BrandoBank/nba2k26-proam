@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, NavLink } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { computeImpactScores, computeDefensiveDeltas, tierLabel } from '../lib/ranking'
-import { IconCrystal, IconLock, IconStar, IconChart, IconTrophy, IconEdit, IconShare, IconPlus, IconPublish, IconCheck } from '../lib/icons'
+import { IconCrystal, IconLock, IconStar, IconChart, IconTrophy, IconEdit, IconShare, IconPlus, IconPublish, IconCheck, IconChat } from '../lib/icons'
 import { colors } from '../lib/theme'
 
 // ─── Series Predictions Widget ────────────────────────────────────────────────
@@ -375,6 +375,18 @@ export default function SeriesDetail() {
                     <div style={s.playerRowRight}>
                       {r.is_mvp && <IconStar size={11} color={colors.gold} filled />}
                       <span style={s.playerScore}>{Number(r.impact_score || 0).toFixed(1)}</span>
+                      <button
+                        onClick={e => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const score = Number(r.impact_score || 0).toFixed(1)
+                          const quote = `${r.gamertag} — ${score} impact, ${tierLabel(tier)} tier · ${series.name}`
+                          navigate(`/feed?quote=${encodeURIComponent(quote)}`)
+                        }}
+                        style={s.chatBtn}
+                      >
+                        <IconChat size={11} color="#555" />
+                      </button>
                     </div>
                   </Link>
                 ))}
@@ -582,6 +594,7 @@ const s = {
   playerTag: { fontSize: '0.72rem', color: '#444' },
   playerRowRight: { display: 'flex', alignItems: 'center', gap: '0.4rem' },
   playerScore: { fontSize: '0.78rem', fontWeight: 700, color: '#2a2a2a' },
+  chatBtn: { background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.15rem 0.3rem', display: 'flex', alignItems: 'center', borderRadius: 4, opacity: 0.6 },
 
   // Game strip
   gamesSection: { padding: '1rem 2rem', borderBottom: '1px solid #0d0d0d' },
