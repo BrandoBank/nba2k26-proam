@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, NavLink } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
-import { computeImpactScores } from '../lib/ranking'
-import { IconCrystal, IconLock, IconStar } from '../lib/icons'
+import { useAuth } from '../contexts/AuthContext'
+import { computeImpactScores, computeDefensiveDeltas, tierLabel } from '../lib/ranking'
+import { IconCrystal, IconLock, IconStar, IconChart, IconTrophy, IconEdit, IconShare, IconPlus, IconPublish, IconCheck, IconChat } from '../lib/icons'
+import { colors } from '../lib/theme'
 
 // ─── Series Predictions Widget ────────────────────────────────────────────────
 function PredictionsWidget({ seriesId, seriesStatus, players, ourTeam, oppTeam }) {
@@ -15,14 +16,22 @@ function PredictionsWidget({ seriesId, seriesStatus, players, ourTeam, oppTeam }
   const [loadingPreds, setLoadingPreds] = useState(true)
 
   useEffect(() => {
-    supabase.from('series_predictions')
-      .select('*, players(gamertag, display_name)')
-      .eq('series_id', seriesId)
-      .then(({ data }) => {
-        setPredictions(data || [])
-        setLoadingPreds(false)
-      })
-  }, [seriesId, saved])
+    function loadPredictions() {
+      supabase.from('series_predictions')
+        .select('*, players(gamertag, display_name)')
+        .eq('series_id', seriesId)
+        .then(({ data }) => {
+          setPredictions(data || [])
+          setLoadingPreds(false)
+        })
+    }
+    loadPredictions()
+    const channel = supabase
+      .channel(`predictions-${seriesId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'series_predictions', filter: `series_id=eq.${seriesId}` }, loadPredictions)
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [seriesId])
 
   async function submitPrediction(e) {
     e.preventDefault()
@@ -142,7 +151,7 @@ const ps = {
   list: { display: 'flex', flexDirection: 'column', gap: '0.35rem' },
   predRow: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.6rem', background: '#0a0a0a', borderRadius: 5, flexWrap: 'wrap' },
   predWho: { fontWeight: 700, color: '#fff', fontSize: '0.82rem', minWidth: 80 },
-  predPick: { background: '#0a1a2a', border: '1px solid #1a3a4a', borderRadius: 3, padding: '0.1rem 0.5rem', color: '#4da6ff', fontSize: '0.75rem', fontWeight: 700 },
+  predPick: { background: '#1a0a2e', border: '1px solid #2a1a3e', borderRadius: 3, padding: '0.1rem 0.5rem', color: '#9333ea', fontSize: '0.75rem', fontWeight: 700 },
   predDetail: { color: '#555', fontSize: '0.72rem' },
   predMvp: { background: '#1a1000', border: '1px solid #4a3000', borderRadius: 3, padding: '0.1rem 0.5rem', color: '#f59e0b', fontSize: '0.72rem', fontWeight: 600 },
   empty: { color: '#333', fontSize: '0.8rem', margin: 0 },
@@ -153,36 +162,48 @@ const TIER_COLORS = { ELITE: '#9333ea', STRONG: '#2563eb', SOLID: '#16a34a', G_T
 
 export default function SeriesDetail() {
   const { id } = useParams()
-  const { isEditor, session } = useAuth()
+  const { isEditor, session, gamertag: authGamertag } = useAuth()
   const navigate = useNavigate()
   const [series, setSeries] = useState(null)
   const [games, setGames] = useState([])
   const [stats, setStats] = useState([]) // series_player_stats view
   const [finalizedRankings, setFinalizedRankings] = useState([])
+  const [matchups, setMatchups] = useState([])
+  const [perGameStats, setPerGameStats] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [copied, setCopied] = useState(false)
 
   const fetchAll = useCallback(async () => {
-    const [{ data: ser }, { data: gms }, { data: sts }, { data: rankings }] = await Promise.all([
+    const [{ data: ser }, { data: gms }, { data: sts }, { data: rankings }, { data: mups }, { data: pgs }] = await Promise.all([
       supabase.from('series').select('*').eq('id', id).single(),
       supabase.from('games').select('*').eq('series_id', id).order('game_number'),
       supabase.from('series_player_stats').select('*').eq('series_id', id),
       supabase.from('series_rankings').select('*, players(gamertag,display_name)').eq('series_id', id).eq('finalized', true),
+      supabase.rpc('get_series_matchups', { p_series_id: id }),
+      supabase.rpc('get_series_game_pts', { p_series_id: id }),
     ])
     setSeries(ser)
     setGames(gms || [])
     setStats(sts || [])
     setFinalizedRankings(rankings || [])
+    setMatchups(mups || [])
+    setPerGameStats(pgs || [])
     setLastUpdated(new Date())
     setLoading(false)
   }, [id])
 
   useEffect(() => {
     fetchAll()
-    // Auto-refresh every 45s while series is in progress
-    const interval = setInterval(fetchAll, 45000)
-    return () => clearInterval(interval)
+    // Subscribe to live game updates for this series
+    const channel = supabase
+      .channel(`series-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `series_id=eq.${id}` }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_stats' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_matchups', filter: `series_id=eq.${id}` }, fetchAll)
+      .subscribe()
+    return () => supabase.removeChannel(channel)
   }, [fetchAll])
 
   async function markComplete() {
@@ -210,16 +231,19 @@ export default function SeriesDetail() {
 
   const wins = games.filter(g => g.our_result === 'W').length
   const losses = games.filter(g => g.our_result === 'L').length
-  const maxWins = Math.ceil(series.format / 2)
+  const maxWins = Math.ceil((series.format ?? 7) / 2)
   const seriesOver = wins >= maxWins || losses >= maxWins
 
   // Split stats by side
   const ourStats = stats.filter(p => p.primary_side === 'our').sort((a,b) => b.ppg - a.ppg)
   const oppStats = stats.filter(p => p.primary_side === 'opp').sort((a,b) => b.ppg - a.ppg)
 
-  // Live rankings — use finalized if available, else compute deterministically
+  // Live rankings: for an active (in_progress) series always recompute from
+  // current stats + matchup defensive deltas so new matchup saves update the
+  // display immediately. Finalized rankings are used for completed/unfinished.
   const liveRankings = (() => {
-    if (finalizedRankings.length > 0) return finalizedRankings.map(r => ({
+    const isSeriesLive = series.status === 'in_progress'
+    if (!isSeriesLive && finalizedRankings.length > 0) return finalizedRankings.map(r => ({
       player_id: r.player_id,
       gamertag: r.players?.gamertag || '',
       display_name: r.players?.display_name,
@@ -230,97 +254,223 @@ export default function SeriesDetail() {
       finalized: true,
     }))
     if (stats.length === 0) return []
-    return computeImpactScores(stats).map(r => ({ ...r, finalized: false }))
+    const defDeltas = computeDefensiveDeltas(matchups, perGameStats, stats)
+    return computeImpactScores(stats, defDeltas).map(r => ({ ...r, finalized: false }))
   })()
 
+  const isFinalized = liveRankings[0]?.finalized
+
+  function handleShare() {
+    const url = `${window.location.origin}/series/${id}`
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const isLive = series.status === 'in_progress'
+  const isUnfinished = series.status === 'unfinished'
+  const isActive = isLive || isUnfinished  // can still add games
+  const heroGradient = isLive
+    ? 'linear-gradient(135deg, #0c0010 0%, #08000f 40%, #000 100%)'
+    : isUnfinished
+      ? 'linear-gradient(135deg, #0a0800 0%, #080500 40%, #000 100%)'
+      : 'linear-gradient(135deg, #030d03 0%, #050505 40%, #000 100%)'
+  const accentGlow = isLive ? '#9333ea' : isUnfinished ? '#ca8a04' : '#16a34a'
+
   return (
-    <div style={s.page}>
-      <Link to="/" style={s.back}>← All Series</Link>
+    <div style={s.page} className="sd-page">
+      <style>{`
+        @media (max-width: 899px) {
+          .sd-back     { display: none !important; }
+          .sd-page     { padding: 0 !important; }
+          .sd-hero     { padding: 1.5rem 1.1rem 1.25rem !important; border-radius: 0 !important; }
+          .sd-add      { padding: 0.8rem 1.1rem !important; border-radius: 0 !important; }
+          .sd-ranks    { padding: 1rem 1.1rem !important; border-radius: 0 !important; }
+          .sd-games    { padding: 0.85rem 1.1rem !important; overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; }
+          .sd-games > * { flex-shrink: 0 !important; }
+          .sd-actions  { grid-template-columns: 1fr 1fr !important; padding: 0.85rem 1.1rem !important; }
+          .sd-cta      { padding: 0.6rem 1.1rem !important; border-radius: 0 !important; }
+          .sd-preds    { padding: 0 1.1rem !important; }
+          .sd-stats    { padding: 0 1.1rem 3rem !important; }
+        }
+      `}</style>
 
-      {/* Header */}
-      <div style={s.header}>
-        <div>
-          <h1 style={s.title}>{series.name}</h1>
-          <div style={s.meta}>{series.our_team_name} vs {series.opp_team_name}</div>
-          {series.storyline && <div style={s.storyline}>{series.storyline}</div>}
-        </div>
-        <div style={s.scoreBlock}>
-          <span style={s.score}>{wins}–{losses}</span>
-          <span style={{...s.statusBadge, background: series.status === 'complete' ? '#1a3a1a' : '#1a2a3a', color: series.status === 'complete' ? '#4caf50' : '#4da6ff'}}>
-            {series.status === 'complete' ? series.result_label || 'Complete' : 'In Progress'}
-          </span>
+      <Link to="/" style={s.back} className="sd-back">← All Series</Link>
+
+      {/* ══ HERO ══ */}
+      <div style={{...s.hero, background: heroGradient}} className="sd-hero">
+        {/* Glow accent line */}
+        <div style={{...s.heroGlowBar, background: accentGlow}} />
+        <div style={s.heroInner}>
+          <div style={s.heroLeft}>
+            <div style={s.heroMeta}>{series.our_team_name} vs {series.opp_team_name}</div>
+            <h1 style={s.heroTitle}>{series.name}</h1>
+            {series.storyline && <div style={s.heroStory}>{series.storyline}</div>}
+          </div>
+          <div style={s.heroRight}>
+            <div style={s.heroScore}>{wins}–{losses}</div>
+            <div style={{...s.heroBadge, color: accentGlow, borderColor: accentGlow + '44', background: accentGlow + '14'}}>
+              {isLive ? 'LIVE' : isUnfinished ? 'UNFINISHED' : series.result_label || 'FINAL'}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Controls — Add Game open to all, editor-only actions gated */}
-      <div style={s.controls}>
-        {series.status !== 'complete' && (
-          <button onClick={() => navigate(`/series/${id}/add-game`)} style={s.btnPrimary}>
-            + Add Game
+      {/* ══ ADD GAME — top CTA ══ */}
+      {isActive && isEditor && (
+        <div style={s.addWrap} className="sd-add">
+          <button onClick={() => navigate(`/series/${id}/add-game`)} style={s.addBtn}>
+            <IconPlus size={15} color="#fff" />
+            Add Game
           </button>
-        )}
-        {isEditor && series.status === 'in_progress' && seriesOver && (
-          <button onClick={markComplete} style={s.btnSuccess}>Mark Complete & Publish</button>
-        )}
-        {isEditor && series.status === 'complete' && (
-          <button onClick={togglePublish} style={s.btnGhost}>
-            {series.published ? 'Unpublish' : 'Publish'}
-          </button>
-        )}
-        <Link to={`/series/${id}/chart`} style={s.btnPrimary}>View Chart</Link>
-        {isEditor && <Link to={`/series/${id}/rankings`} style={s.btnSuccess}>Edit Rankings</Link>}
-        <Link to={`/series/${id}/accolades`} style={s.btnGhost}>Accolades</Link>
-        <button onClick={() => {
-          const url = `${window.location.origin}/series/${id}`
-          navigator.clipboard.writeText(url)
-          alert('Share link copied!')
-        }} style={s.btnGhost}>Copy Share Link</button>
-      </div>
+          {seriesOver && (
+            <button onClick={markComplete} style={s.completeBtn}>
+              <IconCheck size={15} color="#4caf50" />
+              Mark Complete
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* Game cards */}
-      {games.length > 0 && (
-        <div style={s.gameStrip}>
-          {games.map(g => (
-            <div key={g.id} style={{...s.gameCard, borderLeftColor: '#333'}}>
-              <div style={s.gameLabel}>G{g.game_number}</div>
-              <div style={s.gameScore}>{g.our_score} — {g.opp_score}</div>
-              <div style={s.gameMargin}>
-                {Math.abs(g.our_score - g.opp_score)}
-              </div>
-              {g.brando_position && <div style={s.gameBuild}>B: {g.brando_position}</div>}
-              <Link to={`/series/${id}/game/${g.id}/matchup`} style={s.matchupLink}>log matchup</Link>
-              {isEditor && (
-                <Link to={`/series/${id}/game/${g.id}/edit`} style={s.editLink}>edit</Link>
+      {/* ══ RANKINGS ══ */}
+      {liveRankings.length > 0 && (
+        <div style={s.ranksWrap} className="sd-ranks">
+          <div style={s.ranksHead}>
+            <span style={s.ranksSectionLabel}>
+              {isFinalized ? 'FINAL RANKINGS' : 'LIVE RANKINGS'}
+            </span>
+            <div style={s.ranksHeadRight}>
+              {isFinalized
+                ? <Link to={`/series/${id}/chart`} style={s.ranksChartLink}>View Chart →</Link>
+                : <button onClick={fetchAll} style={s.refreshBtn}>↻</button>
+              }
+              {!isFinalized && isEditor && (
+                <Link to={`/series/${id}/rankings`} style={s.ranksEditLink}>Edit</Link>
               )}
             </div>
-          ))}
-        </div>
-      )}
-
-      {games.length === 0 && (
-        <div style={s.empty}>
-          No games yet. Add the first game above.
-        </div>
-      )}
-
-      {/* Matchup CTA */}
-      {games.length > 0 && series.status === 'in_progress' && (
-        <div style={s.matchupCta}>
-          <div style={s.matchupCtaText}>
-            <span style={{color: '#f4701b', fontWeight: 700}}>Players:</span> Log who you guarded to improve ranking accuracy.
           </div>
-          <div style={s.matchupCtaGames}>
+
+          {TIER_ORDER.map(tier => {
+            const players = liveRankings.filter(r => r.tier === tier)
+            if (players.length === 0) return null
+            const tc = TIER_COLORS[tier]
+            return (
+              <div key={tier} style={s.tierSection}>
+                {/* Tier header */}
+                <div style={{...s.tierHeader, borderLeftColor: tc}}>
+                  <span style={{...s.tierLabel, color: tc}}>{tierLabel(tier)}</span>
+                </div>
+                {/* Player rows */}
+                {players.map((r, i) => (
+                  <Link key={r.player_id} to={`/player/${r.gamertag}`} style={{...s.playerRow, textDecoration: 'none', background: i % 2 === 0 ? 'transparent' : '#050505'}}>
+                    <div style={s.playerRowLeft}>
+                      <span style={{...s.playerRank, color: tc}}>{i + 1}</span>
+                      <div style={s.playerInfo}>
+                        <span style={s.playerName}>{r.display_name || r.gamertag}</span>
+                        {r.display_name && r.display_name !== r.gamertag && (
+                          <span style={s.playerTag}>{r.gamertag}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={s.playerRowRight}>
+                      {r.is_mvp && <IconStar size={11} color={colors.gold} filled />}
+                      <span style={s.playerScore}>{Number(r.impact_score || 0).toFixed(1)}</span>
+                      <button
+                        onClick={e => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const score = Number(r.impact_score || 0).toFixed(1)
+                          const quote = `${r.gamertag} — ${score} impact, ${tierLabel(tier)} tier · ${series.name}`
+                          navigate(`/feed?quote=${encodeURIComponent(quote)}`)
+                        }}
+                        style={s.chatBtn}
+                      >
+                        <IconChat size={11} color="#555" />
+                      </button>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ══ GAME RESULTS ══ */}
+      {games.length > 0 && (
+        <div style={s.gamesSection}>
+          <div style={s.gamesSectionLabel}>RESULTS</div>
+          <div style={s.gamesStrip} className="sd-games">
+            {games.map(g => {
+              const isW = g.our_result === 'W'
+              const isL = g.our_result === 'L'
+              const color = isW ? '#16a34a' : isL ? '#dc2626' : '#333'
+              // Check if the signed-in user already has a matchup logged for this game
+              const myRankRow = authGamertag && liveRankings.find(r => r.gamertag?.toLowerCase() === authGamertag.toLowerCase())
+              const myMatchup = myRankRow && matchups.find(m => m.game_id === g.id && m.defender_player_id === myRankRow.player_id)
+              return (
+                <div key={g.id} style={{...s.gameCard, borderColor: color + '60', background: isW ? '#020a02' : isL ? '#0a0202' : '#060606'}}>
+                  <div style={{...s.gameCardResult, color}}>{isW ? 'W' : isL ? 'L' : '?'}</div>
+                  <div style={s.gameCardScore}>{g.our_score}–{g.opp_score}</div>
+                  <div style={{...s.gameCardMargin, color: color + 'cc'}}>+{Math.abs(g.our_score - g.opp_score)}</div>
+                  <div style={s.gameCardNum}>G{g.game_number}</div>
+                  <Link to={`/series/${id}/game/${g.id}/matchup`} style={myMatchup ? {...s.gameCardLink, color: '#4caf50'} : s.gameCardLink}>
+                    {myMatchup ? '✓ matchup' : 'matchup'}
+                  </Link>
+                  {isEditor && <Link to={`/series/${id}/game/${g.id}/edit`} style={s.gameCardEdit}>edit</Link>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      {games.length === 0 && isActive && (
+        <div style={s.emptyGames}>No games logged yet.</div>
+      )}
+
+      {/* ══ MATCHUP CTA ══ */}
+      {games.length > 0 && (
+        <div style={s.ctaWrap} className="sd-cta">
+          <span style={s.ctaText}>Log your matchup</span>
+          <span style={s.ctaSubtext}>— affects your defensive impact score</span>
+          <div style={s.ctaGames}>
             {games.map(g => (
-              <Link key={g.id} to={`/series/${id}/game/${g.id}/matchup`} style={s.matchupCtaBtn}>
-                G{g.game_number}
-              </Link>
+              <Link key={g.id} to={`/series/${id}/game/${g.id}/matchup`} style={s.ctaGameBtn}>Game {g.game_number}</Link>
             ))}
           </div>
         </div>
       )}
 
-      {/* Predictions */}
-      {games.length >= 0 && (
+      {/* ══ ACTIONS ══ */}
+      <div style={s.actionsGrid} className="sd-actions">
+        <Link to={`/series/${id}/chart`} style={s.actionTile}>
+          <IconChart size={20} color="#555" />
+          <span style={s.actionTileLabel}>Chart</span>
+        </Link>
+        <Link to={`/series/${id}/accolades`} style={s.actionTile}>
+          <IconTrophy size={20} color="#555" />
+          <span style={s.actionTileLabel}>Accolades</span>
+        </Link>
+        {isEditor && (
+          <Link to={`/series/${id}/rankings`} style={s.actionTile}>
+            <IconEdit size={20} color="#555" />
+            <span style={s.actionTileLabel}>Rankings</span>
+          </Link>
+        )}
+        {isEditor && !isLive && (
+          <button onClick={togglePublish} style={s.actionTile}>
+            <IconPublish size={20} color="#555" />
+            <span style={s.actionTileLabel}>{series.published ? 'Unpublish' : 'Publish'}</span>
+          </button>
+        )}
+        <button onClick={handleShare} style={{...s.actionTile, ...(copied ? {borderColor: '#1a4a1a', background: '#020f02'} : {})}}>
+          <IconShare size={20} color={copied ? '#4caf50' : '#555'} />
+          <span style={{...s.actionTileLabel, color: copied ? '#4caf50' : '#444'}}>{copied ? 'Copied!' : 'Share'}</span>
+        </button>
+      </div>
+
+      {/* ══ PREDICTIONS ══ */}
+      <div style={{padding: '0 2rem'}} className="sd-preds">
         <PredictionsWidget
           seriesId={id}
           seriesStatus={series.status}
@@ -328,70 +478,13 @@ export default function SeriesDetail() {
           ourTeam={series.our_team_name}
           oppTeam={series.opp_team_name}
         />
-      )}
+      </div>
 
-      {/* Live Rankings */}
-      {liveRankings.length > 0 && (
-        <div style={s.rankingWrap}>
-          <div style={s.rankingHeader}>
-            <div style={s.rankingTitle}>
-              {liveRankings[0]?.finalized
-                ? <span style={s.finalBadge}>FINAL RANKINGS</span>
-                : <span style={s.liveBadge}>LIVE RANKINGS</span>
-              }
-              {series.name}
-            </div>
-            <div style={s.rankingMeta}>
-              {liveRankings[0]?.finalized
-                ? 'Finalized — '
-                : 'Auto-updates as stats & matchups come in · '
-              }
-              {lastUpdated && `Last refreshed ${lastUpdated.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`}
-              {!liveRankings[0]?.finalized && (
-                <button onClick={fetchAll} style={s.refreshBtn}>Refresh</button>
-              )}
-            </div>
-          </div>
-          {TIER_ORDER.map(tier => {
-            const players = liveRankings.filter(r => r.tier === tier)
-            if (players.length === 0) return null
-            return (
-              <div key={tier} style={{...s.tierRow, borderLeftColor: TIER_COLORS[tier]}}>
-                <div style={{...s.tierTag, color: TIER_COLORS[tier]}}>{tier === 'G_TIER' ? 'G TIER' : tier}</div>
-                <div style={s.tierPlayers}>
-                  {players.map(r => (
-                    <div key={r.player_id} style={s.rankPlayer}>
-                      {r.is_mvp && <IconStar size={13} color={colors.gold} filled style={s.mvpStar} />}
-                      <span style={{color: '#fff', fontWeight: 700}}>
-                        {r.display_name || r.gamertag}
-                      </span>
-                      <span style={s.impactScore}>{Number(r.impact_score || 0).toFixed(1)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-          {!liveRankings[0]?.finalized && isEditor && (
-            <div style={s.rankingFooter}>
-              Rankings are auto-computed. <Link to={`/series/${id}/rankings`} style={{color: '#f4701b', textDecoration: 'none'}}>Open editor to adjust & publish →</Link>
-            </div>
-          )}
-          {liveRankings[0]?.finalized && (
-            <div style={s.rankingFooter}>
-              <Link to={`/series/${id}/chart`} style={{color: '#f4701b', textDecoration: 'none'}}>View full chart & download PNG →</Link>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Stats table */}
+      {/* ══ STATS ══ */}
       {stats.length > 0 && (
-        <div style={s.tableWrap}>
+        <div style={{padding: '0 2rem 3rem'}} className="sd-stats">
           <StatsTable players={ourStats} teamName={series.our_team_name || 'Team A'} />
-          {oppStats.length > 0 && (
-            <StatsTable players={oppStats} teamName={series.opp_team_name || 'Team B'} />
-          )}
+          {oppStats.length > 0 && <StatsTable players={oppStats} teamName={series.opp_team_name || 'Team B'} />}
         </div>
       )}
     </div>
@@ -419,7 +512,7 @@ function StatCell({ value, type }) {
 function StatsTable({ players, teamName }) {
   return (
     <div style={{marginBottom: '2rem'}}>
-      <div style={{...s.teamLabel, color: '#aaa'}}>{teamName}</div>
+      <div style={s.teamLabel}>{teamName}</div>
       <div style={{overflowX: 'auto'}}>
         <table style={s.table}>
           <thead>
@@ -433,9 +526,11 @@ function StatsTable({ players, teamName }) {
             {players.map(p => (
               <tr key={p.player_id} style={s.tr}>
                 <td style={{...s.td, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap'}}>
-                  {p.gamertag}
+                  <Link to={`/player/${p.gamertag}`} style={{color: '#fff', textDecoration: 'none'}}>
+                    {p.display_name || p.gamertag}
+                  </Link>
                   {p.display_name && p.display_name !== p.gamertag && (
-                    <span style={{color:'#555', fontWeight:400, marginLeft:6, fontSize:'0.8rem'}}>({p.display_name})</span>
+                    <span style={{color:'#555', fontWeight:400, marginLeft:6, fontSize:'0.8rem'}}>{p.gamertag}</span>
                   )}
                 </td>
                 <td style={s.td}>{p.gp}</td>
@@ -458,54 +553,79 @@ function StatsTable({ players, teamName }) {
 }
 
 const s = {
-  page: { minHeight: '100vh', background: '#000', color: '#fff', padding: '2rem', maxWidth: 1100, margin: '0 auto' },
-  back: { color: '#555', textDecoration: 'none', fontSize: '0.82rem', display: 'block', marginBottom: '1.5rem' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' },
-  title: { margin: '0 0 0.25rem', fontSize: '1.4rem', letterSpacing: '0.08em' },
-  meta: { color: '#555', fontSize: '0.82rem', marginBottom: '0.4rem' },
-  storyline: { color: '#aaa', fontSize: '0.9rem', fontStyle: 'italic', maxWidth: 600 },
-  scoreBlock: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' },
-  score: { fontSize: '2rem', fontWeight: 700, color: '#fff' },
-  statusBadge: { fontSize: '0.75rem', padding: '0.2rem 0.6rem', borderRadius: 3, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' },
-  controls: { display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' },
-  btnPrimary: { background: '#1d6ef5', color: '#fff', border: 'none', borderRadius: 4, padding: '0.5rem 1rem', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' },
-  btnSuccess: { background: '#1a4a1a', color: '#4caf50', border: '1px solid #2d6a2d', borderRadius: 4, padding: '0.5rem 1rem', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' },
-  btnGhost: { background: 'transparent', color: '#888', border: '1px solid #333', borderRadius: 4, padding: '0.5rem 1rem', fontSize: '0.9rem', cursor: 'pointer' },
-  gameStrip: { display: 'flex', gap: '0.75rem', marginBottom: '2rem', flexWrap: 'wrap' },
-  gameCard: { background: '#0d0d0d', border: '1px solid #1e1e1e', borderLeft: '3px solid', borderRadius: 4, padding: '0.75rem 1rem', minWidth: 110 },
-  gameLabel: { fontSize: '0.8rem', color: '#888', marginBottom: '0.25rem', fontWeight: 600 },
-  gameScore: { fontSize: '1rem', fontWeight: 700, color: '#fff', marginBottom: '0.15rem' },
-  gameMargin: { fontSize: '0.75rem', color: '#666' },
-  gameBuild: { fontSize: '0.72rem', color: '#555', marginTop: '0.2rem' },
-  editLink: { display: 'block', fontSize: '0.7rem', color: '#1d6ef5', textDecoration: 'none', marginTop: '0.2rem' },
-  matchupLink: { display: 'block', fontSize: '0.7rem', color: '#f4701b', textDecoration: 'none', marginTop: '0.4rem' },
-  empty: { color: '#444', textAlign: 'center', padding: '3rem 0' },
+  page: { minHeight: '100vh', background: '#000', color: '#fff', padding: '2rem', maxWidth: 900, margin: '0 auto' },
+  back: { color: '#444', textDecoration: 'none', fontSize: '0.8rem', display: 'block', marginBottom: '1.5rem' },
 
-  matchupCta: { background: '#0a0500', border: '1px solid #1a1000', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' },
-  matchupCtaText: { fontSize: '0.85rem', color: '#888' },
-  matchupCtaGames: { display: 'flex', gap: '0.4rem', flexWrap: 'wrap' },
-  matchupCtaBtn: { background: '#0d0800', border: '1px solid #2a1800', borderRadius: 4, padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: '#f4701b', fontWeight: 700, textDecoration: 'none' },
+  // Hero
+  hero: { padding: '2rem', position: 'relative', overflow: 'hidden' },
+  heroGlowBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 2, opacity: 0.8 },
+  heroInner: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1.5rem' },
+  heroLeft: { flex: 1, minWidth: 0 },
+  heroMeta: { fontSize: '0.72rem', color: '#555', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.5rem' },
+  heroTitle: { margin: '0 0 0.4rem', fontSize: '1.6rem', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 },
+  heroStory: { color: '#555', fontSize: '0.82rem', fontStyle: 'italic', marginTop: '0.35rem' },
+  heroRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem', flexShrink: 0 },
+  heroScore: { fontSize: '3.25rem', fontWeight: 900, lineHeight: 1, letterSpacing: '-0.04em', color: '#fff' },
+  heroBadge: { fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.14em', padding: '0.22rem 0.6rem', borderRadius: 3, border: '1px solid', textTransform: 'uppercase' },
 
-  rankingWrap: { background: '#050505', border: '1px solid #111', borderRadius: 10, padding: '1.25rem', marginBottom: '2rem' },
-  rankingHeader: { marginBottom: '1rem' },
-  rankingTitle: { fontWeight: 800, fontSize: '1rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.3rem' },
-  rankingMeta: { color: '#333', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' },
-  liveBadge: { background: '#0a1a0a', border: '1px solid #1a4a1a', color: '#4caf50', fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.1em', padding: '0.15rem 0.5rem', borderRadius: 3 },
-  finalBadge: { background: '#1a1200', border: '1px solid #4a3000', color: '#f4701b', fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.1em', padding: '0.15rem 0.5rem', borderRadius: 3 },
-  refreshBtn: { background: 'transparent', border: 'none', color: '#4da6ff', fontSize: '0.72rem', cursor: 'pointer', padding: 0 },
-  tierRow: { display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '3px solid', paddingLeft: '0.75rem', marginBottom: '0.6rem' },
-  tierTag: { fontWeight: 800, fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', minWidth: 52 },
-  tierPlayers: { display: 'flex', flexWrap: 'wrap', gap: '0.4rem' },
-  rankPlayer: { display: 'flex', alignItems: 'center', gap: '0.3rem', background: '#0a0a0a', border: '1px solid #111', borderRadius: 5, padding: '0.25rem 0.6rem', fontSize: '0.82rem' },
-  mvpStar: { color: '#f59e0b', fontSize: '0.75rem' },
-  impactScore: { color: '#333', fontSize: '0.72rem', marginLeft: 2 },
-  rankingFooter: { marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #111', color: '#444', fontSize: '0.78rem' },
+  // Add game
+  addWrap: { display: 'flex', gap: '0.6rem', padding: '0.75rem 2rem', borderTop: '1px solid #111', borderBottom: '1px solid #0d0d0d' },
+  addBtn: { flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', background: '#f4701b', color: '#fff', border: 'none', borderRadius: 9, padding: '0.7rem', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.01em' },
+  completeBtn: { display: 'inline-flex', alignItems: 'center', gap: '0.45rem', background: '#071207', color: '#4caf50', border: '1px solid #1a4a1a', borderRadius: 9, padding: '0.7rem 1rem', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
 
-  tableWrap: { marginTop: '2rem' },
-  teamLabel: { fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem' },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' },
-  th: { color: '#555', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.4rem 0.75rem', textAlign: 'left', borderBottom: '1px solid #1a1a1a', whiteSpace: 'nowrap' },
-  td: { color: '#ccc', padding: '0.5rem 0.75rem', borderBottom: '1px solid #0f0f0f' },
-  tr: { transition: 'background 0.1s' },
-  dim: { color: '#555' },
+  // Rankings
+  ranksWrap: { padding: '1.25rem 2rem', borderBottom: '1px solid #0d0d0d' },
+  ranksHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.1rem' },
+  ranksSectionLabel: { fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.14em', color: '#444', textTransform: 'uppercase' },
+  ranksHeadRight: { display: 'flex', alignItems: 'center', gap: '0.75rem' },
+  ranksChartLink: { fontSize: '0.75rem', fontWeight: 700, color: '#f4701b', textDecoration: 'none' },
+  ranksEditLink: { fontSize: '0.72rem', fontWeight: 600, color: '#555', textDecoration: 'none', border: '1px solid #222', borderRadius: 5, padding: '0.18rem 0.5rem' },
+  refreshBtn: { background: 'transparent', border: '1px solid #1e1e1e', color: '#555', fontSize: '0.78rem', cursor: 'pointer', padding: '0.18rem 0.5rem', borderRadius: 5 },
+
+  tierSection: { marginBottom: '0.9rem' },
+  tierHeader: { borderLeft: '2px solid', paddingLeft: '0.7rem', marginBottom: '0.3rem' },
+  tierLabel: { fontSize: '0.6rem', fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase' },
+
+  playerRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.7rem', borderRadius: 7, cursor: 'pointer' },
+  playerRowLeft: { display: 'flex', alignItems: 'center', gap: '0.7rem' },
+  playerRank: { fontSize: '0.72rem', fontWeight: 800, minWidth: 16, textAlign: 'right', flexShrink: 0 },
+  playerInfo: { display: 'flex', alignItems: 'baseline', gap: '0.4rem' },
+  playerName: { fontSize: '0.9rem', fontWeight: 700, color: '#fff' },
+  playerTag: { fontSize: '0.72rem', color: '#444' },
+  playerRowRight: { display: 'flex', alignItems: 'center', gap: '0.4rem' },
+  playerScore: { fontSize: '0.78rem', fontWeight: 700, color: '#2a2a2a' },
+  chatBtn: { background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.15rem 0.3rem', display: 'flex', alignItems: 'center', borderRadius: 4, opacity: 0.6 },
+
+  // Game strip
+  gamesSection: { padding: '1rem 2rem', borderBottom: '1px solid #0d0d0d' },
+  gamesSectionLabel: { fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.14em', color: '#333', marginBottom: '0.7rem' },
+  gamesStrip: { display: 'flex', gap: '0.6rem', flexWrap: 'wrap' },
+  gameCard: { border: '1px solid', borderRadius: 10, padding: '0.8rem 1rem', minWidth: 100, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '0.1rem' },
+  gameCardResult: { fontSize: '1.1rem', fontWeight: 900, lineHeight: 1, letterSpacing: '-0.02em' },
+  gameCardScore: { fontSize: '0.85rem', fontWeight: 800, color: '#fff', marginTop: '0.2rem' },
+  gameCardMargin: { fontSize: '0.7rem', fontWeight: 700 },
+  gameCardNum: { fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', color: '#333', marginTop: '0.3rem' },
+  gameCardLink: { display: 'block', fontSize: '0.65rem', color: '#f4701b', textDecoration: 'none', marginTop: '0.4rem', fontWeight: 600 },
+  gameCardEdit: { display: 'block', fontSize: '0.62rem', color: '#2a2a2a', textDecoration: 'none', marginTop: '0.15rem' },
+  emptyGames: { color: '#2a2a2a', fontSize: '0.82rem', padding: '1rem 2rem' },
+
+  // Matchup CTA
+  ctaWrap: { padding: '0.65rem 2rem', borderBottom: '1px solid #0d0d0d', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem', background: '#030005' },
+  ctaText: { fontSize: '0.78rem', fontWeight: 800, color: '#f4701b' },
+  ctaSubtext: { fontSize: '0.72rem', color: '#333' },
+  ctaGames: { display: 'flex', gap: '0.3rem', flexWrap: 'wrap' },
+  ctaGameBtn: { background: '#0d0012', border: '1px solid #2a0050', borderRadius: 6, padding: '0.25rem 0.6rem', fontSize: '0.7rem', color: '#9333ea', fontWeight: 800, textDecoration: 'none' },
+
+  // Actions
+  actionsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.6rem', padding: '1rem 2rem', borderBottom: '1px solid #0d0d0d' },
+  actionTile: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', background: '#080808', border: '1px solid #141414', borderRadius: 12, padding: '0.9rem 0.5rem', cursor: 'pointer', textDecoration: 'none' },
+  actionTileLabel: { fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#444' },
+
+  // Stats
+  teamLabel: { fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '0.5rem', color: '#444', paddingTop: '1.5rem', paddingBottom: '0.3rem' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' },
+  th: { color: '#333', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '0.4rem 0.75rem', textAlign: 'left', borderBottom: '1px solid #0d0d0d', whiteSpace: 'nowrap' },
+  td: { color: '#bbb', padding: '0.5rem 0.75rem', borderBottom: '1px solid #070707' },
+  tr: {},
+  dim: { color: '#333' },
 }

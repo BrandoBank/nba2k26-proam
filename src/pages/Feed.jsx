@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import { colors, fonts, radius } from '../lib/theme'
 import { IconArrow, IconChat, IconX } from '../lib/icons'
 
@@ -16,20 +17,17 @@ function timeAgo(ts) {
 
 export default function Feed() {
   const navigate = useNavigate()
+  const { gamertag: authGamertag, session, loading: authLoading, gamertagLoading } = useAuth()
   const [searchParams] = useSearchParams()
   const defaultQuote = searchParams.get('quote') || ''
 
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
-  const [gamertag, setGamertag] = useState(() => {
-    try { return localStorage.getItem('feed_gtag') || '' } catch { return '' }
-  })
+  const [gamertag, setGamertag] = useState('')
   const [body, setBody] = useState('')
   const [quote, setQuote] = useState(defaultQuote)
   const [posting, setPosting] = useState(false)
   const [postError, setPostError] = useState('')
-  const [players, setPlayers] = useState([])
-  const [showDrop, setShowDrop] = useState(false)
   const composeRef = useRef(null)
 
   // Auto-scroll compose into view when a quote is pre-filled from landing
@@ -55,18 +53,19 @@ export default function Feed() {
     return () => clearInterval(id)
   }, [])
 
+  // Sync gamertag from auth hook
   useEffect(() => {
-    supabase.from('players').select('gamertag,display_name').then(({ data }) => {
-      if (data) setPlayers(data)
-    })
-  }, [])
+    setGamertag(authGamertag || '')
+  }, [authGamertag])
 
-  const filtered = gamertag.length > 0
-    ? players.filter(p => p.gamertag.toLowerCase().includes(gamertag.toLowerCase()) && p.gamertag.toLowerCase() !== gamertag.toLowerCase())
-    : []
+
+  async function deleteComment(id) {
+    await supabase.from('comments').delete().eq('id', id)
+    setComments(prev => prev.filter(c => c.id !== id))
+  }
 
   async function post() {
-    if (!gamertag.trim() || !body.trim()) return
+    if (!session || !gamertag.trim() || !body.trim()) return
     setPosting(true)
     setPostError('')
     const { error } = await supabase.from('comments').insert({
@@ -77,7 +76,6 @@ export default function Feed() {
     if (error) {
       setPostError('Failed to post. Try again.')
     } else {
-      try { localStorage.setItem('feed_gtag', gamertag.trim()) } catch {}
       setBody('')
       setQuote('')
       await fetchComments()
@@ -98,68 +96,65 @@ export default function Feed() {
         </div>
       </div>
 
-      {/* Compose */}
-      <div style={s.compose} ref={composeRef}>
-        {/* Quote preview */}
-        {quote && (
-          <div style={s.quotePreview}>
-            <span style={s.quoteText}>{quote}</span>
-            <button onClick={() => setQuote('')} style={s.quoteClose}>
-              <IconX size={12} color={colors.textMuted} />
-            </button>
-          </div>
-        )}
+      {/* Page accent stripe */}
+      <div style={{ height: 2, background: 'linear-gradient(90deg, #f4701b, rgba(244,112,27,0.3) 50%, transparent)', width: '100%' }} />
 
-        {/* Gamertag input with autocomplete */}
-        <div style={{ position: 'relative' }}>
-          <input
-            style={s.input}
-            placeholder="Your gamertag..."
-            value={gamertag}
-            onChange={e => { setGamertag(e.target.value); setShowDrop(true) }}
-            onBlur={() => setTimeout(() => setShowDrop(false), 150)}
-            autoComplete="off"
-          />
-          {showDrop && filtered.length > 0 && (
-            <div style={s.drop}>
-              {filtered.map(p => (
-                <div
-                  key={p.gamertag}
-                  style={s.dropItem}
-                  onMouseDown={() => { setGamertag(p.gamertag); setShowDrop(false) }}
-                >
-                  <span style={{ color: colors.textPrimary, fontWeight: 700 }}>{p.gamertag}</span>
-                  {p.display_name && p.display_name !== p.gamertag && (
-                    <span style={{ color: colors.textMuted, fontSize: 11, marginLeft: 6 }}>({p.display_name})</span>
-                  )}
-                </div>
-              ))}
+      {/* Compose — auth-gated */}
+      {!authLoading && !session ? (
+        <div style={s.signInPrompt}>
+          <span style={s.signInText}>Sign in to post</span>
+          <button style={s.signInBtn} onClick={() => navigate('/login')}>Sign In</button>
+        </div>
+      ) : !authLoading && session && !gamertagLoading && !gamertag ? (
+        <div style={s.signInPrompt}>
+          <span style={s.signInText}>Claim your player to post</span>
+          <button style={s.signInBtn} onClick={() => navigate('/claim')}>Claim</button>
+        </div>
+      ) : (
+        <div style={s.compose} ref={composeRef}>
+          {/* Quote preview */}
+          {quote && (
+            <div style={s.quotePreview}>
+              <span style={s.quoteText}>{quote}</span>
+              <button onClick={() => setQuote('')} style={s.quoteClose}>
+                <IconX size={12} color={colors.textMuted} />
+              </button>
             </div>
           )}
-        </div>
 
-        <textarea
-          style={s.textarea}
-          placeholder="Say something about the leaderboard, a series, anyone's stats..."
-          value={body}
-          onChange={e => setBody(e.target.value.slice(0, 300))}
-          rows={3}
-        />
-        <div style={s.composeFooter}>
-          <span style={s.charCount}>{body.length}/300</span>
-          {postError && <span style={{ color: colors.gTier, fontSize: 11 }}>{postError}</span>}
-          <button
-            style={{ ...s.postBtn, opacity: (!gamertag.trim() || !body.trim() || posting) ? 0.4 : 1 }}
-            onClick={post}
-            disabled={!gamertag.trim() || !body.trim() || posting}
-          >
-            {posting ? 'Posting...' : 'Post'}
-          </button>
+          {/* Gamertag — locked to session player */}
+          <input
+            style={{ ...s.input, opacity: 0.6, cursor: 'default' }}
+            value={gamertag || (authLoading ? 'Loading...' : 'No player linked')}
+            readOnly
+          />
+
+          <textarea
+            style={s.textarea}
+            placeholder="Say something about the leaderboard, a series, anyone's stats..."
+            value={body}
+            onChange={e => setBody(e.target.value.slice(0, 300))}
+            rows={3}
+          />
+          <div style={s.composeFooter}>
+            <span style={s.charCount}>{body.length}/300</span>
+            {postError && <span style={{ color: colors.gTier, fontSize: 11 }}>{postError}</span>}
+            <button
+              style={{ ...s.postBtn, opacity: (!gamertag.trim() || !body.trim() || posting) ? 0.4 : 1 }}
+              onClick={post}
+              disabled={!gamertag.trim() || !body.trim() || posting}
+            >
+              {posting ? 'Posting...' : 'Post'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Feed */}
       <div style={s.feed}>
+        {comments.length > 0 && (
+          <div style={s.feedLabel}>LIVE COMMENTARY</div>
+        )}
         {loading && <p style={s.dim}>Loading feed...</p>}
         {!loading && comments.length === 0 && (
           <p style={s.dim}>No posts yet. Be first.</p>
@@ -175,7 +170,14 @@ export default function Feed() {
             <div style={s.cardBody}>{c.body}</div>
             <div style={s.cardMeta}>
               <span style={s.cardTag}>{c.gamertag}</span>
-              <span style={s.cardTime}>{timeAgo(c.created_at)}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={s.cardTime}>{timeAgo(c.created_at)}</span>
+                {(authGamertag === c.gamertag || authGamertag === 'BrandoBank') && (
+                  <button onClick={() => deleteComment(c.id)} style={s.deleteBtn} title="Delete">
+                    <IconX size={11} color="#555" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -228,10 +230,39 @@ const s = {
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
   },
+  signInPrompt: {
+    margin: '16px 16px 0',
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.lg,
+    padding: '20px 16px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  signInText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontFamily: fonts.display,
+  },
+  signInBtn: {
+    background: colors.orange,
+    border: 'none',
+    borderRadius: radius.sm,
+    padding: '7px 18px',
+    color: '#000',
+    fontWeight: 800,
+    fontSize: 13,
+    fontFamily: fonts.display,
+    letterSpacing: '0.05em',
+    cursor: 'pointer',
+  },
   compose: {
     margin: '16px 16px 0',
     background: colors.surface,
     border: `1px solid ${colors.border}`,
+    borderLeft: '3px solid #f4701b',
     borderRadius: radius.lg,
     padding: '14px 14px 10px',
     display: 'flex',
@@ -347,6 +378,7 @@ const s = {
   card: {
     background: colors.surface,
     border: `1px solid ${colors.border}`,
+    borderLeft: '2px solid rgba(244,112,27,0.25)',
     borderRadius: radius.lg,
     padding: '12px 14px',
   },
@@ -383,15 +415,32 @@ const s = {
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  feedLabel: {
+    fontSize: 9,
+    fontWeight: 700,
+    letterSpacing: 3,
+    color: '#333',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
   cardTag: {
     fontSize: 11,
     fontWeight: 700,
-    color: colors.textMuted,
+    color: '#f4701b',
     letterSpacing: '0.04em',
   },
   cardTime: {
     fontSize: 10,
     color: colors.textDim || colors.textMuted,
     letterSpacing: '0.04em',
+  },
+  deleteBtn: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '2px 4px',
+    display: 'flex',
+    alignItems: 'center',
+    opacity: 0.6,
   },
 }

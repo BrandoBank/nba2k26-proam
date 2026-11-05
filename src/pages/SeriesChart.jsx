@@ -4,15 +4,16 @@ import { toPng } from 'html-to-image'
 import { supabase } from '../lib/supabase'
 import { colors, statColor } from '../lib/theme'
 import { IconStar, IconArrow, IconCheck } from '../lib/icons'
+import { computeImpactScores, computeDefensiveDeltas } from '../lib/ranking'
 
 const TIER_META = {
   ELITE:  { label: 'ELITE TIER — SERIES-DEFINING IMPACT',      spine: '#9333ea', bg: 'rgba(147,51,234,0.07)',  text: '#c084fc' },
   STRONG: { label: 'STRONG TIER — ELITE SPECIALISTS OR CONSISTENT CONTRIBUTORS', spine: '#2563eb', bg: 'rgba(37,99,235,0.07)',   text: '#60a5fa' },
-  SOLID:  { label: 'SOLID TIER — RELIABLE ROLE PRODUCTION',    spine: '#16a34a', bg: 'rgba(22,163,74,0.07)',   text: '#4ade80' },
+  SOLID:  { label: 'ROLE PLAYER TIER — RELIABLE ROLE PRODUCTION',    spine: '#16a34a', bg: 'rgba(22,163,74,0.07)',   text: '#4ade80' },
   G_TIER: { label: 'G TIER — NEGATIVE NET IMPACT',             spine: '#dc2626', bg: 'rgba(220,38,38,0.07)',   text: '#f87171' },
 }
 
-const TEAM_COLORS = { our: '#3b82f6', opp: '#ef4444' }
+const TEAM_COLORS = { our: '#f4701b', opp: '#ef4444' }
 
 export default function SeriesChart() {
   const { id: seriesId } = useParams()
@@ -21,6 +22,7 @@ export default function SeriesChart() {
   const [games, setGames] = useState([])
   const [rankings, setRankings] = useState([])
   const [stats, setStats] = useState([])
+  const [matchups, setMatchups] = useState([])
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -28,30 +30,78 @@ export default function SeriesChart() {
   useEffect(() => { fetchAll() }, [seriesId])
 
   async function fetchAll() {
-    const [{ data: ser }, { data: gms }, { data: rnk }, { data: sts }] = await Promise.all([
+    const [{ data: ser }, { data: gms }, { data: rnk }, { data: sts }, { data: grds }, { data: mups }, { data: pgs }] = await Promise.all([
       supabase.from('series').select('*').eq('id', seriesId).single(),
       supabase.from('games').select('*').eq('series_id', seriesId).order('game_number'),
       supabase.from('series_rankings').select('*, players(gamertag,display_name,default_position)').eq('series_id', seriesId).order('tier').order('rank_in_tier'),
       supabase.from('series_player_stats').select('*').eq('series_id', seriesId),
+      supabase.from('game_stats').select('player_id,grade').eq('series_id', seriesId).not('grade', 'is', null),
+      supabase.rpc('get_series_matchups', { p_series_id: seriesId }),
+      supabase.rpc('get_series_game_pts', { p_series_id: seriesId }),
     ])
+    // Pick best grade per player (A+ > A > A- > B+ > B > B- > C+ > C > C- > D)
+    const GRADE_RANK = ['A+','A','A-','B+','B','B-','C+','C','C-','D','F']
+    const bestGrade = {}
+    for (const g of (grds || [])) {
+      if (!g.grade) continue
+      const cur = bestGrade[g.player_id]
+      if (!cur || GRADE_RANK.indexOf(g.grade) < GRADE_RANK.indexOf(cur)) bestGrade[g.player_id] = g.grade
+    }
+    const seriesStats = sts || []
+    const statsWithGrade = seriesStats.map(s => ({ ...s, grade: bestGrade[s.player_id] || null }))
+
+    // For live series always recompute from stats + matchup defensive deltas so
+    // chart reflects new matchups immediately. Use finalized rankings otherwise.
+    let resolvedRankings = rnk || []
+    const isSeriesLive = ser?.status === 'in_progress'
+    if ((isSeriesLive || resolvedRankings.length === 0) && seriesStats.length > 0) {
+      const defDeltas = computeDefensiveDeltas(mups || [], pgs || [], seriesStats)
+      resolvedRankings = computeImpactScores(seriesStats, defDeltas)
+        .map(r => ({
+          ...r,
+          players: { gamertag: r.gamertag, display_name: r.display_name, default_position: r.default_position },
+        }))
+    }
+
     setSeries(ser)
     setGames(gms || [])
-    setRankings(rnk || [])
-    setStats(sts || [])
+    setRankings(resolvedRankings)
+    setStats(statsWithGrade)
+    setMatchups(mups || [])
     setLoading(false)
   }
 
   async function handleExport() {
     if (!chartRef.current) return
     setExporting(true)
+    const el = chartRef.current
+    // Force 1200px desktop width so PNG layout matches the template regardless of viewport
+    const prev = { width: el.style.width, minWidth: el.style.minWidth, maxWidth: el.style.maxWidth }
+    el.style.width = '1200px'
+    el.style.minWidth = '1200px'
+    el.style.maxWidth = '1200px'
+    await new Promise(r => setTimeout(r, 120))
     try {
-      const dataUrl = await toPng(chartRef.current, { cacheBust: true, pixelRatio: 2, backgroundColor: '#000' })
+      const dataUrl = await toPng(el, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#000',
+        skipFonts: true,
+        width: 1200,
+      })
       const a = document.createElement('a')
       a.download = `${series?.name?.replace(/\s+/g, '-') || 'series'}-chart.png`
       a.href = dataUrl
       a.click()
-    } catch (e) { console.error(e) }
-    setExporting(false)
+    } catch (e) {
+      console.error('Export failed:', e)
+      alert('Download failed. Try again or use a screenshot.')
+    } finally {
+      el.style.width = prev.width
+      el.style.minWidth = prev.minWidth
+      el.style.maxWidth = prev.maxWidth
+      setExporting(false)
+    }
   }
 
   function copyLink() {
@@ -66,6 +116,24 @@ export default function SeriesChart() {
   // Build stat lookup
   const statMap = {}
   stats.forEach(p => { statMap[p.player_id] = p })
+
+  // Build matchup summary per defender: { [defender_player_id]: "Guarded: Spiderboy_305" }
+  const matchupSummary = {}
+  if (matchups.length > 0 && rankings.length > 0) {
+    const playerById = {}
+    // rankings may be computed (gamertag on root) or finalized (gamertag under .players)
+    rankings.forEach(r => { if (r.player_id) playerById[r.player_id] = r.gamertag || r.players?.gamertag || '' })
+    // Group by defender
+    const byDefender = {}
+    matchups.forEach(m => {
+      if (!byDefender[m.defender_player_id]) byDefender[m.defender_player_id] = []
+      byDefender[m.defender_player_id].push(m)
+    })
+    Object.entries(byDefender).forEach(([defId, ms]) => {
+      const oppNames = [...new Set(ms.map(m => playerById[m.offensive_player_id]).filter(Boolean))]
+      if (oppNames.length > 0) matchupSummary[defId] = `Guarded: ${oppNames.join(', ')}`
+    })
+  }
 
   // Use rankings if available, otherwise sort by stats
   const hasRankings = rankings.length > 0
@@ -146,7 +214,8 @@ export default function SeriesChart() {
           </div>
         )}
 
-        {/* Stat table */}
+        {/* Stat table — scrollable on small screens */}
+        <div style={{ overflowX: 'auto' }}>
         <div style={ch.tableWrap}>
           {/* Column headers */}
           <div style={ch.colHeaders}>
@@ -185,6 +254,7 @@ export default function SeriesChart() {
                         isMvp={r.is_mvp}
                         tags={r.tags || []}
                         impactNote={r.impact_note}
+                        matchupLine={matchupSummary[r.player_id]}
                         stats={p}
                         seriesWon={wins > losses}
                         brandoGtag="BrandoBank"
@@ -227,7 +297,7 @@ export default function SeriesChart() {
               <span style={ch.footerSep}>·</span>
               <span style={{ color: TIER_META.STRONG.text }}>STRONG</span> real two-way/specialist
               <span style={ch.footerSep}>·</span>
-              <span style={{ color: TIER_META.SOLID.text }}>SOLID</span> reliable role
+              <span style={{ color: TIER_META.SOLID.text }}>ROLE PLAYER</span> reliable role
               <span style={ch.footerSep}>·</span>
               <span style={{ color: TIER_META.G_TIER.text }}>G TIER</span> low/negative impact
             </span>
@@ -246,12 +316,13 @@ export default function SeriesChart() {
             </span>
           </div>
         </div>
+        </div>
       </div>
     </div>
   )
 }
 
-function PlayerRow({ gtag, displayName, side, teamLabel, tier, tierMeta, isMvp, tags, impactNote, stats, seriesWon, brandoGtag }) {
+function PlayerRow({ gtag, displayName, side, teamLabel, tier, tierMeta, isMvp, tags, impactNote, matchupLine, stats, seriesWon, brandoGtag }) {
   const p = stats || {}
   const teamColor = TEAM_COLORS[side] || '#888'
 
@@ -297,9 +368,11 @@ function PlayerRow({ gtag, displayName, side, teamLabel, tier, tierMeta, isMvp, 
         ) : <span style={{ color: '#333' }}>—</span>}
       </div>
 
-      {/* Impact notes */}
-      <div style={{ ...ch.col, flex: 1, color: '#aaa', fontSize: '0.72rem', lineHeight: 1.45, padding: '0.5rem 0.75rem' }}>
-        {impactNote || ''}
+      {/* Impact notes + matchup line */}
+      <div style={{ ...ch.col, flex: 1, flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem', fontSize: '0.72rem', lineHeight: 1.45, padding: '0.5rem 0.75rem' }}>
+        {impactNote && <span style={{ color: '#aaa' }}>{impactNote}</span>}
+        {matchupLine && <span style={{ color: '#555', fontSize: '0.65rem' }}>{matchupLine}</span>}
+        {!impactNote && !matchupLine && ''}
       </div>
     </div>
   )

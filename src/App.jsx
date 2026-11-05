@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Import from './pages/Import'
-import { useAuth } from './hooks/useAuth'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import MobileNav from './components/MobileNav'
 import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
@@ -14,6 +14,9 @@ import SeriesChart from './pages/SeriesChart'
 import RankingEditor from './pages/RankingEditor'
 import History from './pages/History'
 import Feed from './pages/Feed'
+import Claim from './pages/Claim'
+import Profile from './pages/Profile'
+import Rivalries from './pages/Rivalries'
 
 function ProtectedRoute({ children }) {
   const { session, loading } = useAuth()
@@ -23,16 +26,24 @@ function ProtectedRoute({ children }) {
 }
 
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 
 function RecoveryRedirect() {
+  const navigate = useNavigate()
   useEffect(() => {
-    // When Supabase drops a recovery token in the hash, redirect to /login to handle it
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        window.location.replace('/login' + window.location.hash)
+    // If a password-reset link lands on a non-login page, send it to /login
+    const hash = window.location.hash
+    if (window.location.pathname !== '/login' && hash && hash.includes('type=recovery')) {
+      navigate('/login' + hash, { replace: true })
+      return
+    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY' && window.location.pathname !== '/login') {
+        navigate('/login' + window.location.hash, { replace: true })
       }
     })
+    return () => subscription.unsubscribe()
   }, [])
   return null
 }
@@ -40,6 +51,7 @@ function RecoveryRedirect() {
 export default function App() {
   return (
     <BrowserRouter>
+      <AuthProvider>
       <RecoveryRedirect />
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -47,19 +59,23 @@ export default function App() {
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/history" element={<History />} />
         <Route path="/feed" element={<Feed />} />
+        <Route path="/claim" element={<Claim />} />
         <Route path="/login" element={<Login />} />
         <Route path="/series/new" element={<ProtectedRoute><NewSeries /></ProtectedRoute>} />
         <Route path="/series/:id" element={<SeriesDetail />} />
-        <Route path="/series/:id/add-game" element={<GameEntry />} />
+        <Route path="/series/:id/add-game" element={<ProtectedRoute><GameEntry /></ProtectedRoute>} />
         <Route path="/series/:id/game/:gameId/matchup" element={<LogMatchup />} />
         <Route path="/series/:id/accolades" element={<Accolades />} />
         <Route path="/series/:id/chart" element={<SeriesChart />} />
         <Route path="/series/:id/rankings" element={<ProtectedRoute><RankingEditor /></ProtectedRoute>} />
         <Route path="/series/:id/game/:gameId/edit" element={<ProtectedRoute><GameEntry /></ProtectedRoute>} />
+        <Route path="/player/:gamertag" element={<Profile />} />
+        <Route path="/rivalries" element={<Rivalries />} />
         <Route path="/import" element={<ProtectedRoute><Import /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <MobileNav />
+      </AuthProvider>
     </BrowserRouter>
   )
 }

@@ -33,7 +33,7 @@
     # - scripts: self + unsafe-inline for Vite HMR in dev (locked down in prod via meta tag)
     # - connect: self + Supabase + Anthropic (via our own functions only)
     # - images: self + blob (for html-to-image PNG export) + data URIs
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' blob: data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self' https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 
 # ── HTML — no cache (SPA shell changes with every deploy) ─────────────────────
 [[headers]]

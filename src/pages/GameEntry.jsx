@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext'
 import { IconCheck, IconX, IconWarn } from '../lib/icons'
 
 const STAT_COLS = ['pts','reb','ast','stl','blk','fouls','tov','fgm','fga','tpm','tpa','ftm','fta']
@@ -17,18 +17,21 @@ const emptyPlayer = (slot) => ({
   matchup_gamertag: '',
 })
 
+const todayISO = () => new Date().toISOString().slice(0, 10)
+
 const emptyGame = (series) => ({
   game_number: '',
   our_score: '',
   opp_score: '',
   our_result: 'W',
+  played_at: todayISO(),
   our_players: POSITIONS.map((_, i) => emptyPlayer(i+1)),
   opp_players: POSITIONS.map((_, i) => emptyPlayer(i+1)),
 })
 
 export default function GameEntry() {
   const { id: seriesId } = useParams()
-  const { isEditor, session } = useAuth()
+  const { isEditor, session, loading: authLoading, gamertagLoading } = useAuth()
   const navigate = useNavigate()
 
   const [series, setSeries] = useState(null)
@@ -71,9 +74,13 @@ export default function GameEntry() {
 
     try {
       const base64 = await fileToBase64(file)
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
       const res = await fetch('/.netlify/functions/parse-screenshot', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentSession?.access_token ? { 'Authorization': `Bearer ${currentSession.access_token}` } : {}),
+        },
         body: JSON.stringify({ image_base64: base64, media_type: file.type, series_id: seriesId }),
       })
       const data = await res.json()
@@ -152,27 +159,43 @@ export default function GameEntry() {
   const duplicateGame = game && existingGames.some(g => g.game_number === Number(game.game_number))
 
   // ── Save ─────────────────────────────────────────────────────────────
-  async function handleSave() {
+  const [forceSubmit, setForceSubmit] = useState(false)
+  const [duplicateWarning, setDuplicateWarning] = useState(null)
+
+  async function handleSave(force = false) {
     if (!totalsOk && !overrideTotal) return
     if (duplicateGame) { setSaveError(`Game ${game.game_number} already exists in this series.`); return }
     setSaving(true)
     setSaveError('')
+    setDuplicateWarning(null)
 
     try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
       const res = await fetch('/.netlify/functions/add-game', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentSession?.access_token ? { 'Authorization': `Bearer ${currentSession.access_token}` } : {}),
+        },
         body: JSON.stringify({
           series_id: seriesId,
           game_number: Number(game.game_number),
           our_score: Number(game.our_score),
           opp_score: Number(game.opp_score),
           our_result: game.our_result,
+          played_at: game.played_at || new Date().toISOString(),
           our_players: game.our_players,
           opp_players: game.opp_players,
+          ...(force ? { force: true } : {}),
         }),
       })
       const data = await res.json()
+      if (res.status === 409 && (data.error === 'duplicate_score' || data.error === 'duplicate_stats')) {
+        // Surface the warning and let the user decide whether to force through
+        setDuplicateWarning(data.message)
+        setSaving(false)
+        return
+      }
       if (!res.ok) throw new Error(data.error || 'Save failed')
       navigate(`/series/${seriesId}`)
     } catch (err) {
@@ -191,7 +214,8 @@ export default function GameEntry() {
     }))
   }
 
-  if (!game) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
+  if (!game || authLoading || gamertagLoading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
+  if (!isEditor) return <div style={s.page}><p style={s.dim}>Commissioner access required.</p></div>
 
   return (
     <div style={s.page}>
@@ -200,7 +224,7 @@ export default function GameEntry() {
 
       {/* Screenshot drop zone */}
       <div
-        style={{...s.dropZone, borderColor: dragOver ? '#1d6ef5' : '#2a2a2a', background: dragOver ? '#0a1a2a' : '#080808'}}
+        style={{...s.dropZone, borderColor: dragOver ? '#f4701b' : '#2a2a2a', background: dragOver ? '#1a0a2e' : '#080808'}}
         onDragOver={e => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }}
@@ -213,7 +237,7 @@ export default function GameEntry() {
           <div style={{...s.dropText, display:'flex', alignItems:'center', gap:6}}><IconCheck size={14} color="#4ade80" /> {screenshotFile.name} — stats loaded below. Verify and save.</div>
         ) : (
           <div style={s.dropText}>
-            Drop box score screenshot here or <span style={{color:'#1d6ef5'}}>click to upload</span>
+            Drop box score screenshot here or <span style={{color:'#f4701b'}}>click to upload</span>
             <div style={s.dropSub}>AI will parse all stats + matchups automatically</div>
           </div>
         )}
@@ -228,6 +252,9 @@ export default function GameEntry() {
               <option key={n} value={n}>Game {n}</option>
             ))}
           </select>
+        </label>
+        <label style={s.label}>Date Played
+          <input style={s.input} type="date" value={game.played_at || todayISO()} onChange={e => setGame(g => ({...g, played_at: e.target.value}))} />
         </label>
         <label style={s.label}>Result
           <select style={s.input} value={game.our_result} onChange={e => setGame(g => ({...g, our_result: e.target.value}))}>
@@ -248,9 +275,12 @@ export default function GameEntry() {
         <TotalCheck label={`${series?.our_team_name || 'Our'} PTS`} sum={ourPtsSum} score={Number(game.our_score)} ok={ourMatch} />
         <TotalCheck label={`${series?.opp_team_name || 'Opp'} PTS`} sum={oppPtsSum} score={Number(game.opp_score)} ok={oppMatch} />
         {!totalsOk && (
-          <label style={s.overrideLabel}>
-            <input type="checkbox" checked={overrideTotal} onChange={e => setOverrideTotal(e.target.checked)} />
-            <span style={{marginLeft:6, color:'#ffc107'}}>Override (stat totals don't match — acknowledge discrepancy)</span>
+          <label style={{...s.overrideLabel, background:'#1a1200', border:'1px solid #4a3000', borderRadius:5, padding:'0.5rem 0.75rem', marginTop:4}}>
+            <input type="checkbox" checked={overrideTotal} onChange={e => setOverrideTotal(e.target.checked)} style={{width:16,height:16,cursor:'pointer',accentColor:'#f4701b'}} />
+            <div style={{marginLeft:8}}>
+              <div style={{color:'#fbbf24', fontWeight:700, fontSize:'0.82rem'}}>Totals don't match the score</div>
+              <div style={{color:'#888', fontSize:'0.75rem', marginTop:2}}>Check this box to save anyway (partial stats, missing players, etc.)</div>
+            </div>
           </label>
         )}
       </div>
@@ -266,7 +296,7 @@ export default function GameEntry() {
         side="our"
         players={game.our_players}
         allPlayers={allPlayers}
-        teamColor="#4da6ff"
+        teamColor="#9333ea"
         onChange={updatePlayer}
         showMatchup={false}
       />
@@ -282,13 +312,29 @@ export default function GameEntry() {
 
       {saveError && <p style={s.error}>{saveError}</p>}
 
+      {duplicateWarning && (
+        <div style={{background:'rgba(255,165,0,0.12)', border:'1px solid #f97316', borderRadius:8, padding:'0.75rem 1rem', marginBottom:'0.75rem'}}>
+          <p style={{color:'#fb923c', fontSize:'0.85rem', margin:'0 0 0.5rem 0', fontWeight:700}}>⚠️ Possible Duplicate Detected</p>
+          <p style={{color:'#fcd34d', fontSize:'0.8rem', margin:'0 0 0.75rem 0'}}>{duplicateWarning}</p>
+          <div style={{display:'flex', gap:'0.5rem'}}>
+            <button onClick={() => handleSave(true)} style={{background:'#f97316', color:'#fff', border:'none', borderRadius:6, padding:'0.4rem 0.8rem', fontSize:'0.8rem', cursor:'pointer', fontWeight:700}}>Submit Anyway</button>
+            <button onClick={() => setDuplicateWarning(null)} style={{background:'none', color:'#fb923c', border:'1px solid #f97316', borderRadius:6, padding:'0.4rem 0.8rem', fontSize:'0.8rem', cursor:'pointer'}}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       <button
-        onClick={handleSave}
+        onClick={() => handleSave(false)}
         disabled={saving || duplicateGame || (!totalsOk && !overrideTotal)}
         style={{...s.btnSave, opacity: (saving || duplicateGame || (!totalsOk && !overrideTotal)) ? 0.4 : 1}}
       >
         {saving ? 'Saving...' : 'Save Game'}
       </button>
+      {!totalsOk && !overrideTotal && !duplicateGame && (
+        <p style={{color:'#888', fontSize:'0.78rem', marginTop:'0.5rem'}}>
+          ↑ Check the override box above to save with mismatched totals
+        </p>
+      )}
     </div>
   )
 }
@@ -409,7 +455,7 @@ const s = {
   totalsBar: { display:'flex', gap:'1.5rem', alignItems:'center', background:'#080808', border:'1px solid #1a1a1a', borderRadius:6, padding:'0.75rem 1rem', marginBottom:'1rem', flexWrap:'wrap' },
   overrideLabel: { display:'flex', alignItems:'center', cursor:'pointer', fontSize:'0.82rem' },
   warnBanner: { background:'#2a1a00', border:'1px solid #5a3500', borderRadius:4, padding:'0.6rem 1rem', color:'#ffc107', fontSize:'0.85rem', marginBottom:'1rem' },
-  btnSave: { background:'#1d6ef5', color:'#fff', border:'none', borderRadius:4, padding:'0.85rem 2rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', marginTop:'1rem' },
+  btnSave: { background:'#f4701b', color:'#fff', border:'none', borderRadius:4, padding:'0.85rem 2rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', marginTop:'1rem' },
   error: { color:'#e55', fontSize:'0.85rem' },
   dim: { color:'#555' },
 }

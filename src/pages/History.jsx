@@ -13,7 +13,7 @@ const TIER_ORDER = ['ELITE', 'STRONG', 'SOLID', 'G_TIER']
 const TIER_META = {
   ELITE:  { label: 'E',  short: 'ELITE',  color: colors.elite,  bg: colors.eliteBg },
   STRONG: { label: 'S',  short: 'STR',    color: colors.strong, bg: colors.strongBg },
-  SOLID:  { label: 'SO', short: 'SOLID',  color: colors.solid,  bg: colors.solidBg },
+  SOLID:  { label: 'RP', short: 'ROLE PLAYER',  color: colors.solid,  bg: colors.solidBg },
   G_TIER: { label: 'G',  short: 'G',      color: colors.gTier,  bg: colors.gTierBg },
 }
 
@@ -82,7 +82,7 @@ const COLUMNS = [
   { key: 'mvp_count',    label: 'MVPs',    numeric: true,  colorType: null },
   { key: 'elite_count',  label: 'ELITE',   numeric: true,  colorType: null },
   { key: 'strong_count', label: 'STRONG',  numeric: true,  colorType: null },
-  { key: 'solid_count',  label: 'SOLID',   numeric: true,  colorType: null },
+  { key: 'solid_count',  label: 'ROLE PL', numeric: true,  colorType: null },
   { key: 'g_tier_count', label: 'G TIER',  numeric: true,  colorType: null },
 ]
 
@@ -126,8 +126,8 @@ export default function History() {
           supabase.from('series_rankings').select('*, players(gamertag,display_name)'),
           supabase.from('player_head_to_head').select('*'),
           supabase.from('series_player_stats').select('*'),
-          supabase.from('game_matchups').select('game_id,defender_player_id,offensive_player_id'),
-          supabase.from('game_stats').select('game_id,player_id,pts'),
+          supabase.from('game_matchups').select('game_id,series_id,defender_player_id,offensive_player_id'),
+          supabase.from('game_stats').select('game_id,series_id,player_id,pts'),
         ])
         if (e1 || e2 || e3) throw new Error('Failed to load history data.')
         setCareerStats(career || [])
@@ -202,21 +202,23 @@ export default function History() {
       if (!statsBySeries[s.series_id]) statsBySeries[s.series_id] = []
       statsBySeries[s.series_id].push(s)
     }
-    // Index game_stats and matchups by series for defensive delta computation
-    const gamesBySeries = {}
-    for (const gs of allGameStats) {
-      // game_stats doesn't have series_id directly; we'll index by game_id and resolve via allSeriesStats
+    // Index matchups and game_stats by series_id for isolated per-series delta computation
+    const matchupsBySeries = {}
+    for (const m of allMatchups) {
+      if (!matchupsBySeries[m.series_id]) matchupsBySeries[m.series_id] = []
+      matchupsBySeries[m.series_id].push(m)
     }
-    // Build game_id → series_id map from series_player_stats (which has series_id + game context via allMatchups)
-    // We'll use allMatchups game_ids and resolve series via games embedded in allSeriesStats player data
-    // Simpler: compute deltas per series using matchups filtered to games in that series
-    // We need game_id → series_id — build from allSeriesStats which has series_id + player_id (no game_id)
-    // Best approach: pass all matchups + gameStats to computeDefensiveDeltas per series using series_player_stats
-    // For now compute globally (cross-series) as a reasonable approximation for auto-tier display
+    const gameStatsBySeries = {}
+    for (const gs of allGameStats) {
+      if (!gameStatsBySeries[gs.series_id]) gameStatsBySeries[gs.series_id] = []
+      gameStatsBySeries[gs.series_id].push(gs)
+    }
 
     for (const [seriesId, stats] of Object.entries(statsBySeries)) {
       if (finalizedSeriesIds.has(seriesId)) continue
-      const defDeltas = computeDefensiveDeltas(allMatchups, allGameStats, stats)
+      const seriesMatchups = matchupsBySeries[seriesId] || []
+      const seriesGameStats = gameStatsBySeries[seriesId] || []
+      const defDeltas = computeDefensiveDeltas(seriesMatchups, seriesGameStats, stats)
       const computed = computeImpactScores(stats, defDeltas)
       for (const r of computed) {
         autoRankings.push({ ...r, series_id: seriesId, auto: true })
@@ -279,6 +281,9 @@ export default function History() {
           </div>
         </div>
       </div>
+
+      {/* Page accent stripe */}
+      <div style={{ height: 2, background: 'linear-gradient(90deg, #f4701b, rgba(244,112,27,0.3) 50%, transparent)', width: '100%' }} />
 
       {/* Tabs */}
       <div style={s.tabBar}>
@@ -722,24 +727,30 @@ function RivalriesTab({ h2h }) {
           const pctA = total > 0 ? winsA / total : 0.5
           const dominant = winsA > winsB ? pA : winsB > winsA ? pB : null
 
+          const COL_A = '#f4701b'   // orange
+          const COL_B = '#9333ea'
+
           return (
             <div key={i} style={s.rivalCard}>
               <div style={s.rivalPlayers}>
-                <span style={{ ...s.rivalName, color: winsA > winsB ? colors.orange : colors.textSecondary }}>{pA}</span>
+                <span style={{ ...s.rivalName, color: COL_A, opacity: winsA >= winsB ? 1 : 0.45 }}>{pA}</span>
                 <span style={s.rivalVs}>VS</span>
-                <span style={{ ...s.rivalName, color: winsB > winsA ? colors.orange : colors.textSecondary }}>{pB}</span>
+                <span style={{ ...s.rivalName, color: COL_B, opacity: winsB >= winsA ? 1 : 0.45, textAlign: 'right' }}>{pB}</span>
               </div>
-              {/* Win bar */}
+              {/* Split win bar: A fills from left in orange, B fills from right in blue */}
               <div style={s.rivalBar}>
-                <div style={{ ...s.rivalBarFill, width: `${pctA * 100}%`, background: colors.orange }} />
+                <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+                  <div style={{ width: `${pctA * 100}%`, background: `linear-gradient(90deg, ${COL_A}cc, ${COL_A})`, borderRadius: '2px 0 0 2px', transition: 'width 0.4s ease' }} />
+                  <div style={{ flex: 1, background: `linear-gradient(90deg, ${COL_B}, ${COL_B}cc)`, borderRadius: '0 2px 2px 0', transition: 'width 0.4s ease' }} />
+                </div>
               </div>
               <div style={s.rivalRecord}>
-                <span style={s.rivalWins}>{winsA}W</span>
+                <span style={{ ...s.rivalWins, color: COL_A }}>{winsA}W</span>
                 <span style={s.rivalGP}>{total} games</span>
-                <span style={s.rivalWins}>{winsB}W</span>
+                <span style={{ ...s.rivalWins, color: COL_B }}>{winsB}W</span>
               </div>
               {dominant && (
-                <div style={s.rivalDominant}>
+                <div style={{ ...s.rivalDominant, color: dominant === pA ? COL_A : COL_B }}>
                   {dominant} leads this rivalry
                 </div>
               )}
@@ -788,10 +799,11 @@ const s = {
   },
   pageSub: {
     fontFamily: "'Inter', system-ui, sans-serif",
-    fontSize: 11,
-    color: colors.textMuted,
+    fontSize: 9,
+    fontWeight: 700,
+    color: '#333',
     marginTop: 2,
-    letterSpacing: '0.04em',
+    letterSpacing: 3,
     textTransform: 'uppercase',
   },
   tabBar: {
@@ -955,6 +967,7 @@ const s = {
     display: 'block',
     background: colors.surface,
     border: `1px solid ${colors.border}`,
+    borderLeft: `3px solid #f4701b`,
     borderRadius: radius.lg,
     textDecoration: 'none',
     color: 'inherit',
@@ -1014,6 +1027,7 @@ const s = {
   draftWrap: {
     background: colors.surface,
     border: `1px solid ${colors.border}`,
+    borderLeft: `3px solid #9333ea`,
     borderRadius: radius.lg,
     padding: '12px 16px',
     marginBottom: 16,
@@ -1165,6 +1179,7 @@ const s = {
   achCard: {
     background: colors.surface,
     border: `1px solid ${colors.border}`,
+    borderLeft: `3px solid #f4701b`,
     borderRadius: radius.lg,
     padding: '14px 16px',
   },
@@ -1244,11 +1259,11 @@ const s = {
     padding: '0 12px',
   },
   rivalBar: {
-    height: 4,
-    background: `${colors.border}`,
+    height: 5,
+    background: 'transparent',
     borderRadius: 2,
     overflow: 'hidden',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   rivalBarFill: {
     height: '100%',

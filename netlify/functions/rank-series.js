@@ -13,6 +13,9 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@supabase/supabase-js'
+
+const COMMISSIONERS = ['BrandoBank']
 
 // ── Rate limiter ──────────────────────────────────────────────────────────────
 const _rlStore = new Map()
@@ -131,6 +134,27 @@ export default async function handler(req, context) {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { 'Content-Type': 'application/json' } })
   }
 
+  // ── Auth: commissioner only ─────────────────────────────────────────────────
+  const authHeader = req.headers.get('authorization') || ''
+  const token = authHeader.replace(/^Bearer\s+/i, '')
+  if (!token) {
+    return new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401, headers: { 'Content-Type': 'application/json' } })
+  }
+  const supabaseAdmin = createClient(
+    process.env.VITE_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+  const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
+  if (authErr || !user) {
+    return new Response(JSON.stringify({ error: 'Invalid or expired session' }), { status: 401, headers: { 'Content-Type': 'application/json' } })
+  }
+  const { data: callerPlayer } = await supabaseAdmin
+    .from('players').select('gamertag').eq('user_id', user.id).maybeSingle()
+  if (!callerPlayer || !COMMISSIONERS.includes(callerPlayer.gamertag)) {
+    return new Response(JSON.stringify({ error: 'Commissioner access required' }), { status: 403, headers: { 'Content-Type': 'application/json' } })
+  }
+
   // ── Rate limit ──────────────────────────────────────────────────────────────
   const ip = _getIp(req)
   if (!_rateLimit(ip)) {
@@ -187,8 +211,8 @@ export default async function handler(req, context) {
     spg:           p.spg,
     bpg:           p.bpg,
     tov_pg:        p.tovpg,
-    fg_pct:        p.fg_pct ? `${(p.fg_pct * 100).toFixed(1)}%` : 'N/A',
-    three_pct:     p.three_pct ? `${(p.three_pct * 100).toFixed(1)}%` : 'N/A',
+    fg_pct:        p.fg_pct != null ? `${Number(p.fg_pct).toFixed(1)}%` : 'N/A',
+    three_pct:     p.three_pct != null ? `${Number(p.three_pct).toFixed(1)}%` : 'N/A',
     total_tpa:     p.total_tpa,
     total_fga:     p.total_fga,
     best_pts:      p.best_pts,

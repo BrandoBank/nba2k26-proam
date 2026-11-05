@@ -72,9 +72,27 @@ Return ONLY valid JSON with no markdown fences, no explanation, no trailing text
   }
 }`
 
+const COMMISSIONERS = ['BrandoBank']
+
 export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+  }
+
+  // Require commissioner session
+  const authHeader = req.headers.get('authorization') || ''
+  const token = authHeader.replace(/^Bearer\s+/i, '')
+  if (!token) {
+    return new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401 })
+  }
+  const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
+  if (authErr || !user) {
+    return new Response(JSON.stringify({ error: 'Invalid or expired session' }), { status: 401 })
+  }
+  const { data: callerPlayer } = await supabaseAdmin
+    .from('players').select('gamertag').eq('user_id', user.id).maybeSingle()
+  if (!callerPlayer || !COMMISSIONERS.includes(callerPlayer.gamertag)) {
+    return new Response(JSON.stringify({ error: 'Commissioner access required' }), { status: 403 })
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY

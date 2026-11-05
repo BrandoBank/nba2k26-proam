@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext'
 import { colors } from '../lib/theme'
 import { useNavigate } from 'react-router-dom'
 import { IconBall, IconFlame, IconTrophy, IconShield, IconStar, IconSnowflake, IconChat, IconX, IconCheck } from '../lib/icons'
@@ -15,7 +15,7 @@ const NEON_P_GLOW = 'rgba(168,85,247,0.18)'
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Landing() {
-  const { isEditor } = useAuth()
+  const { isEditor, session, signOut, gamertag: authGamertag, gamertagLoading } = useAuth()
   const [activeSeries, setActiveSeries] = useState([])
   const [recentSeries, setRecentSeries] = useState([])
   const [careers, setCareers] = useState([])
@@ -24,6 +24,16 @@ export default function Landing() {
   const [coldList, setColdList] = useState([])
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
+
+  // Poll comments separately so deletions reflect without full reload
+  useEffect(() => {
+    async function fetchComments() {
+      const { data } = await supabase.from('comments').select('*').order('created_at', { ascending: false }).limit(30)
+      if (data) setComments(data)
+    }
+    const id = setInterval(fetchComments, 20_000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     async function fetchAll() {
@@ -52,15 +62,17 @@ export default function Landing() {
         rnk.forEach(r => {
           const gtag = r.players?.gamertag
           if (!gtag) return
-          if (!byPlayer[gtag]) byPlayer[gtag] = { gamertag: gtag, display_name: r.players?.display_name, tiers: [] }
-          byPlayer[gtag].tiers.push(r.tier)
+          if (!byPlayer[gtag]) byPlayer[gtag] = { gamertag: gtag, display_name: r.players?.display_name, entries: [] }
+          byPlayer[gtag].entries.push({ tier: r.tier, ended_at: r.series?.ended_at || '' })
         })
         const streaks = Object.values(byPlayer).map(p => {
+          const sorted = [...p.entries].sort((a, b) => a.ended_at.localeCompare(b.ended_at))
+          const tiers = sorted.map(e => e.tier)
           let cur = 0, max = 0
-          p.tiers.forEach(t => { if (t === 'ELITE') { cur++; max = Math.max(max, cur) } else cur = 0 })
+          tiers.forEach(t => { if (t === 'ELITE') { cur++; max = Math.max(max, cur) } else cur = 0 })
           // Ice cold: last tier was G_TIER after being STRONG or ELITE
-          const last = p.tiers[p.tiers.length - 1]
-          const prev = p.tiers[p.tiers.length - 2]
+          const last = tiers[tiers.length - 1]
+          const prev = tiers[tiers.length - 2]
           const iceCold = last === 'G_TIER' && (prev === 'STRONG' || prev === 'ELITE')
           return { ...p, currentStreak: cur, maxStreak: max, iceCold }
         })
@@ -77,19 +89,53 @@ export default function Landing() {
 
   return (
     <div style={s.page}>
+      <style>{`
+        @keyframes tickerScroll { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+        .landing-nav { display: flex; }
+        @media (min-width: 900px) { .landing-nav { display: none !important; } }
+      `}</style>
+      {/* Unclaimed-user banner */}
+      {session && !gamertagLoading && !authGamertag && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          background: 'linear-gradient(90deg, #f4701b, #d4580f)',
+          padding: '10px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <span style={{ color: '#000', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 800, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            You're in! Claim your player tag to unlock your profile.
+          </span>
+          <Link to="/claim" style={{ background: '#000', color: '#f4701b', padding: '6px 14px', borderRadius: 6, fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+            Claim Now →
+          </Link>
+        </div>
+      )}
+
       {/* ARCADE BACKGROUND */}
       <div style={s.arcadeBg} />
 
-      {/* NAV */}
-      <nav style={s.nav}>
+      {/* NAV — mobile only; desktop uses MobileNav's desktop-topbar */}
+      <nav style={s.nav} className="landing-nav">
         <Link to="/" style={s.logo}>
           <IconBall size={16} color={OR} />
           <span>NEXT UP</span>
         </Link>
         <div style={s.navRight}>
-          <Link to="/leagues" style={s.navLink}>Series</Link>
-          <Link to="/history" style={s.navLink}>History</Link>
-          {isEditor && <Link to="/series/new" style={s.navCta}>+ New</Link>}
+          {session ? (
+            <div style={s.navProfile}>
+              <Link to={authGamertag ? `/player/${authGamertag}` : '/claim'} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div style={s.navAvatar}>
+                  {(authGamertag?.[0] || session.user.email?.[0] || 'U').toUpperCase()}
+                </div>
+                <span style={s.navProfileLabel}>
+                  {(authGamertag || session.user.email?.split('@')[0] || '').toUpperCase()}
+                </span>
+              </Link>
+              <button onClick={signOut} style={s.navSignOut}>OUT</button>
+            </div>
+          ) : (
+            <Link to="/login" style={s.navCta}>Sign In</Link>
+          )}
         </div>
       </nav>
 
@@ -112,10 +158,8 @@ export default function Landing() {
         </section>
       )}
 
-      {/* ALL-TIME LEADERBOARD */}
-      <section style={s.section}>
-        <AllTimeLeaderboard />
-      </section>
+      {/* JUMBOTRON — ALL-TIME LEADERBOARD */}
+      <Jumbotron careers={careers} />
 
       {/* CULTURE BADGES: HOT + COLD */}
       {(hotStreaks.length > 0 || coldList.length > 0) && (
@@ -206,18 +250,20 @@ export default function Landing() {
           </div>
           <div style={s.recentGrid}>
             {recentSeries.map(ser => {
-              const w = ser.our_wins > ser.opp_wins
+              const highScore = Math.max(ser.our_wins, ser.opp_wins)
+              const lowScore = Math.min(ser.our_wins, ser.opp_wins)
+              const winner = ser.our_wins > ser.opp_wins ? ser.our_team_name : ser.opp_team_name
               return (
                 <Link key={ser.id} to={`/series/${ser.id}`} style={s.recentCard}>
-                  <div style={{...s.recentAccent, background: w ? colors.statGreen : colors.statRed}} />
+                  <div style={{...s.recentAccent, background: OR}} />
                   <div style={s.recentBody}>
                     <div style={s.recentName}>{ser.name}</div>
                     <div style={s.recentTeams}>{ser.our_team_name} <span style={{color:'#2a2a2a'}}>vs</span> {ser.opp_team_name}</div>
                     {ser.storyline && <div style={s.recentStory}>{ser.storyline}</div>}
                     <div style={s.recentBottom}>
-                      <span style={s.recentScore}>{ser.our_wins}–{ser.opp_wins}</span>
-                      <span style={{color: w ? colors.statGreen : colors.statRed, fontWeight: 800, fontSize: '0.75rem', letterSpacing: '0.06em'}}>
-                        {ser.result_label || (w ? 'W' : 'L')}
+                      <span style={s.recentScore}>{highScore}–{lowScore}</span>
+                      <span style={{color: OR, fontWeight: 800, fontSize: '0.75rem', letterSpacing: '0.06em'}}>
+                        {winner ? `${winner} wins` : 'FINAL'}
                       </span>
                     </div>
                   </div>
@@ -299,6 +345,330 @@ function ActiveSeriesCard({ series: ser }) {
   )
 }
 
+// ─── Jumbotron ───────────────────────────────────────────────────────────────
+
+const JB_STATS = [
+  { key: 'career_ppg',   label: 'PPG',    color: OR,              suffix: '' },
+  { key: 'career_fg_pct',label: 'FG%',    color: colors.statGreen,suffix: '%' },
+  { key: 'career_3p_pct',label: '3P%',    color: colors.gold,     suffix: '%' },
+  { key: 'career_apg',   label: 'APG',    color: '#60a5fa',       suffix: '' },
+  { key: 'career_rpg',   label: 'RPG',    color: '#a78bfa',       suffix: '' },
+  { key: 'career_spg',   label: 'SPG',    color: '#06b6d4',       suffix: '' },
+  { key: 'elite_count',  label: 'ELITE',  color: colors.elite,    suffix: '' },
+  { key: 'mvp_count',    label: 'MVPs',   color: colors.gold,     suffix: '' },
+  { key: 'g_tier_count', label: 'G TIER', color: colors.gTier,    suffix: '', rainbow: true },
+]
+
+function Jumbotron({ careers }) {
+  const navigate = useNavigate()
+  const [statIdx, setStatIdx] = useState(0)
+  const [fading, setFading] = useState(false)
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setFading(true)
+      setTimeout(() => { setStatIdx(i => (i + 1) % JB_STATS.length); setFading(false) }, 300)
+    }, 12000)
+    return () => clearInterval(id)
+  }, [])
+
+  function selectStat(i) {
+    if (i === statIdx) return
+    setFading(true)
+    setTimeout(() => { setStatIdx(i); setFading(false) }, 200)
+  }
+
+  const stat = JB_STATS[statIdx]
+  const ranked = [...(careers || [])]
+    .filter(p => (p.total_gp >= 3 || ['elite_count','mvp_count'].includes(stat.key)) && Number(p[stat.key]) > 0)
+    .sort((a, b) => Number(b[stat.key]) - Number(a[stat.key]))
+    .slice(0, 10)
+
+  const rankColors = [colors.gold, '#b0b0b0', '#cd7f32', '#555', '#3a3a3a', '#2e2e2e', '#2e2e2e', '#2e2e2e', '#2e2e2e', '#2e2e2e']
+
+  return (
+    <section style={jb.outer}>
+      {/* corner bracket decorations */}
+      <div style={{...jb.corner, top:0,left:0,borderTop:`2px solid ${OR}`,borderLeft:`2px solid ${OR}`}} />
+      <div style={{...jb.corner, top:0,right:0,borderTop:`2px solid ${OR}`,borderRight:`2px solid ${OR}`}} />
+      <div style={{...jb.corner, bottom:0,left:0,borderBottom:`2px solid ${OR}`,borderLeft:`2px solid ${OR}`}} />
+      <div style={{...jb.corner, bottom:0,right:0,borderBottom:`2px solid ${OR}`,borderRight:`2px solid ${OR}`}} />
+
+      {/* dot-matrix overlay */}
+      <div style={jb.dots} />
+      {/* scanline overlay */}
+      <div style={jb.scanlines} />
+
+      {/* header bar */}
+      <div style={jb.headerBar}>
+        <div style={jb.headerLeft}>
+          <IconTrophy size={10} color={OR} />
+          <span style={jb.headerText}>ALL-TIME LEADERS</span>
+        </div>
+        <div style={jb.headerPipe} />
+        <span style={stat.rainbow ? {
+          ...jb.headerText, minWidth: 48, textAlign: 'center',
+          background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent',
+        } : {...jb.headerText, color: stat.color, minWidth: 48, textAlign: 'center'}}>{stat.label}</span>
+        <div style={jb.headerPipe} />
+        <Link to="/history" style={jb.headerLink}>FULL STATS →</Link>
+      </div>
+
+      {/* stat selector tabs */}
+      <div style={jb.tabRow}>
+        {JB_STATS.map((st, i) => (
+          <button key={st.key} onClick={() => selectStat(i)} style={{
+            ...jb.tab,
+            ...(i === statIdx && st.rainbow ? {
+              background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              borderBottomWidth: '2px', borderBottomStyle: 'solid', borderImageSlice: 1, borderImageSource: RAINBOW,
+            } : {
+              color: i === statIdx ? st.color : '#2a2a2a',
+              borderBottomColor: i === statIdx ? st.color : 'transparent',
+              textShadow: i === statIdx ? `0 0 8px ${st.color}` : 'none',
+            }),
+          }}>{st.label}</button>
+        ))}
+      </div>
+
+      {/* main board */}
+      <div style={{ ...jb.board, opacity: fading ? 0 : 1, transition: 'opacity 0.2s' }}>
+        {ranked.length === 0 ? (
+          <div style={jb.empty}>Logging series populates the board</div>
+        ) : ranked.map((p, i) => {
+          const val = Number(p[stat.key])
+          const max = Number(ranked[0][stat.key])
+          const barPct = max > 0 ? (val / max) * 100 : 0
+          const name = p.display_name || p.gamertag
+          const valStr = `${val % 1 === 0 ? val : val.toFixed(1)}${stat.suffix}`
+          const quoteStr = `${name} · ${valStr} ${stat.label} (All-Time)`
+          const isTop = i === 0
+          return (
+            <div key={p.player_id} style={{ ...jb.row, ...(isTop ? jb.rowTop : {}) }}>
+              {/* rank */}
+              <span style={{ ...jb.rankNum, color: rankColors[i], textShadow: isTop ? `0 0 12px ${rankColors[0]}` : 'none' }}>
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              {/* name + bar */}
+              <div style={jb.rowMid}>
+                <div style={jb.nameLine}>
+                  <span style={{ ...jb.playerName, fontSize: isTop ? '1.05rem' : '0.82rem', color: isTop ? '#fff' : '#888' }}>{name}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={stat.rainbow ? {
+                      ...jb.statVal, fontSize: isTop ? '1.3rem' : '0.95rem',
+                      background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                    } : { ...jb.statVal, color: stat.color, fontSize: isTop ? '1.3rem' : '0.95rem', textShadow: isTop ? `0 0 16px ${stat.color}` : 'none' }}>
+                      {valStr}
+                    </span>
+                    <button onClick={() => navigate(`/feed?quote=${encodeURIComponent(quoteStr)}`)} style={jb.chatBtn} title="Comment">
+                      <IconChat size={11} color={OR} />
+                    </button>
+                  </div>
+                </div>
+                <div style={jb.barTrack}>
+                  <div style={{ ...jb.barFill, width: `${barPct}%`, background: stat.rainbow ? RAINBOW : stat.color, boxShadow: isTop && !stat.rainbow ? `0 0 6px ${stat.color}` : 'none' }} />
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* bottom strip: manage */}
+      <div style={jb.bottomStrip}>
+        <Link to="/history" style={jb.bottomLink}><IconTrophy size={10} color="#333" /> view all →</Link>
+      </div>
+    </section>
+  )
+}
+
+const jb = {
+  outer: {
+    position: 'relative',
+    margin: '1.25rem 1rem',
+    background: 'linear-gradient(160deg,#040010 0%,#080014 40%,#050008 100%)',
+    border: `1px solid rgba(244,112,27,0.2)`,
+    borderRadius: 10,
+    overflow: 'hidden',
+    boxShadow: `0 0 40px rgba(244,112,27,0.08), inset 0 0 60px rgba(0,0,0,0.6)`,
+  },
+  corner: {
+    position: 'absolute',
+    width: 14,
+    height: 14,
+    zIndex: 4,
+  },
+  dots: {
+    position: 'absolute',
+    inset: 0,
+    backgroundImage: 'radial-gradient(circle, rgba(168,85,247,0.12) 1px, transparent 1px)',
+    backgroundSize: '4px 4px',
+    pointerEvents: 'none',
+    zIndex: 1,
+  },
+  scanlines: {
+    position: 'absolute',
+    inset: 0,
+    backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.18) 3px, rgba(0,0,0,0.18) 4px)',
+    pointerEvents: 'none',
+    zIndex: 2,
+  },
+  headerBar: {
+    position: 'relative',
+    zIndex: 3,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    background: 'rgba(0,0,0,0.7)',
+    borderBottom: `1px solid rgba(244,112,27,0.15)`,
+    padding: '7px 14px',
+  },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: 5 },
+  headerText: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontSize: '0.68rem',
+    fontWeight: 800,
+    letterSpacing: '0.18em',
+    color: OR,
+    textTransform: 'uppercase',
+  },
+  headerPipe: { width: 1, height: 12, background: 'rgba(244,112,27,0.2)' },
+  headerLink: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontSize: '0.62rem',
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    color: '#444',
+    textDecoration: 'none',
+    marginLeft: 'auto',
+  },
+  tabRow: {
+    position: 'relative',
+    zIndex: 3,
+    display: 'flex',
+    overflowX: 'auto',
+    scrollbarWidth: 'none',
+    background: 'rgba(0,0,0,0.4)',
+    borderBottom: '1px solid rgba(168,85,247,0.08)',
+    padding: '0 8px',
+  },
+  tab: {
+    background: 'none',
+    borderWidth: 0,
+    borderBottomWidth: '2px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'transparent',
+    color: '#2a2a2a',
+    fontSize: '0.62rem',
+    fontWeight: 800,
+    letterSpacing: '0.1em',
+    padding: '6px 8px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    textTransform: 'uppercase',
+    transition: 'color 0.2s',
+  },
+  board: {
+    position: 'relative',
+    zIndex: 3,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0,
+    padding: '8px 0 4px',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '6px 14px',
+    borderBottom: '1px solid rgba(168,85,247,0.04)',
+  },
+  rowTop: {
+    background: 'rgba(244,112,27,0.04)',
+    borderBottom: '1px solid rgba(244,112,27,0.08)',
+  },
+  rankNum: {
+    fontFamily: "'Barlow Condensed', monospace",
+    fontSize: '0.85rem',
+    fontWeight: 900,
+    minWidth: 22,
+    textAlign: 'right',
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '0.02em',
+  },
+  rowMid: { flex: 1 },
+  nameLine: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 3,
+  },
+  playerName: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+  },
+  statVal: {
+    fontFamily: "'Barlow Condensed', monospace",
+    fontWeight: 900,
+    letterSpacing: '0.02em',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  chatBtn: {
+    background: 'rgba(244,112,27,0.1)',
+    border: '1px solid rgba(244,112,27,0.25)',
+    borderRadius: 4,
+    cursor: 'pointer',
+    padding: '3px 5px',
+    display: 'flex',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  barTrack: {
+    height: 2,
+    background: 'rgba(168,85,247,0.06)',
+    borderRadius: 1,
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: '100%',
+    borderRadius: 1,
+    transition: 'width 0.5s ease',
+  },
+  empty: {
+    color: '#2a2a2a',
+    fontSize: '0.78rem',
+    textAlign: 'center',
+    padding: '2rem',
+    fontStyle: 'italic',
+    position: 'relative',
+    zIndex: 3,
+  },
+  bottomStrip: {
+    position: 'relative',
+    zIndex: 3,
+    display: 'flex',
+    justifyContent: 'flex-end',
+    padding: '6px 14px',
+    borderTop: '1px solid rgba(168,85,247,0.06)',
+    background: 'rgba(0,0,0,0.3)',
+  },
+  bottomLink: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    color: '#333',
+    textDecoration: 'none',
+    fontSize: '0.62rem',
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+  },
+}
+
 // ─── All-Time Leaderboard ─────────────────────────────────────────────────────
 
 const LB_STATS = [
@@ -377,7 +747,7 @@ function AllTimeLeaderboard() {
               ...lb.tab,
               color: active ? (isRainbow ? 'transparent' : st.color) : '#333',
               borderBottomColor: isRainbow ? 'transparent' : active ? st.color : 'transparent',
-              ...(isRainbow ? { background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', borderBottom: '2px solid', borderImageSlice: 1, borderImageSource: RAINBOW } : {}),
+              ...(isRainbow ? { background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', borderBottomWidth: '2px', borderBottomStyle: 'solid', borderImageSlice: 1, borderImageSource: RAINBOW } : {}),
             }}>
               {st.label}
             </button>
@@ -433,34 +803,30 @@ function AllTimeLeaderboard() {
 // ─── Comment Ticker ───────────────────────────────────────────────────────────
 
 function CommentTicker({ comments }) {
-  const ref = useRef(null)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let frame
-    function scroll() {
-      if (!el) return
-      el.scrollLeft += 0.5
-      if (el.scrollLeft >= el.scrollWidth / 2) el.scrollLeft = 0
-      frame = requestAnimationFrame(scroll)
-    }
-    frame = requestAnimationFrame(scroll)
-    return () => cancelAnimationFrame(frame)
-  }, [comments])
-
   const doubled = [...comments, ...comments]
+  // duration scales with number of items so speed stays consistent
+  const duration = Math.max(20, comments.length * 6)
 
   return (
     <div style={tk.wrap}>
-      <div style={tk.tag}>LOBBY TALK</div>
-      <div ref={ref} style={tk.track}>
-        {doubled.map((c, i) => (
-          <div key={i} style={tk.chip}>
-            <span style={tk.who}>{c.gamertag}</span>
-            <span style={tk.sep}>·</span>
-            <span style={tk.text}>{c.content}</span>
-          </div>
-        ))}
+      {/* ESPN-style left badge */}
+      <div style={tk.badge}>
+        <span style={tk.badgeTop}>NEXT UP</span>
+        <span style={tk.badgeBottom}>CREW FEED</span>
+      </div>
+      <div style={tk.divider} />
+      {/* scrolling content — CSS animation, works on mobile */}
+      <div style={tk.trackWrap}>
+        <div style={{ ...tk.track, animationDuration: `${duration}s` }}>
+          {doubled.map((c, i) => (
+            <span key={i} style={tk.item}>
+              <span style={tk.who}>{(c.gamertag || '').toUpperCase()}</span>
+              <span style={tk.colon}>:</span>
+              <span style={tk.text}>{c.body}</span>
+              <span style={tk.pipe}>|</span>
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -473,6 +839,7 @@ function CommentBox({ onPost }) {
   const [text, setText] = useState('')
   const [posting, setPosting] = useState(false)
   const [done, setDone] = useState(false)
+  const [postError, setPostError] = useState('')
   const [players, setPlayers] = useState([])
   const [showDrop, setShowDrop] = useState(false)
 
@@ -486,10 +853,11 @@ function CommentBox({ onPost }) {
 
   async function post() {
     if (!gtag.trim() || !text.trim()) return
+    setPostError('')
     setPosting(true)
     const { data, error } = await supabase.from('comments').insert({
       gamertag: gtag.trim(),
-      content: text.trim().slice(0, 200),
+      body: text.trim().slice(0, 200),
     }).select().single()
     setPosting(false)
     if (!error && data) {
@@ -497,6 +865,8 @@ function CommentBox({ onPost }) {
       setText('')
       setDone(true)
       setTimeout(() => setDone(false), 3000)
+    } else {
+      setPostError('Sign in and claim your gamertag to post.')
     }
   }
 
@@ -533,6 +903,7 @@ function CommentBox({ onPost }) {
           onChange={e => setText(e.target.value.slice(0, 200))}
           rows={2}
         />
+        {postError && <p style={{color:'#e55', fontSize:'0.78rem', margin:'0.25rem 0 0'}}>{postError}</p>}
         <div style={cb.footer}>
           <span style={cb.count}>{text.length}/200</span>
           {done ? (
@@ -603,14 +974,19 @@ function computeLeaders(careers) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = {
-  page: { minHeight: '100vh', background: '#000', color: '#fff', fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 80, position: 'relative' },
+  page: { minHeight: '100vh', background: '#0a0a0f', color: '#fff', fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 80, position: 'relative' },
   arcadeBg: { position: 'fixed', inset: 0, backgroundImage: 'url(/arcade-bg.png)', backgroundSize: 'cover', backgroundPosition: 'center top', opacity: 0.06, pointerEvents: 'none', zIndex: 0, filter: 'saturate(1.4)' },
 
-  nav: { position: 'sticky', top: 0, zIndex: 200, background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(16px)', borderBottom: `1px solid rgba(168,85,247,0.2)`, boxShadow: `0 1px 24px rgba(168,85,247,0.06)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem', height: 52 },
+  nav: { position: 'sticky', top: 0, zIndex: 200, background: 'rgba(10,10,15,0.96)', backdropFilter: 'blur(16px)', borderBottom: `1px solid rgba(168,85,247,0.2)`, boxShadow: `0 1px 24px rgba(168,85,247,0.06)`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '0 1rem', paddingTop: 'env(safe-area-inset-top, 0px)', minHeight: 'calc(52px + env(safe-area-inset-top, 0px))', boxSizing: 'border-box' },
   logo: { display: 'flex', alignItems: 'center', gap: 7, textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: '1.15rem', letterSpacing: '0.28em', color: '#fff', textShadow: `0 0 20px ${NEON_P_GLOW}`, textTransform: 'uppercase' },
   navRight: { display: 'flex', alignItems: 'center', gap: '0.25rem' },
   navLink: { color: '#555', textDecoration: 'none', fontSize: '0.82rem', padding: '0.4rem 0.6rem', fontFamily: "'Inter', system-ui, sans-serif" },
-  navCta: { background: VICE, color: '#fff', textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.88rem', fontWeight: 800, padding: '0.35rem 0.9rem', borderRadius: 6, marginLeft: '0.25rem', letterSpacing: '0.1em', textTransform: 'uppercase' },
+  desktopNavLink: { color: '#555', textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 700, fontSize: '0.85rem', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0.4rem 0.75rem', borderRadius: 5, transition: 'color 0.15s' },
+  navCta: { background: 'transparent', border: '1px solid #2a2a2a', color: '#666', textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.8rem', fontWeight: 700, padding: '0.3rem 0.8rem', borderRadius: 5, letterSpacing: '0.1em', textTransform: 'uppercase' },
+  navProfile: { display: 'flex', alignItems: 'center', gap: 7 },
+  navAvatar: { width: 28, height: 28, borderRadius: '50%', background: OR, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: '0.85rem', color: '#000', flexShrink: 0 },
+  navProfileLabel: { fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em', color: '#888', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  navSignOut: { background: 'none', border: '1px solid #222', borderRadius: 4, color: '#444', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', padding: '0.2rem 0.45rem', cursor: 'pointer', fontFamily: "'Barlow Condensed', system-ui, sans-serif" },
 
   activeSection: { padding: '1rem 1rem 0' },
   sectionLabel: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: '0.75rem' },
@@ -627,7 +1003,7 @@ const s = {
   activeBar: { height: '100%', background: VICE, borderRadius: 2, transition: 'width 0.6s ease', boxShadow: `0 0 8px ${NEON_P}` },
   activeFormat: { color: '#444', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' },
 
-  section: { padding: '1.5rem 1rem', borderBottom: `1px solid rgba(168,85,247,0.06)`, background: '#000' },
+  section: { padding: '1.5rem 1rem', borderBottom: `1px solid rgba(168,85,247,0.06)`, background: '#0a0a0f' },
   sectionHead: { marginBottom: '1.25rem' },
   eyebrow: { display: 'inline-flex', alignItems: 'center', gap: 5, color: NEON_P, fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '0.3rem' },
   h2: { fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '1.6rem', fontWeight: 900, margin: 0, letterSpacing: '0.06em', textTransform: 'uppercase' },
@@ -639,7 +1015,7 @@ const s = {
   badgeName: { flex: 1, fontWeight: 700, fontSize: '0.9rem', color: '#fff' },
 
   leadersGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1, background: 'rgba(168,85,247,0.08)', border: `1px solid rgba(168,85,247,0.12)`, borderRadius: 10, overflow: 'hidden' },
-  leaderCard: { background: '#000', padding: '0.9rem 1rem', border: '0 solid transparent' },
+  leaderCard: { background: '#0a0a0f', padding: '0.9rem 1rem', border: '0 solid transparent' },
   leaderLabel: { fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: '0.3rem' },
   leaderStat: { fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '1.8rem', fontWeight: 900, lineHeight: 1, marginBottom: '0.2rem', letterSpacing: '0.02em' },
   leaderName: { color: '#555', fontSize: '0.75rem', fontWeight: 500, fontFamily: "'Inter', system-ui, sans-serif" },
@@ -669,13 +1045,95 @@ const s = {
 }
 
 const tk = {
-  wrap: { display: 'flex', alignItems: 'center', background: 'linear-gradient(90deg,#0a0018,#08000f)', borderBottom: `1px solid rgba(168,85,247,0.2)`, overflow: 'hidden', height: 36 },
-  tag: { color: NEON_P, fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.18em', padding: '0 0.75rem', whiteSpace: 'nowrap', borderRight: `1px solid rgba(168,85,247,0.2)`, height: '100%', display: 'flex', alignItems: 'center', flexShrink: 0, textShadow: `0 0 12px ${NEON_P}` },
-  track: { display: 'flex', alignItems: 'center', gap: '2rem', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1, userSelect: 'none' },
-  chip: { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, padding: '0 0.5rem' },
-  who: { color: NEON_P, fontSize: '0.72rem', fontWeight: 700 },
-  sep: { color: '#2a2a2a', fontSize: '0.65rem' },
-  text: { color: '#555', fontSize: '0.72rem' },
+  wrap: {
+    display: 'flex',
+    alignItems: 'stretch',
+    background: '#0d0d0d',
+    borderTop: '1px solid #1a1a1a',
+    borderBottom: '1px solid #1a1a1a',
+    overflow: 'hidden',
+    height: 38,
+    flexShrink: 0,
+  },
+  badge: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: OR,
+    padding: '0 10px',
+    flexShrink: 0,
+    lineHeight: 1,
+    gap: 1,
+  },
+  badgeTop: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 900,
+    fontSize: '0.62rem',
+    letterSpacing: '0.16em',
+    color: '#000',
+    textTransform: 'uppercase',
+  },
+  badgeBottom: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 700,
+    fontSize: '0.5rem',
+    letterSpacing: '0.12em',
+    color: 'rgba(0,0,0,0.6)',
+    textTransform: 'uppercase',
+  },
+  divider: {
+    width: 3,
+    background: '#222',
+    flexShrink: 0,
+  },
+  trackWrap: {
+    flex: 1,
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  track: {
+    display: 'flex',
+    alignItems: 'center',
+    whiteSpace: 'nowrap',
+    userSelect: 'none',
+    paddingLeft: 12,
+    animation: 'tickerScroll linear infinite',
+    willChange: 'transform',
+  },
+  item: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    flexShrink: 0,
+  },
+  who: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 800,
+    fontSize: '0.78rem',
+    letterSpacing: '0.08em',
+    color: OR,
+  },
+  colon: {
+    color: '#555',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+  },
+  text: {
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 600,
+    fontSize: '0.8rem',
+    letterSpacing: '0.03em',
+    color: '#e0e0e0',
+  },
+  pipe: {
+    color: '#2a2a2a',
+    fontSize: '0.85rem',
+    fontWeight: 300,
+    margin: '0 14px',
+  },
 }
 
 const lb = {
@@ -684,7 +1142,7 @@ const lb = {
   title: { display: 'flex', alignItems: 'center', gap: 5, color: NEON_P, fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' },
   more: { color: '#444', fontSize: '0.7rem', textDecoration: 'none' },
   tabs: { display: 'flex', padding: '0 0.5rem', borderBottom: `1px solid rgba(168,85,247,0.1)`, overflowX: 'auto', scrollbarWidth: 'none' },
-  tab: { background: 'none', border: 'none', borderBottom: '2px solid transparent', color: '#333', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', padding: '0.4rem 0.5rem', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
+  tab: { background: 'none', borderWidth: 0, borderBottomWidth: '2px', borderBottomStyle: 'solid', borderBottomColor: 'transparent', color: '#333', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', padding: '0.4rem 0.5rem', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
   list: { padding: '0.5rem 0.75rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' },
   row: { display: 'flex', alignItems: 'center', gap: '0.5rem' },
   rank: { fontSize: '0.7rem', fontWeight: 900, minWidth: 14, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },

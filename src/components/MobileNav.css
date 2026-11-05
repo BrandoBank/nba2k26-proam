@@ -17,3 +17,30 @@
     display: flex;
   }
 }
+
+/* Desktop top bar */
+.desktop-topbar {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .desktop-topbar {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 300;
+    height: 52px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5rem;
+    background: rgba(0,0,0,0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(168,85,247,0.2);
+    box-shadow: 0 1px 24px rgba(168,85,247,0.06);
+  }
+  /* push page content below the fixed desktop bar */
+  body { padding-top: 52px; }
+}

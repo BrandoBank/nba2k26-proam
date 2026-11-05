@@ -6,15 +6,19 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="NSS" />
+    <meta name="apple-mobile-web-app-title" content="Next Up" />
     <meta name="theme-color" content="#000000" />
     <meta name="description" content="NBA 2K26 Pro-Am stat tracker — tier rankings, career history, shareable charts" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
     <!-- PWA manifest -->
     <link rel="manifest" href="/manifest.json" />
 
     <!-- Apple touch icon -->
-    <link rel="apple-touch-icon" href="/icon-192.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
     <title>Next Up Series</title>
 
@@ -118,6 +122,29 @@
       /* Prevent zoom on input focus iOS */
       @media (max-width: 768px) {
         input, textarea, select { font-size: 16px !important; }
+      }
+
+      /* Global select styling */
+      select {
+        appearance: none;
+        -webkit-appearance: none;
+        background-color: #0d0d14;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23555' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        color: #ccc;
+        border: 1px solid #1e1e2e;
+        border-radius: 8px;
+        padding: 8px 36px 8px 12px;
+        font-family: inherit;
+        cursor: pointer;
+        transition: border-color 0.15s;
+      }
+      select:hover { border-color: #2e2e3e; }
+      select:focus { outline: none; border-color: var(--orange); }
+      select option {
+        background: #0d0d14;
+        color: #ccc;
       }
     </style>
   </head>

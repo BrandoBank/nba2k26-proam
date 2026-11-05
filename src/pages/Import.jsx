@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext'
 import { IconTip } from '../lib/icons'
 
 // ─── The Claude prompt template shown to the user ────────────────────────────
@@ -96,7 +96,7 @@ async function runImport(payload, onLog) {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function Import() {
-  const { isEditor } = useAuth()
+  const { isEditor, loading: authLoading, gamertagLoading } = useAuth()
   const navigate = useNavigate()
   const [tab, setTab] = useState('prompt')
   const [jsonInput, setJsonInput] = useState('')
@@ -105,6 +105,7 @@ export default function Import() {
   const [done, setDone] = useState(false)
   const [parseError, setParseError] = useState('')
 
+  if (authLoading || gamertagLoading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
   if (!isEditor) return <div style={s.page}><p style={s.dim}>Editor access required.</p></div>
 
   function appendLog(msg) {

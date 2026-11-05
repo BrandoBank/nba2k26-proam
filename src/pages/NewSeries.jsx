@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext'
 import { IconX } from '../lib/icons'
 
 function autoSeriesName(format) {
@@ -97,7 +97,7 @@ function PlayerSearch({ value, onChange, placeholder }) {
 }
 
 export default function NewSeries() {
-  const { isEditor } = useAuth()
+  const { isEditor, loading: authLoading, gamertagLoading } = useAuth()
   const navigate = useNavigate()
   const [form, setForm] = useState({
     name: '',
@@ -111,6 +111,7 @@ export default function NewSeries() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  if (authLoading || gamertagLoading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
   if (!isEditor) return <div style={s.page}><p style={s.dim}>Not authorized.</p></div>
 
   async function handleSubmit(e) {
@@ -124,6 +125,12 @@ export default function NewSeries() {
     const d1 = form.drafter_1.trim()
     const d2 = form.drafter_2.trim()
     const drafted_by = d1 && d2 ? `${d1} vs ${d2}` : (d1 || d2 || null)
+
+    // Any currently live series becomes unfinished — rankings preserved, games still addable
+    await supabase
+      .from('series')
+      .update({ status: 'unfinished' })
+      .eq('status', 'in_progress')
 
     const { data, error } = await supabase
       .from('series')

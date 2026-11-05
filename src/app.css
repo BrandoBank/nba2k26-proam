@@ -76,8 +76,9 @@
 /* Mobile page header */
 .page-header-mobile {
   display: none;
-  align-items: center;
+  align-items: flex-end;
   padding: 12px 16px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
   border-bottom: 1px solid #111;
   background: rgba(0,0,0,0.95);
   backdrop-filter: blur(10px);
@@ -86,7 +87,8 @@
   top: 0;
   z-index: 100;
   gap: 8px;
-  min-height: 52px;
+  min-height: calc(52px + env(safe-area-inset-top, 0px));
+  box-sizing: border-box;
 }
 @media (max-width: 899px) {
   .page-header-mobile { display: flex; }

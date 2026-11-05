@@ -163,24 +163,24 @@ export function computeAchievements(careerData, seriesRankings = []) {
       }
     }
 
-    const careerAPG = career.career_apg || career.apg || 0
-    const seriesPlayed = career.series_played || career.total_series || rankings.length
+    const careerAPG = career.career_apg ?? career.apg ?? 0
+    const seriesPlayed = career.series_played ?? career.total_series ?? rankings.length
     if (careerAPG >= 8 && seriesPlayed >= 3) {
       award(player_id, gamertag, 'assist_king', null)
     }
 
-    const careerSPG = career.career_spg || career.spg || 0
+    const careerSPG = career.career_spg ?? career.spg ?? 0
     if (careerSPG >= 2 && seriesPlayed >= 3) {
       award(player_id, gamertag, 'lockdown', null)
     }
 
-    const careerGP = career.career_gp || career.gp || 0
+    const careerGP = career.career_gp ?? career.gp ?? 0
     if (careerGP >= 20) {
       award(player_id, gamertag, 'iron_man', null)
     }
 
     // Clutch game wins — field name: clutch_wins or clutch_game_wins
-    const clutchWins = career.clutch_wins || career.clutch_game_wins || 0
+    const clutchWins = career.clutch_wins ?? career.clutch_game_wins ?? 0
     if (clutchWins >= 5) {
       award(player_id, gamertag, 'clutch_performer', null)
     }

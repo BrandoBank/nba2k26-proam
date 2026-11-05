@@ -1,29 +1,88 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '../hooks/useAuth'
-import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { colors, fonts } from '../lib/theme'
+import { IconBall, IconCheck } from '../lib/icons'
+
+const OR = colors.orange
 
 export default function Login() {
-  const { signIn } = useAuth()
+  const { signIn, session, loading: authLoading } = useAuth()
   const navigate = useNavigate()
+  const [tab, setTab] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [signedUp, setSignedUp] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
   const [isRecovery, setIsRecovery] = useState(false)
   const [recovered, setRecovered] = useState(false)
+  const [forgotMode, setForgotMode] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
-  // Detect Supabase password recovery token in the URL hash
   useEffect(() => {
-    const hash = window.location.hash
-    if (hash.includes('type=recovery') || hash.includes('type=email')) {
-      // Supabase auto-handles the hash and sets the session
-      supabase.auth.onAuthStateChange((event) => {
-        if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
-      })
+    if (!session) return
+    if (signedUp) return  // let the "check your email" screen stay visible
+    if (window.location.hash.includes('type=recovery')) return
+    async function routeUser() {
+      const { data } = await supabase.from('players').select('gamertag').eq('user_id', session.user.id).maybeSingle()
+      navigate(data?.gamertag ? '/' : '/claim', { replace: true })
     }
+    routeUser()
+  }, [session, signedUp])
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
+    })
+    return () => subscription.unsubscribe()
   }, [])
+
+  async function handleSignIn(e) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    const { error } = await signIn(email, password)
+    setLoading(false)
+    if (error) setError(error.message)
+    // Navigation is handled by the useEffect([session]) above
+  }
+
+  async function handleSignUp(e) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: window.location.origin + '/login' },
+    })
+    setLoading(false)
+    if (error) { setError(error.message); return }
+    // If Supabase returned a session immediately, email confirmation is disabled —
+    // navigate directly to claim instead of showing a "check your email" screen.
+    if (data?.session) {
+      const { data: playerData } = await supabase.from('players').select('gamertag').eq('user_id', data.session.user.id).maybeSingle()
+      navigate(playerData?.gamertag ? '/' : '/claim', { replace: true })
+      return
+    }
+    setSignedUp(true)
+  }
+
+  async function handleForgotPassword(e) {
+    e.preventDefault()
+    if (!email) { setError('Enter your email above first.'); return }
+    setError('')
+    setLoading(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/login',
+    })
+    setLoading(false)
+    if (error) { setError(error.message); return }
+    setResetSent(true)
+  }
 
   async function handleSetPassword(e) {
     e.preventDefault()
@@ -37,39 +96,24 @@ export default function Login() {
     setTimeout(() => navigate('/'), 1500)
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-    const { error } = await signIn(email, password)
-    setLoading(false)
-    if (error) setError(error.message)
-    else navigate('/')
-  }
-
   if (isRecovery) {
     return (
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <h1 style={styles.title}>NEXT UP SERIES</h1>
-          <p style={styles.sub}>Set New Password</p>
+      <div style={s.page}>
+        <div style={s.card}>
+          <div style={s.logo}><IconBall size={18} color={OR} /><span>NEXT UP</span></div>
+          <p style={s.sub}>Set New Password</p>
           {recovered ? (
-            <p style={{ color: '#4caf50', fontSize: '0.9rem' }}>Password set! Redirecting...</p>
+            <p style={{ color: colors.statGreen, fontSize: '0.9rem', textAlign: 'center' }}>
+              <IconCheck size={14} color={colors.statGreen} /> Password set — redirecting...
+            </p>
           ) : (
-            <form onSubmit={handleSetPassword} style={styles.form}>
-              <input
-                type="password"
-                placeholder="New password (min 8 chars)"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                required
-                style={styles.input}
-                autoFocus
-              />
-              <button type="submit" disabled={loading} style={styles.btn}>
+            <form onSubmit={handleSetPassword} style={s.form}>
+              <input type="password" placeholder="New password (min 8 chars)" value={newPassword}
+                onChange={e => setNewPassword(e.target.value)} required style={s.input} autoFocus />
+              <button type="submit" disabled={loading} style={s.btn}>
                 {loading ? 'Saving...' : 'Set Password'}
               </button>
-              {error && <p style={styles.error}>{error}</p>}
+              {error && <p style={s.error}>{error}</p>}
             </form>
           )}
         </div>
@@ -77,86 +121,249 @@ export default function Login() {
     )
   }
 
+  if (signedUp) {
+    return (
+      <div style={s.page}>
+        <div style={s.card}>
+          <div style={s.logo}><IconBall size={18} color={OR} /><span>NEXT UP</span></div>
+          <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>
+              <IconCheck size={32} color={colors.statGreen} />
+            </div>
+            <p style={{ color: '#fff', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontSize: '1.1rem', fontWeight: 800, letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
+              ACCOUNT CREATED
+            </p>
+            <p style={{ color: '#666', fontSize: '0.85rem', lineHeight: 1.6 }}>
+              Check <strong style={{ color: '#aaa' }}>{email}</strong> for a confirmation link. Once confirmed, come back and sign in.
+            </p>
+            <button onClick={() => { setSignedUp(false); setTab('signin') }} style={{ ...s.btn, marginTop: '1.5rem' }}>
+              Already confirmed? Sign In
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (authLoading) return (
+    <div style={s.page}>
+      <div style={s.card}>
+        <div style={s.logo}><IconBall size={18} color={OR} /><span>NEXT UP</span></div>
+        <p style={{ color: '#666', fontSize: '0.8rem', textAlign: 'center', margin: 0 }}>Loading...</p>
+      </div>
+    </div>
+  )
+
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>NEXT UP SERIES</h1>
-        <p style={styles.sub}>Editor Access</p>
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <input
-            type="email"
-            placeholder="your@email.com"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-            style={styles.input}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            style={styles.input}
-          />
-          <button type="submit" disabled={loading} style={styles.btn}>
-            {loading ? 'Signing in...' : 'Sign In'}
+    <div style={s.page}>
+      <div style={s.card}>
+        {/* Logo */}
+        <Link to="/" style={s.logo}>
+          <IconBall size={18} color={OR} />
+          <span>NEXT UP</span>
+        </Link>
+
+        {/* Tabs */}
+        <div style={s.tabs}>
+          <button onClick={() => { setTab('signin'); setError('') }} style={{ ...s.tabBtn, ...(tab === 'signin' ? s.tabActive : {}) }}>
+            Sign In
           </button>
-          {error && <p style={styles.error}>{error}</p>}
-        </form>
+          <button onClick={() => { setTab('signup'); setError('') }} style={{ ...s.tabBtn, ...(tab === 'signup' ? s.tabActive : {}) }}>
+            Create Account
+          </button>
+        </div>
+
+        {tab === 'signin' ? (
+          forgotMode ? (
+            <div style={s.form}>
+              {resetSent ? (
+                <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
+                  <IconCheck size={28} color="#22c55e" />
+                  <p style={{ color: '#fff', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 800, letterSpacing: '0.08em', marginTop: 10, marginBottom: 6 }}>CHECK YOUR EMAIL</p>
+                  <p style={{ color: '#555', fontSize: '0.82rem', lineHeight: 1.6 }}>A password reset link was sent to <strong style={{ color: '#aaa' }}>{email}</strong>.</p>
+                  <button onClick={() => { setForgotMode(false); setResetSent(false) }} style={{ ...s.btn, marginTop: '1.25rem', background: '#111', color: '#aaa' }}>
+                    Back to Sign In
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} style={s.form}>
+                  <p style={s.fieldHint}>Enter your email and we'll send a reset link.</p>
+                  <input type="email" placeholder="Email" value={email}
+                    onChange={e => setEmail(e.target.value)} required style={s.input} autoFocus autoComplete="email" />
+                  <button type="submit" disabled={loading} style={s.btn}>
+                    {loading ? 'Sending...' : 'Send Reset Link'}
+                  </button>
+                  {error && <p style={s.error}>{error}</p>}
+                  <button type="button" onClick={() => { setForgotMode(false); setError('') }} style={{ background: 'none', border: 'none', color: '#444', fontSize: '0.8rem', cursor: 'pointer', textAlign: 'center' }}>
+                    ← Back to Sign In
+                  </button>
+                </form>
+              )}
+            </div>
+          ) : (
+          <form onSubmit={handleSignIn} style={s.form}>
+            <input type="email" placeholder="Email" value={email}
+              onChange={e => setEmail(e.target.value)} required style={s.input} autoComplete="email" />
+            <input type="password" placeholder="Password" value={password}
+              onChange={e => setPassword(e.target.value)} required style={s.input} autoComplete="current-password" />
+            <button type="submit" disabled={loading} style={s.btn}>
+              {loading ? 'Signing in...' : 'Sign In'}
+            </button>
+            {error && <p style={s.error}>{error}</p>}
+            <button type="button" onClick={() => { setForgotMode(true); setError('') }} style={{ background: 'none', border: 'none', color: '#444', fontSize: '0.8rem', cursor: 'pointer', textAlign: 'center' }}>
+              Forgot password?
+            </button>
+          </form>
+          )
+        ) : (
+          <form onSubmit={handleSignUp} style={s.form}>
+            <div style={s.fieldHint}>Create your account — then link it to your player profile.</div>
+            <input type="email" placeholder="Email" value={email}
+              onChange={e => setEmail(e.target.value)} required style={s.input} autoComplete="email" />
+            <input type="password" placeholder="Password (min 8 chars)" value={password}
+              onChange={e => setPassword(e.target.value)} required minLength={8} style={s.input} autoComplete="new-password" />
+            <button type="submit" disabled={loading} style={s.btn}>
+              {loading ? 'Creating account...' : 'Create Account'}
+            </button>
+            {error && <p style={s.error}>{error}</p>}
+          </form>
+        )}
       </div>
     </div>
   )
 }
 
-const styles = {
-  container: {
+const s = {
+  page: {
     minHeight: '100vh',
     background: '#000',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: '1rem',
+    fontFamily: fonts.display,
+    paddingBottom: 80,
   },
   card: {
-    background: '#111',
-    border: '1px solid #222',
-    borderRadius: 8,
-    padding: '2.5rem',
-    width: 360,
-    textAlign: 'center',
+    background: '#0a0a0a',
+    border: '1px solid #1a1a1a',
+    borderRadius: 12,
+    padding: '2rem 1.75rem',
+    width: '100%',
+    maxWidth: 380,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.25rem',
   },
-  title: {
+  logo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    textDecoration: 'none',
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 900,
+    fontSize: '1.3rem',
+    letterSpacing: '0.28em',
     color: '#fff',
-    fontSize: '1.4rem',
-    letterSpacing: '0.15em',
-    margin: '0 0 0.25rem',
+    textTransform: 'uppercase',
+    justifyContent: 'center',
   },
   sub: {
-    color: '#888',
-    margin: '0 0 2rem',
-    fontSize: '0.85rem',
+    color: '#555',
+    fontSize: '0.8rem',
     textTransform: 'uppercase',
-    letterSpacing: '0.1em',
+    letterSpacing: '0.12em',
+    textAlign: 'center',
+    margin: 0,
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 700,
   },
-  form: { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
+  tabs: {
+    display: 'flex',
+    background: '#111',
+    borderRadius: 8,
+    padding: 3,
+    gap: 3,
+  },
+  tabBtn: {
+    flex: 1,
+    background: 'none',
+    border: 'none',
+    borderRadius: 6,
+    color: '#555',
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    fontWeight: 700,
+    fontSize: '0.85rem',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    padding: '0.5rem',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  },
+  tabActive: {
+    background: OR,
+    color: '#000',
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.65rem',
+  },
+  fieldHint: {
+    color: '#444',
+    fontSize: '0.75rem',
+    letterSpacing: '0.04em',
+    lineHeight: 1.5,
+  },
   input: {
     background: '#000',
-    border: '1px solid #333',
-    borderRadius: 4,
+    border: '1px solid #222',
+    borderRadius: 6,
     color: '#fff',
-    padding: '0.6rem 0.8rem',
-    fontSize: '0.95rem',
+    padding: '0.7rem 0.85rem',
+    fontSize: '0.9rem',
+    fontFamily: fonts.display,
     outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
+  },
+  drop: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    background: '#111',
+    border: '1px solid #222',
+    borderRadius: 6,
+    zIndex: 10,
+    maxHeight: 180,
+    overflowY: 'auto',
+    marginTop: 2,
+  },
+  dropItem: {
+    padding: '9px 12px',
+    cursor: 'pointer',
+    fontSize: '0.85rem',
+    borderBottom: '1px solid #1a1a1a',
+    color: '#ccc',
   },
   btn: {
-    background: '#1d6ef5',
-    color: '#fff',
+    background: OR,
+    color: '#000',
     border: 'none',
-    borderRadius: 4,
-    padding: '0.65rem',
+    borderRadius: 6,
+    padding: '0.75rem',
     fontSize: '0.95rem',
+    fontWeight: 800,
+    fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+    letterSpacing: '0.08em',
     cursor: 'pointer',
-    fontWeight: 600,
+    marginTop: '0.25rem',
   },
-  error: { color: '#e55', fontSize: '0.85rem', margin: 0 },
+  error: {
+    color: '#ef4444',
+    fontSize: '0.82rem',
+    margin: 0,
+    textAlign: 'center',
+  },
 }

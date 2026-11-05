@@ -1,6 +1,6 @@
 {
-  "name": "Next Up Series",
-  "short_name": "NSS",
+  "name": "Next Up Series Tracker",
+  "short_name": "Next Up",
   "description": "NBA 2K26 Pro-Am stat tracker — tier rankings, series history, career stats",
   "start_url": "/",
   "display": "standalone",

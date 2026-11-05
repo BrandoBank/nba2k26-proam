@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext'
 import { colors } from '../lib/theme'
-import { computeImpactScores, computeDefensiveDeltas } from '../lib/ranking'
+import { computeImpactScores, computeDefensiveDeltas, tierLabel } from '../lib/ranking'
 import { IconStar, IconTrophy, IconFlame, IconBolt } from '../lib/icons'
 
 const TIERS = ['ELITE', 'STRONG', 'SOLID', 'G_TIER']
@@ -11,7 +11,7 @@ const TIER_COLORS = { ELITE: colors.elite, STRONG: colors.strong, SOLID: colors.
 
 export default function RankingEditor() {
   const { id: seriesId } = useParams()
-  const { isEditor } = useAuth()
+  const { isEditor, loading: authLoading, gamertagLoading } = useAuth()
   const navigate = useNavigate()
 
   const [series, setSeries] = useState(null)
@@ -26,14 +26,15 @@ export default function RankingEditor() {
   useEffect(() => { if (isEditor) fetchData() }, [seriesId, isEditor])
 
   async function fetchData() {
+    const { data: gameRows } = await supabase.from('games').select('id').eq('series_id', seriesId)
+    const gameIds = gameRows?.map(g => g.id) || []
+
     const [{ data: ser }, { data: sts }, { data: existing }, { data: matchups }, { data: gStats }] = await Promise.all([
       supabase.from('series').select('*').eq('id', seriesId).single(),
       supabase.from('series_player_stats').select('*').eq('series_id', seriesId),
       supabase.from('series_rankings').select('*, players(gamertag,display_name)').eq('series_id', seriesId),
-      supabase.from('game_matchups').select('game_id,defender_player_id,offensive_player_id')
-        .in('game_id', (await supabase.from('games').select('id').eq('series_id', seriesId)).data?.map(g => g.id) || []),
-      supabase.from('game_stats').select('game_id,player_id,pts')
-        .in('game_id', (await supabase.from('games').select('id').eq('series_id', seriesId)).data?.map(g => g.id) || []),
+      supabase.from('game_matchups').select('game_id,defender_player_id,offensive_player_id').in('game_id', gameIds),
+      supabase.from('game_stats').select('game_id,player_id,pts').in('game_id', gameIds),
     ])
     setSeries(ser)
     setStats(sts || [])
@@ -78,9 +79,13 @@ export default function RankingEditor() {
     setAiLoading(true)
     setAiError('')
     try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
       const res = await fetch('/.netlify/functions/rank-series', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentSession?.access_token ? { 'Authorization': `Bearer ${currentSession.access_token}` } : {}),
+        },
         body: JSON.stringify({
           series_id: seriesId,
           stats,
@@ -157,6 +162,7 @@ export default function RankingEditor() {
     if (finalize) navigate(`/series/${seriesId}/chart`)
   }
 
+  if (authLoading || gamertagLoading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
   if (!isEditor) return <div style={s.page}><p style={s.dim}>Editor access required.</p></div>
   if (loading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
 
@@ -199,7 +205,7 @@ export default function RankingEditor() {
         return (
           <div key={tier} style={{ ...s.tierBlock, borderLeftColor: tierColor }}>
             <div style={{ ...s.tierLabel, color: tierColor }}>
-              {tier === 'G_TIER' ? 'G TIER' : tier}
+              {tierLabel(tier)}
               <span style={s.tierCount}>{tierRows.length} player{tierRows.length !== 1 ? 's' : ''}</span>
             </div>
 
@@ -228,7 +234,7 @@ export default function RankingEditor() {
                     value={row.tier}
                     onChange={e => updateRow(row.player_id, 'tier', e.target.value)}
                   >
-                    {TIERS.map(t => <option key={t} value={t}>{t === 'G_TIER' ? 'G TIER' : t}</option>)}
+                    {TIERS.map(t => <option key={t} value={t}>{tierLabel(t)}</option>)}
                   </select>
 
                   <div style={s.tagRow}>

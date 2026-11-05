@@ -1,7 +1,7 @@
 /**
- * add-game — public endpoint for submitting a box score game
+ * add-game — submit a box score game for a series
  * POST { series_id, game_number, our_score, opp_score, our_result, our_players, opp_players }
- * Uses service role key — no auth required, open to any user with a series link
+ * Requires Authorization: Bearer <session_token> from a commissioner account.
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -13,10 +13,27 @@ const supabaseAdmin = createClient(
 )
 
 const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C']
+const COMMISSIONERS = ['BrandoBank']
 
 export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+  }
+
+  // Verify caller is authenticated commissioner
+  const authHeader = req.headers.get('authorization') || ''
+  const token = authHeader.replace(/^Bearer\s+/i, '')
+  if (!token) {
+    return new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401 })
+  }
+  const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
+  if (authErr || !user) {
+    return new Response(JSON.stringify({ error: 'Invalid or expired session' }), { status: 401 })
+  }
+  const { data: callerPlayer } = await supabaseAdmin
+    .from('players').select('gamertag').eq('user_id', user.id).maybeSingle()
+  if (!callerPlayer || !COMMISSIONERS.includes(callerPlayer.gamertag)) {
+    return new Response(JSON.stringify({ error: 'Commissioner access required' }), { status: 403 })
   }
 
   let body
@@ -32,7 +49,7 @@ export default async function handler(req) {
 
   // Verify series exists
   const { data: series, error: seriesErr } = await supabaseAdmin
-    .from('series').select('id, our_wins, opp_wins').eq('id', series_id).single()
+    .from('series').select('id, our_wins, opp_wins, format').eq('id', series_id).single()
   if (seriesErr || !series) {
     return new Response(JSON.stringify({ error: 'Series not found' }), { status: 404 })
   }
@@ -42,6 +59,50 @@ export default async function handler(req) {
     .from('games').select('id').eq('series_id', series_id).eq('game_number', game_number)
   if (existing?.length > 0) {
     return new Response(JSON.stringify({ error: `Game ${game_number} already exists in this series` }), { status: 409 })
+  }
+
+  // Check for duplicate scoreline — same score in same series = likely resubmission
+  // Allow bypass with force: true if user confirms it's intentionally a repeated score
+  const { data: sameScore } = await supabaseAdmin
+    .from('games')
+    .select('id, game_number')
+    .eq('series_id', series_id)
+    .eq('our_score', Number(our_score))
+    .eq('opp_score', Number(opp_score))
+  if (sameScore?.length > 0 && !body.force) {
+    return new Response(JSON.stringify({
+      error: 'duplicate_score',
+      message: `A game with score ${our_score}–${opp_score} already exists in this series (Game ${sameScore[0].game_number}). If this is genuinely a different game with the same final score, resubmit with force: true.`,
+      existing_game_id: sameScore[0].id,
+    }), { status: 409 })
+  }
+
+  // Check for stat-row fingerprint: same series + same player set + same total pts = almost certainly a resubmission
+  // Build a simple fingerprint from sorted player gamertags + total points
+  const allTags = [...(our_players || []), ...(opp_players || [])]
+    .map(p => p.gamertag?.trim().toLowerCase()).filter(Boolean).sort().join(',')
+  const totalPts = [...(our_players || []), ...(opp_players || [])].reduce((s, p) => s + (+p.pts || 0), 0)
+  const { data: existingStats } = await supabaseAdmin
+    .from('game_stats')
+    .select('game_id, player_id, pts')
+    .eq('series_id', series_id)
+  if (existingStats?.length > 0 && !body.force) {
+    // Group by game_id to check fingerprint per game
+    const gameGroups = {}
+    for (const row of existingStats) {
+      if (!gameGroups[row.game_id]) gameGroups[row.game_id] = []
+      gameGroups[row.game_id].push(row)
+    }
+    for (const [gid, rows] of Object.entries(gameGroups)) {
+      const existingTotal = rows.reduce((s, r) => s + (r.pts || 0), 0)
+      if (existingTotal === totalPts && rows.length === allTags.split(',').length) {
+        return new Response(JSON.stringify({
+          error: 'duplicate_stats',
+          message: `A game with the same player count and total points already exists in this series. This looks like a resubmission. If it is genuinely a new game, resubmit with force: true.`,
+          existing_game_id: gid,
+        }), { status: 409 })
+      }
+    }
   }
 
   try {
@@ -77,7 +138,7 @@ export default async function handler(req) {
         our_score: Number(our_score),
         opp_score: Number(opp_score),
         our_result,
-        played_at: new Date().toISOString(),
+        played_at: body.played_at || new Date().toISOString(),
       })
       .select().single()
     if (gameErr) throw new Error(gameErr.message)
@@ -86,6 +147,7 @@ export default async function handler(req) {
     const statsRows = [
       ...(our_players || []).filter(p => p.gamertag?.trim()).map(p => ({
         game_id: gameRow.id,
+        series_id,
         player_id: playerMap[p.gamertag.trim()],
         side: 'our',
         grade: p.grade || null,
@@ -97,6 +159,7 @@ export default async function handler(req) {
       })),
       ...(opp_players || []).filter(p => p.gamertag?.trim()).map(p => ({
         game_id: gameRow.id,
+        series_id,
         player_id: playerMap[p.gamertag.trim()],
         side: 'opp',
         grade: p.grade || null,
@@ -109,7 +172,11 @@ export default async function handler(req) {
     ]
     if (statsRows.length > 0) {
       const { error: statsErr } = await supabaseAdmin.from('game_stats').insert(statsRows)
-      if (statsErr) throw new Error(statsErr.message)
+      if (statsErr) {
+        // Roll back the game row so the user can retry
+        await supabaseAdmin.from('games').delete().eq('id', gameRow.id)
+        throw new Error(statsErr.message)
+      }
     }
 
     // 4. Insert matchups from opp players' matchup_gamertag field
@@ -126,12 +193,18 @@ export default async function handler(req) {
       await supabaseAdmin.from('game_matchups').insert(matchupRows)
     }
 
-    // 5. Update series win/loss counts
+    // 5. Update series win/loss counts and status
     const { data: allGames } = await supabaseAdmin
       .from('games').select('our_result').eq('series_id', series_id)
     const wins = (allGames || []).filter(g => g.our_result === 'W').length
     const losses = (allGames || []).filter(g => g.our_result === 'L').length
-    await supabaseAdmin.from('series').update({ our_wins: wins, opp_wins: losses }).eq('id', series_id)
+    const clinch = Math.ceil(series.format / 2)
+    const isComplete = wins >= clinch || losses >= clinch
+    await supabaseAdmin.from('series').update({
+      our_wins: wins,
+      opp_wins: losses,
+      ...(isComplete ? { status: 'complete', ended_at: new Date().toISOString() } : {}),
+    }).eq('id', series_id)
 
     return new Response(JSON.stringify({ success: true, game_id: gameRow.id }), {
       status: 200,
