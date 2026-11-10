@@ -76,6 +76,8 @@ export default async function handler(req) {
       our_players: cleanPlayers(base.our_players),
       opp_players: cleanPlayers(base.opp_players),
       screenshot_hash: sub.image_hash,
+      marked_matchup: base.marked_matchup,
+      submitted_by_gamertag: sub.players?.gamertag,
     }
     if (!['W', 'L'].includes(game.our_result)) return json(400, { error: 'Result must be W or L' })
 

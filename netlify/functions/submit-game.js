@@ -8,7 +8,7 @@
  * Nothing is written to games/game_stats here — only to game_submissions.
  */
 
-import { supabaseAdmin, json, getCaller, imageHash, findDuplicate, cleanPlayers, statsFingerprint, SCREENSHOT_BUCKET } from '../lib/shared.js'
+import { supabaseAdmin, json, getCaller, imageHash, findDuplicate, cleanPlayers, cleanMatchup, statsFingerprint, SCREENSHOT_BUCKET } from '../lib/shared.js'
 import { rateLimit, getClientIp, rateLimitResponse } from '../lib/ratelimit.js'
 
 const ALLOWED_TYPES = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }
@@ -80,6 +80,7 @@ export default async function handler(req) {
       played_at: body.played_at || null,
       our_players,
       opp_players,
+      marked_matchup: cleanMatchup(body.marked_matchup),
     },
   }).select('id').single()
 

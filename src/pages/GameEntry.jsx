@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { IconCheck, IconX, IconWarn } from '../lib/icons'
+import { cropBoxScore } from '../lib/cropBoxScore'
 
 const STAT_COLS = ['pts','reb','ast','stl','blk','fouls','tov','fgm','fga','tpm','tpa','ftm','fta']
 const POSITIONS = ['PG','SG','SF','PF','C']
@@ -53,6 +54,7 @@ export default function GameEntry() {
   const [image, setImage] = useState(null) // { base64, type, hash, previewUrl }
   const [submission, setSubmission] = useState(null)
   const [submitted, setSubmitted] = useState(false)
+  const [parseInfo, setParseInfo] = useState(null) // { issues, corrections, new_players, side_reason, marked_matchup }
   const fileRef = useRef()
 
   useEffect(() => {
@@ -118,10 +120,15 @@ export default function GameEntry() {
 
     try {
       const base64 = await fileToBase64(file)
+      // Trim phone letterboxing so the stats are read at full resolution
+      const cropped = await cropBoxScore(file)
       const res = await fetch('/.netlify/functions/parse-screenshot', {
         method: 'POST',
         headers: await authHeaders(),
-        body: JSON.stringify({ image_base64: base64, media_type: file.type, series_id: seriesId }),
+        body: JSON.stringify({
+          image_base64: base64, media_type: file.type, series_id: seriesId,
+          ...(cropped ? { parse_base64: cropped.base64, parse_media_type: cropped.type } : {}),
+        }),
       })
       const data = await res.json()
       if (data.error === 'duplicate_image') {
@@ -149,49 +156,42 @@ export default function GameEntry() {
   }
 
   function applyParsedData(parsed) {
-    // Figure out which team is ours based on team name matching
-    const ourName = series.our_team_name.toLowerCase()
-    const oppName = series.opp_team_name.toLowerCase()
-    const topName = (parsed.team_top?.name || '').toLowerCase()
-    const bottomName = (parsed.team_bottom?.name || '').toLowerCase()
-
-    let ourParsed, oppParsed
-    // Try to match by name similarity
-    const topMatchesOurs = ourName.includes(topName.slice(0,4)) || topName.includes(ourName.slice(0,4))
-    if (topMatchesOurs) {
-      ourParsed = parsed.team_top
-      oppParsed = parsed.team_bottom
-    } else {
-      ourParsed = parsed.team_bottom
-      oppParsed = parsed.team_top
-    }
-
+    // Server already decided sides from rosters and snapped tags to known players
     const mapPlayer = (pp, idx) => {
       const existing = allPlayers.find(p => p.gamertag.toLowerCase() === pp.gamertag.toLowerCase())
       return {
-        slot: idx + 1,
+        ...emptyPlayer(idx + 1),
         gamertag: pp.gamertag,
         player_id: existing?.id || null,
         grade: pp.grade || '',
-        pts: pp.pts || 0, reb: pp.reb || 0, ast: pp.ast || 0,
-        stl: pp.stl || 0, blk: pp.blk || 0, fouls: pp.fouls || 0, tov: pp.tov || 0,
-        fgm: pp.fgm || 0, fga: pp.fga || 0,
-        tpm: pp.tpm || 0, tpa: pp.tpa || 0,
-        ftm: pp.ftm || 0, fta: pp.fta || 0,
-        matchup_gamertag: pp.matchup_gamertag || '',
+        ...Object.fromEntries(STAT_COLS.map(c => [c, pp[c] || 0])),
       }
     }
-
-    const ourResult = ourParsed.score > oppParsed.score ? 'W' : 'L'
-
+    setParseInfo({
+      issues: parsed.issues || [],
+      corrections: parsed.corrections || [],
+      new_players: parsed.new_players || [],
+      side_reason: parsed.side_reason,
+      marked_matchup: parsed.marked_matchup || null,
+    })
     setGame(g => ({
       ...g,
-      our_score: ourParsed.score,
-      opp_score: oppParsed.score,
-      our_result: ourResult,
-      our_players: (ourParsed.players || []).map(mapPlayer),
-      opp_players: (oppParsed.players || []).map(mapPlayer),
+      our_score: parsed.ours.score,
+      opp_score: parsed.opp.score,
+      our_result: parsed.ours.score > parsed.opp.score ? 'W' : 'L',
+      our_players: (parsed.ours.players || []).map(mapPlayer),
+      opp_players: (parsed.opp.players || []).map(mapPlayer),
     }))
+  }
+
+  function swapSides() {
+    setGame(g => ({
+      ...g,
+      our_score: g.opp_score, opp_score: g.our_score,
+      our_result: Number(g.opp_score) > Number(g.our_score) ? 'W' : 'L',
+      our_players: g.opp_players, opp_players: g.our_players,
+    }))
+    setParseInfo(pi => pi && { ...pi, side_reason: 'swapped by hand' })
   }
 
   // ── Validation ────────────────────────────────────────────────────────
@@ -205,7 +205,6 @@ export default function GameEntry() {
   const duplicateGame = game && existingGames.some(g => g.game_number === Number(game.game_number))
 
   // ── Save ─────────────────────────────────────────────────────────────
-  const [forceSubmit, setForceSubmit] = useState(false)
   const [duplicateWarning, setDuplicateWarning] = useState(null)
 
   async function handleSave(force = false) {
@@ -224,6 +223,8 @@ export default function GameEntry() {
       played_at: game.played_at || new Date().toISOString(),
       our_players: game.our_players,
       opp_players: game.opp_players,
+      // Only when this page parsed the image — in review mode the stored value stands
+      ...(parseInfo ? { marked_matchup: parseInfo.marked_matchup || null } : {}),
     }
     let endpoint, payload
     if (reviewMode) {
@@ -341,6 +342,7 @@ export default function GameEntry() {
         )}
       </div>}
       {parseError && <p style={s.error}>{parseError}</p>}
+      {parseInfo && <ParseReport info={parseInfo} onSwap={swapSides} ourName={series?.our_team_name} />}
 
       {/* Game header fields */}
       <div style={s.row}>
@@ -440,6 +442,26 @@ export default function GameEntry() {
           ↑ Check the override box above to save with mismatched totals
         </p>
       )}
+    </div>
+  )
+}
+
+function ParseReport({ info, onSwap, ourName }) {
+  const clean = !info.issues.length
+  return (
+    <div style={{...s.infoBanner, borderColor: clean ? '#14532d' : '#7c2d12', background: clean ? '#03140a' : '#1a0a02'}}>
+      <div style={{display:'flex', alignItems:'center', gap:6, color: clean ? '#4ade80' : '#fb923c', fontWeight:700}}>
+        {clean ? <IconCheck size={14} color="#4ade80" /> : <IconWarn size={14} color="#fb923c" />}
+        {clean ? 'Every column matches the screenshot\'s TOTAL rows' : `${info.issues.length} cell${info.issues.length > 1 ? 's' : ''} didn't reconcile — check these against the screenshot`}
+      </div>
+      {!clean && <ul style={{margin:'0.4rem 0 0', paddingLeft:'1.2rem', color:'#fdba74'}}>{info.issues.map((t, i) => <li key={i}>{t}</li>)}</ul>}
+      {info.corrections.length > 0 && <div style={{marginTop:6}}>Matched to existing players: {info.corrections.map(c => `${c.from} → ${c.to}`).join(', ')}</div>}
+      {info.new_players.length > 0 && <div style={{marginTop:6, color:'#facc15'}}>New players (check spelling — they'll be created): {info.new_players.join(', ')}</div>}
+      {info.marked_matchup && <div style={{marginTop:6}}>Matchup from arrows: {info.marked_matchup.defender} guarded {info.marked_matchup.offensive}</div>}
+      <div style={{marginTop:6, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap'}}>
+        <span>Team sides picked by {info.side_reason}{info.side_reason === 'guess' ? ' — make sure ' + (ourName || 'your team') + ' is on top below' : ''}.</span>
+        <button type="button" onClick={onSwap} style={{background:'none', border:'1px solid #333', color:'#ccc', borderRadius:4, padding:'0.2rem 0.6rem', cursor:'pointer', fontSize:'0.78rem'}}>Swap teams</button>
+      </div>
     </div>
   )
 }

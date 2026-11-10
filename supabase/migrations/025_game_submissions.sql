@@ -64,6 +64,13 @@ CREATE POLICY "commissioners read submissions" ON game_submissions
     )
   );
 
+-- Explicit grants. api_usage (migration 022) was created without them, so the
+-- service role got "permission denied" and every cost log insert silently failed.
+GRANT SELECT, INSERT, UPDATE, DELETE ON game_submissions TO service_role;
+GRANT SELECT ON game_submissions TO authenticated;
+GRANT SELECT, INSERT ON api_usage TO service_role;
+GRANT SELECT ON api_usage TO authenticated;
+
 -- Private bucket for submitted screenshots. Only the service role reads/writes;
 -- the review function hands the commissioner short-lived signed URLs.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

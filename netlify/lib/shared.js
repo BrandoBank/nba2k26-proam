@@ -146,12 +146,76 @@ async function liveFingerprints(series_id) {
   })
 }
 
+// Characters the model (and humans) confuse in 2K's font
+const confusable = s => s.toLowerCase()
+  .replace(/0/g, 'o').replace(/[1il|]/g, 'l').replace(/5/g, 's').replace(/2/g, 'z').replace(/8/g, 'b')
+
+/**
+ * Snap parsed gamertags onto existing players. Exact (case-insensitive) match
+ * wins; otherwise a unique confusable-character match is corrected. Anything
+ * else is flagged as a new player so the reviewer double-checks the spelling.
+ */
+export async function snapGamertags(teams) {
+  const { data: players } = await supabaseAdmin.from('players').select('gamertag')
+  const known = (players || []).map(p => p.gamertag)
+  const byLower = new Map(known.map(t => [t.toLowerCase(), t]))
+  const byConf = new Map()
+  for (const t of known) byConf.set(confusable(t), [...(byConf.get(confusable(t)) || []), t])
+
+  const corrections = [], newPlayers = []
+  const snap = raw => {
+    const tag = String(raw || '').trim()
+    if (!tag) return tag
+    if (byLower.has(tag.toLowerCase())) return byLower.get(tag.toLowerCase())
+    const hits = byConf.get(confusable(tag)) || []
+    if (hits.length === 1) { corrections.push({ from: tag, to: hits[0] }); return hits[0] }
+    newPlayers.push(tag)
+    return tag
+  }
+  for (const team of teams) for (const p of team.players || []) p.gamertag = snap(p.gamertag)
+  return { corrections, newPlayers }
+}
+
+/**
+ * Decide which parsed team is "our" side. Team names on the 2K screen are
+ * unreliable (both sections can carry the same name), so use rosters:
+ *   1. players already recorded in this series, by side
+ *   2. the team a commissioner is on (BrandoBank has always been "our")
+ *   3. fall back to the bottom section
+ */
+export async function resolveSides(series_id, top, bottom) {
+  const tags = t => new Set((t.players || []).map(p => p.gamertag.toLowerCase()))
+  const topTags = tags(top), bottomTags = tags(bottom)
+
+  if (series_id) {
+    const { data: rows } = await supabaseAdmin.from('game_stats')
+      .select('side, players(gamertag)').eq('series_id', series_id)
+    let topScore = 0
+    for (const r of rows || []) {
+      const t = r.players?.gamertag?.toLowerCase()
+      const sign = r.side === 'our' ? 1 : -1
+      if (topTags.has(t)) topScore += sign
+      if (bottomTags.has(t)) topScore -= sign
+    }
+    if (topScore !== 0) return { ours: topScore > 0 ? 'top' : 'bottom', reason: 'series roster' }
+  }
+  const comm = COMMISSIONERS.map(c => c.toLowerCase())
+  if (comm.some(c => topTags.has(c))) return { ours: 'top', reason: 'commissioner on team' }
+  if (comm.some(c => bottomTags.has(c))) return { ours: 'bottom', reason: 'commissioner on team' }
+  return { ours: 'bottom', reason: 'guess' }
+}
+
+export function cleanMatchup(m) {
+  if (!m?.defender || !m?.offensive) return null
+  return { defender: String(m.defender).trim().slice(0, 40), offensive: String(m.offensive).trim().slice(0, 40) }
+}
+
 /**
  * Write a game to the live tables: players (created if new), games, game_stats,
  * game_matchups, then recompute the series record. Rolls back the game row if
  * stats fail. Returns the new game id.
  */
-export async function insertGame({ series_id, game_number, our_score, opp_score, our_result, played_at, our_players, opp_players, screenshot_hash }) {
+export async function insertGame({ series_id, game_number, our_score, opp_score, our_result, played_at, our_players, opp_players, screenshot_hash, marked_matchup, submitted_by_gamertag }) {
   const { data: series, error: seriesErr } = await supabaseAdmin
     .from('series').select('id, format').eq('id', series_id).single()
   if (seriesErr || !series) throw Object.assign(new Error('Series not found'), { status: 404 })
@@ -213,7 +277,18 @@ export async function insertGame({ series_id, game_number, our_score, opp_score,
     .filter(p => p.matchup_gamertag?.trim())
     .map(p => ({ game_id: gameRow.id, defender_player_id: playerMap[p.gamertag.trim()], offensive_player_id: playerMap[p.matchup_gamertag.trim()] }))
     .filter(r => r.defender_player_id && r.offensive_player_id)
-  if (matchupRows.length) await supabaseAdmin.from('game_matchups').insert(matchupRows)
+  // Green "YOU" arrow + red "YOUR MATCHUP" arrow on the screenshot
+  const mm = cleanMatchup(marked_matchup)
+  if (mm) {
+    const d = playerMap[mm.defender], o = playerMap[mm.offensive]
+    if (d && o && d !== o && !matchupRows.some(r => r.defender_player_id === d)) {
+      matchupRows.push({ game_id: gameRow.id, defender_player_id: d, offensive_player_id: o, submitted_by_gamertag: submitted_by_gamertag || null })
+    }
+  }
+  if (matchupRows.length) {
+    const { error: mErr } = await supabaseAdmin.from('game_matchups').insert(matchupRows)
+    if (mErr) console.warn('insertGame: matchups not saved:', mErr.message)
+  }
 
   // 5. Series record
   const { data: allGames } = await supabaseAdmin.from('games').select('our_result').eq('series_id', series_id)

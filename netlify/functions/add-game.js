@@ -47,6 +47,7 @@ export default async function handler(req) {
     const game_id = await insertGame({
       series_id, game_number, our_score, opp_score, our_result,
       played_at: body.played_at, our_players, opp_players, screenshot_hash: image_hash,
+      marked_matchup: body.marked_matchup, submitted_by_gamertag: caller.player.gamertag,
     })
     return json(200, { success: true, game_id })
   } catch (err) {
