@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { IconCheck, IconX, IconWarn } from '../lib/icons'
@@ -31,8 +31,14 @@ const emptyGame = (series) => ({
 
 export default function GameEntry() {
   const { id: seriesId } = useParams()
-  const { isEditor, session, loading: authLoading, gamertagLoading } = useAuth()
+  const { isEditor, session, gamertag, loading: authLoading, gamertagLoading } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const submissionId = searchParams.get('submission')
+  // Three modes: commissioner direct entry, commissioner reviewing a submission,
+  // or a contributor submitting for review.
+  const reviewMode = isEditor && !!submissionId
+  const contributorMode = !isEditor && !!session && !!gamertag
 
   const [series, setSeries] = useState(null)
   const [allPlayers, setAllPlayers] = useState([])
@@ -44,11 +50,23 @@ export default function GameEntry() {
   const [saveError, setSaveError] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [screenshotFile, setScreenshotFile] = useState(null)
+  const [image, setImage] = useState(null) // { base64, type, hash, previewUrl }
+  const [submission, setSubmission] = useState(null)
+  const [submitted, setSubmitted] = useState(false)
   const fileRef = useRef()
 
   useEffect(() => {
+    if (authLoading || gamertagLoading) return
     fetchData()
-  }, [seriesId])
+  }, [seriesId, submissionId, authLoading, gamertagLoading, isEditor])
+
+  async function authHeaders() {
+    const { data: { session: currentSession } } = await supabase.auth.getSession()
+    return {
+      'Content-Type': 'application/json',
+      ...(currentSession?.access_token ? { 'Authorization': `Bearer ${currentSession.access_token}` } : {}),
+    }
+  }
 
   async function fetchData() {
     const [{ data: ser }, { data: players }, { data: games }] = await Promise.all([
@@ -62,6 +80,30 @@ export default function GameEntry() {
     // Default next game number
     const taken = (games || []).map(g => g.game_number)
     const next = [1,2,3,4,5,6,7].find(n => !taken.includes(n)) || taken.length + 1
+
+    if (submissionId && isEditor) {
+      const res = await fetch('/.netlify/functions/review-submission', {
+        method: 'POST', headers: await authHeaders(),
+        body: JSON.stringify({ action: 'get', id: submissionId }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setSaveError(data.error || 'Could not load submission'); setGame({ ...emptyGame(ser), game_number: next }); return }
+      const sub = data.submission
+      const pad = (rows) => [...(rows || []), ...POSITIONS.map((_, i) => emptyPlayer(i + 1))].slice(0, Math.max(5, (rows || []).length))
+        .map((p, i) => ({ ...emptyPlayer(i + 1), ...p, slot: i + 1, grade: p.grade || '', matchup_gamertag: p.matchup_gamertag || '' }))
+      setSubmission(sub)
+      setGame({
+        ...emptyGame(ser),
+        game_number: sub.game_number,
+        our_score: sub.payload.our_score,
+        opp_score: sub.payload.opp_score,
+        our_result: sub.payload.our_result,
+        played_at: (sub.payload.played_at || todayISO()).slice(0, 10),
+        our_players: pad(sub.payload.our_players),
+        opp_players: pad(sub.payload.opp_players),
+      })
+      return
+    }
     setGame({ ...emptyGame(ser), game_number: next })
   }
 
@@ -69,25 +111,29 @@ export default function GameEntry() {
   async function handleFile(file) {
     if (!file) return
     setScreenshotFile(file)
+    setImage(null)
     setParseError('')
+    setSaveError('')
     setParsing(true)
 
     try {
       const base64 = await fileToBase64(file)
-      const { data: { session: currentSession } } = await supabase.auth.getSession()
       const res = await fetch('/.netlify/functions/parse-screenshot', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(currentSession?.access_token ? { 'Authorization': `Bearer ${currentSession.access_token}` } : {}),
-        },
+        headers: await authHeaders(),
         body: JSON.stringify({ image_base64: base64, media_type: file.type, series_id: seriesId }),
       })
       const data = await res.json()
+      if (data.error === 'duplicate_image') {
+        setScreenshotFile(null)
+        setParseError(`Duplicate picture — ${data.message}`)
+        return
+      }
       if (!res.ok || data.error) throw new Error(data.error || 'Parse failed')
+      setImage({ base64, type: file.type, hash: data.image_hash, previewUrl: URL.createObjectURL(file) })
       applyParsedData(data)
     } catch (err) {
-      setParseError(`AI parse failed: ${err.message}. Fill stats manually below.`)
+      setParseError(`AI parse failed: ${err.message}. ${isEditor ? 'Fill stats manually below.' : 'Try a clearer screenshot.'}`)
     } finally {
       setParsing(false)
     }
@@ -165,39 +211,49 @@ export default function GameEntry() {
   async function handleSave(force = false) {
     if (!totalsOk && !overrideTotal) return
     if (duplicateGame) { setSaveError(`Game ${game.game_number} already exists in this series.`); return }
+    if (contributorMode && !image) { setSaveError('Upload the box score screenshot first.'); return }
     setSaving(true)
     setSaveError('')
     setDuplicateWarning(null)
 
+    const gameFields = {
+      game_number: Number(game.game_number),
+      our_score: Number(game.our_score),
+      opp_score: Number(game.opp_score),
+      our_result: game.our_result,
+      played_at: game.played_at || new Date().toISOString(),
+      our_players: game.our_players,
+      opp_players: game.opp_players,
+    }
+    let endpoint, payload
+    if (reviewMode) {
+      endpoint = 'review-submission'
+      payload = { action: 'approve', id: submissionId, payload: gameFields }
+    } else if (contributorMode) {
+      endpoint = 'submit-game'
+      payload = { series_id: seriesId, ...gameFields, image_base64: image.base64, media_type: image.type }
+    } else {
+      endpoint = 'add-game'
+      payload = { series_id: seriesId, ...gameFields, image_hash: image?.hash }
+    }
+
     try {
-      const { data: { session: currentSession } } = await supabase.auth.getSession()
-      const res = await fetch('/.netlify/functions/add-game', {
+      const res = await fetch(`/.netlify/functions/${endpoint}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(currentSession?.access_token ? { 'Authorization': `Bearer ${currentSession.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          series_id: seriesId,
-          game_number: Number(game.game_number),
-          our_score: Number(game.our_score),
-          opp_score: Number(game.opp_score),
-          our_result: game.our_result,
-          played_at: game.played_at || new Date().toISOString(),
-          our_players: game.our_players,
-          opp_players: game.opp_players,
-          ...(force ? { force: true } : {}),
-        }),
+        headers: await authHeaders(),
+        body: JSON.stringify({ ...payload, ...(force ? { force: true } : {}) }),
       })
       const data = await res.json()
-      if (res.status === 409 && (data.error === 'duplicate_score' || data.error === 'duplicate_stats')) {
-        // Surface the warning and let the user decide whether to force through
+      const softDup = data.error === 'duplicate_score' || (data.error === 'duplicate_stats' && !contributorMode)
+      if (res.status === 409 && softDup) {
+        // Commissioner can force through a same-score / same-stat-line game
         setDuplicateWarning(data.message)
         setSaving(false)
         return
       }
-      if (!res.ok) throw new Error(data.error || 'Save failed')
-      navigate(`/series/${seriesId}`)
+      if (!res.ok) throw new Error(data.message || data.error || 'Save failed')
+      if (contributorMode) { setSubmitted(true); setSaving(false); return }
+      navigate(reviewMode ? '/review' : `/series/${seriesId}`)
     } catch (err) {
       setSaveError(err.message)
       setSaving(false)
@@ -215,15 +271,57 @@ export default function GameEntry() {
   }
 
   if (!game || authLoading || gamertagLoading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
-  if (!isEditor) return <div style={s.page}><p style={s.dim}>Commissioner access required.</p></div>
+  if (!isEditor && !contributorMode) return (
+    <div style={s.page}>
+      <p style={s.dim}>{session ? 'Claim your player profile to submit games.' : 'Sign in to submit games.'}</p>
+      <Link to={session ? '/claim' : '/login'} style={{color:'#f4701b'}}>{session ? 'Claim profile →' : 'Sign in →'}</Link>
+    </div>
+  )
+  if (contributorMode && series && series.status === 'complete') return (
+    <div style={s.page}><p style={s.dim}>This series is complete — no more submissions.</p></div>
+  )
+
+  if (submitted) return (
+    <div style={s.page}>
+      <div style={s.doneCard}>
+        <IconCheck size={28} color="#4ade80" />
+        <h2 style={{margin:'0.75rem 0 0.4rem', fontSize:'1.15rem'}}>Game {game.game_number} submitted</h2>
+        <p style={{color:'#888', fontSize:'0.88rem', margin:0}}>The commissioner will verify it against the screenshot. It goes live once approved.</p>
+        <div style={{display:'flex', gap:'0.75rem', justifyContent:'center', marginTop:'1.25rem'}}>
+          <Link to={`/series/${seriesId}`} style={s.doneLink}>Back to series</Link>
+          <button style={s.doneBtn} onClick={() => { setSubmitted(false); setImage(null); setScreenshotFile(null); setOverrideTotal(false); fetchData() }}>Submit another</button>
+        </div>
+      </div>
+    </div>
+  )
+
+  const previewUrl = reviewMode ? submission?.image_url : image?.previewUrl
+  const saveLabel = reviewMode ? 'Approve & Publish Game' : contributorMode ? 'Submit for Review' : 'Save Game'
 
   return (
     <div style={s.page}>
-      <Link to={`/series/${seriesId}`} style={s.back}>← Back to Series</Link>
-      <h1 style={s.title}>Add Game — {series?.name}</h1>
+      <Link to={reviewMode ? '/review' : `/series/${seriesId}`} style={s.back}>← Back to {reviewMode ? 'Review Queue' : 'Series'}</Link>
+      <h1 style={s.title}>{reviewMode ? 'Review' : contributorMode ? 'Submit' : 'Add'} Game — {series?.name}</h1>
+
+      {reviewMode && submission && (
+        <div style={s.infoBanner}>
+          Submitted by <b style={{color:'#fff'}}>{submission.players?.gamertag || 'unknown'}</b> · {new Date(submission.created_at).toLocaleString()} — check every number against the screenshot, fix anything off, then approve.
+        </div>
+      )}
+      {contributorMode && (
+        <div style={s.infoBanner}>
+          Upload the box score screenshot — AI fills in the stats. Double-check them, then submit. The commissioner verifies every game before it goes live. Each picture can only be uploaded once.
+        </div>
+      )}
+
+      {previewUrl && (
+        <a href={previewUrl} target="_blank" rel="noreferrer" style={{display:'block', marginBottom:'1.25rem'}}>
+          <img src={previewUrl} alt="Box score screenshot" style={s.preview} />
+        </a>
+      )}
 
       {/* Screenshot drop zone */}
-      <div
+      {!reviewMode && <div
         style={{...s.dropZone, borderColor: dragOver ? '#f4701b' : '#2a2a2a', background: dragOver ? '#1a0a2e' : '#080808'}}
         onDragOver={e => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
@@ -241,7 +339,7 @@ export default function GameEntry() {
             <div style={s.dropSub}>AI will parse all stats + matchups automatically</div>
           </div>
         )}
-      </div>
+      </div>}
       {parseError && <p style={s.error}>{parseError}</p>}
 
       {/* Game header fields */}
@@ -323,19 +421,47 @@ export default function GameEntry() {
         </div>
       )}
 
-      <button
-        onClick={() => handleSave(false)}
-        disabled={saving || duplicateGame || (!totalsOk && !overrideTotal)}
-        style={{...s.btnSave, opacity: (saving || duplicateGame || (!totalsOk && !overrideTotal)) ? 0.4 : 1}}
-      >
-        {saving ? 'Saving...' : 'Save Game'}
-      </button>
+      {(() => {
+        const blocked = saving || duplicateGame || (!totalsOk && !overrideTotal) || (contributorMode && !image)
+        return (
+          <div style={{display:'flex', gap:'0.75rem', alignItems:'center', flexWrap:'wrap'}}>
+            <button onClick={() => handleSave(false)} disabled={blocked} style={{...s.btnSave, opacity: blocked ? 0.4 : 1}}>
+              {saving ? 'Saving...' : saveLabel}
+            </button>
+            {reviewMode && <RejectButton submissionId={submissionId} authHeaders={authHeaders} onDone={() => navigate('/review')} />}
+          </div>
+        )
+      })()}
+      {contributorMode && !image && (
+        <p style={{color:'#888', fontSize:'0.78rem', marginTop:'0.5rem'}}>A screenshot is required to submit.</p>
+      )}
       {!totalsOk && !overrideTotal && !duplicateGame && (
         <p style={{color:'#888', fontSize:'0.78rem', marginTop:'0.5rem'}}>
           ↑ Check the override box above to save with mismatched totals
         </p>
       )}
     </div>
+  )
+}
+
+function RejectButton({ submissionId, authHeaders, onDone }) {
+  const [busy, setBusy] = useState(false)
+  async function reject() {
+    const note = window.prompt('Reason for rejecting (shown to the submitter, optional):')
+    if (note === null) return
+    setBusy(true)
+    const res = await fetch('/.netlify/functions/review-submission', {
+      method: 'POST', headers: await authHeaders(),
+      body: JSON.stringify({ action: 'reject', id: submissionId, note }),
+    })
+    setBusy(false)
+    if (res.ok) onDone()
+    else alert((await res.json()).error || 'Reject failed')
+  }
+  return (
+    <button onClick={reject} disabled={busy} style={{...s.btnSave, background:'none', border:'1px solid #7f1d1d', color:'#f87171'}}>
+      {busy ? 'Rejecting...' : 'Reject'}
+    </button>
   )
 }
 
@@ -457,6 +583,11 @@ const s = {
   warnBanner: { background:'#2a1a00', border:'1px solid #5a3500', borderRadius:4, padding:'0.6rem 1rem', color:'#ffc107', fontSize:'0.85rem', marginBottom:'1rem' },
   btnSave: { background:'#f4701b', color:'#fff', border:'none', borderRadius:4, padding:'0.85rem 2rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', marginTop:'1rem' },
   error: { color:'#e55', fontSize:'0.85rem' },
+  infoBanner: { background:'#0b0614', border:'1px solid #2a1a3e', borderRadius:6, padding:'0.7rem 1rem', color:'#aaa', fontSize:'0.83rem', marginBottom:'1.25rem', lineHeight:1.5 },
+  preview: { maxWidth:'100%', maxHeight:420, borderRadius:6, border:'1px solid #1a1a1a', display:'block' },
+  doneCard: { maxWidth:460, margin:'3rem auto', textAlign:'center', background:'#080808', border:'1px solid #1a1a1a', borderRadius:10, padding:'2rem 1.5rem' },
+  doneLink: { color:'#ccc', border:'1px solid #2a2a2a', borderRadius:4, padding:'0.55rem 1rem', textDecoration:'none', fontSize:'0.85rem' },
+  doneBtn: { background:'#f4701b', color:'#fff', border:'none', borderRadius:4, padding:'0.55rem 1rem', fontSize:'0.85rem', fontWeight:700, cursor:'pointer' },
   dim: { color:'#555' },
 }
 

@@ -1,11 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseAdmin = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+import { supabaseAdmin, getCaller, imageHash, findDuplicate } from '../lib/shared.js'
+import { rateLimit, getClientIp, rateLimitResponse } from '../lib/ratelimit.js'
 
 // claude-sonnet-5 pricing per million tokens
 const INPUT_COST_PER_M = 3.0
@@ -72,27 +67,17 @@ Return ONLY valid JSON with no markdown fences, no explanation, no trailing text
   }
 }`
 
-const COMMISSIONERS = ['BrandoBank']
-
 export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
   }
 
-  // Require commissioner session
-  const authHeader = req.headers.get('authorization') || ''
-  const token = authHeader.replace(/^Bearer\s+/i, '')
-  if (!token) {
-    return new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401 })
-  }
-  const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
-  if (authErr || !user) {
-    return new Response(JSON.stringify({ error: 'Invalid or expired session' }), { status: 401 })
-  }
-  const { data: callerPlayer } = await supabaseAdmin
-    .from('players').select('gamertag').eq('user_id', user.id).maybeSingle()
-  if (!callerPlayer || !COMMISSIONERS.includes(callerPlayer.gamertag)) {
-    return new Response(JSON.stringify({ error: 'Commissioner access required' }), { status: 403 })
+  // Any claimed player can parse (contributors), commissioner is unthrottled
+  const caller = await getCaller(req)
+  if (caller.error) return caller.error
+  if (!caller.isCommissioner) {
+    const rl = rateLimit(`parse:${caller.user.id}:${getClientIp(req.headers)}`, { windowMs: 10 * 60_000, max: 12 })
+    if (!rl.allowed) return rateLimitResponse(rl.resetMs)
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY
@@ -121,6 +106,11 @@ export default async function handler(req) {
   if (!/^[A-Za-z0-9+/=]+$/.test(image_base64)) {
     return new Response(JSON.stringify({ error: 'Invalid base64 data' }), { status: 400 })
   }
+
+  // Reject a picture that's already in the system before spending AI tokens on it
+  const image_hash = imageHash(image_base64)
+  const dup = await findDuplicate({ image_hash })
+  if (dup) return new Response(JSON.stringify(dup), { status: dup.status })
 
   const client = new Anthropic({ apiKey })
 
@@ -161,7 +151,7 @@ export default async function handler(req) {
       series_id: body.series_id || null,
     }).then(() => {}).catch(() => {})
 
-    return new Response(JSON.stringify(parsed), {
+    return new Response(JSON.stringify({ ...parsed, image_hash }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     })
