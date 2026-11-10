@@ -49,11 +49,13 @@ CREATE INDEX IF NOT EXISTS game_submissions_series_status
 ALTER TABLE game_submissions ENABLE ROW LEVEL SECURITY;
 
 -- Submitters can see their own submissions (status tracking).
+DROP POLICY IF EXISTS "submitters read own submissions" ON game_submissions;
 CREATE POLICY "submitters read own submissions" ON game_submissions
   FOR SELECT TO authenticated
   USING (submitted_by_user = auth.uid());
 
 -- Commissioner sees the whole queue.
+DROP POLICY IF EXISTS "commissioners read submissions" ON game_submissions;
 CREATE POLICY "commissioners read submissions" ON game_submissions
   FOR SELECT TO authenticated
   USING (
