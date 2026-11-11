@@ -33,7 +33,8 @@ export default async function handler(req) {
   try { body = await req.json() } catch { return json(400, { error: 'Invalid JSON' }) }
 
   if (body.action === 'list') {
-    let q = supabaseAdmin.from('game_submissions').select(SELECT).eq('status', 'pending').order('created_at')
+    let q = supabaseAdmin.from('game_submissions').select(SELECT).eq('status', 'pending')
+      .order('series_id').order('game_number').order('created_at')
     if (body.series_id) q = q.eq('series_id', body.series_id)
     const { data, error } = await q
     if (error) return json(500, { error: error.message })

@@ -44,6 +44,8 @@ export default function GameEntry() {
   const [series, setSeries] = useState(null)
   const [allPlayers, setAllPlayers] = useState([])
   const [existingGames, setExistingGames] = useState([])
+  const [pendingNumbers, setPendingNumbers] = useState([]) // game numbers waiting in the review queue
+  const [cropPreview, setCropPreview] = useState(null)    // object URL of the trimmed stats band
   const [game, setGame] = useState(null)
   const [parsing, setParsing] = useState(false)
   const [parseError, setParseError] = useState('')
@@ -62,6 +64,18 @@ export default function GameEntry() {
     fetchData()
   }, [seriesId, submissionId, authLoading, gamertagLoading, isEditor])
 
+  // Review mode: trim the stored screenshot the same way so the stats are legible
+  useEffect(() => {
+    if (!submission?.image_url) return
+    let cancelled = false
+    fetch(submission.image_url)
+      .then(r => r.blob())
+      .then(blob => cropBoxScore(blob))
+      .then(c => { if (!cancelled && c) setCropPreview(`data:${c.type};base64,${c.base64}`) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [submission?.image_url])
+
   async function authHeaders() {
     const { data: { session: currentSession } } = await supabase.auth.getSession()
     return {
@@ -71,16 +85,20 @@ export default function GameEntry() {
   }
 
   async function fetchData() {
-    const [{ data: ser }, { data: players }, { data: games }] = await Promise.all([
+    const [{ data: ser }, { data: players }, { data: games }, { data: pending }] = await Promise.all([
       supabase.from('series').select('*').eq('id', seriesId).single(),
       supabase.from('players').select('*').order('gamertag'),
       supabase.from('games').select('game_number').eq('series_id', seriesId),
+      // RLS: commissioner sees the whole queue, players see their own
+      supabase.from('game_submissions').select('id, game_number').eq('series_id', seriesId).eq('status', 'pending'),
     ])
     setSeries(ser)
     setAllPlayers(players || [])
     setExistingGames(games || [])
-    // Default next game number
-    const taken = (games || []).map(g => g.game_number)
+    const queued = (pending || []).filter(p => p.id !== submissionId).map(p => p.game_number)
+    setPendingNumbers(queued)
+    // Default next game number — skip live games and ones already in the queue
+    const taken = [...(games || []).map(g => g.game_number), ...queued]
     const next = [1,2,3,4,5,6,7].find(n => !taken.includes(n)) || taken.length + 1
 
     if (submissionId && isEditor) {
@@ -138,6 +156,7 @@ export default function GameEntry() {
       }
       if (!res.ok || data.error) throw new Error(data.error || 'Parse failed')
       setImage({ base64, type: file.type, hash: data.image_hash, previewUrl: URL.createObjectURL(file) })
+      setCropPreview(cropped ? `data:${cropped.type};base64,${cropped.base64}` : null)
       applyParsedData(data)
     } catch (err) {
       setParseError(`AI parse failed: ${err.message}. ${isEditor ? 'Fill stats manually below.' : 'Try a clearer screenshot.'}`)
@@ -297,6 +316,7 @@ export default function GameEntry() {
   )
 
   const previewUrl = reviewMode ? submission?.image_url : image?.previewUrl
+  const previewSrc = cropPreview || previewUrl
   const saveLabel = reviewMode ? 'Approve & Publish Game' : contributorMode ? 'Submit for Review' : 'Save Game'
 
   return (
@@ -317,7 +337,8 @@ export default function GameEntry() {
 
       {previewUrl && (
         <a href={previewUrl} target="_blank" rel="noreferrer" style={{display:'block', marginBottom:'1.25rem'}}>
-          <img src={previewUrl} alt="Box score screenshot" style={s.preview} />
+          <img src={previewSrc} alt="Box score screenshot" style={cropPreview ? s.previewWide : s.preview} />
+          <div style={{color:'#555', fontSize:'0.72rem', marginTop:4}}>Tap to open the original screenshot</div>
         </a>
       )}
 
@@ -349,7 +370,9 @@ export default function GameEntry() {
         <label style={s.label}>Game #
           <select style={s.input} value={game.game_number} onChange={e => setGame(g => ({...g, game_number: +e.target.value}))}>
             {[1,2,3,4,5,6,7].filter(n => !existingGames.some(g => g.game_number === n) || n === game.game_number).map(n => (
-              <option key={n} value={n}>Game {n}</option>
+              <option key={n} value={n} disabled={pendingNumbers.includes(n) && n !== game.game_number}>
+                Game {n}{pendingNumbers.includes(n) ? ' (waiting for review)' : ''}
+              </option>
             ))}
           </select>
         </label>
@@ -606,6 +629,7 @@ const s = {
   btnSave: { background:'#f4701b', color:'#fff', border:'none', borderRadius:4, padding:'0.85rem 2rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', marginTop:'1rem' },
   error: { color:'#e55', fontSize:'0.85rem' },
   infoBanner: { background:'#0b0614', border:'1px solid #2a1a3e', borderRadius:6, padding:'0.7rem 1rem', color:'#aaa', fontSize:'0.83rem', marginBottom:'1.25rem', lineHeight:1.5 },
+  previewWide: { width:'100%', borderRadius:6, border:'1px solid #1a1a1a', display:'block' },
   preview: { maxWidth:'100%', maxHeight:420, borderRadius:6, border:'1px solid #1a1a1a', display:'block' },
   doneCard: { maxWidth:460, margin:'3rem auto', textAlign:'center', background:'#080808', border:'1px solid #1a1a1a', borderRadius:10, padding:'2rem 1.5rem' },
   doneLink: { color:'#ccc', border:'1px solid #2a2a2a', borderRadius:4, padding:'0.55rem 1rem', textDecoration:'none', fontSize:'0.85rem' },
