@@ -10,6 +10,12 @@
 -- 2. Only one series may be in_progress. The older live series
 --    (Oct 31 Pickup · BO3, 1-1) is closed as 'unfinished' first.
 
+-- Step 1 (run on its own first — Postgres can't use a new enum value in the
+-- same transaction that adds it). Migration 006 added this value but was
+-- never applied to production, so every "mark unfinished" silently failed:
+--   ALTER TYPE series_status ADD VALUE IF NOT EXISTS 'unfinished';
+-- Step 2: everything below.
+
 UPDATE series
 SET status = 'unfinished', ended_at = coalesce(ended_at, now())
 WHERE id = 'f5220101-45f0-485e-8f71-9bf491c1bd3d' AND status = 'in_progress';
