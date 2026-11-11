@@ -16,7 +16,7 @@ const brando = id('BrandoBank')
 for (const g of games.sort((a, b) => a.game_number - b.game_number)) {
   const off = id(MATCHUPS[g.game_number])
   const { error } = await sb.from('game_matchups').upsert(
-    { game_id: g.id, defender_player_id: brando, offensive_player_id: off, submitted_by_gamertag: 'BrandoBank' },
+    { game_id: g.id, series_id: SERIES, defender_player_id: brando, offensive_player_id: off, submitted_by_gamertag: 'BrandoBank' },
     { onConflict: 'game_id,defender_player_id' },
   )
   console.log(`G${g.game_number} BrandoBank → ${MATCHUPS[g.game_number]}:`, error ? error.message : 'saved')

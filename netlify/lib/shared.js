@@ -275,14 +275,14 @@ export async function insertGame({ series_id, game_number, our_score, opp_score,
   // 4. Matchups from the opponent "YOUR MATCHUP" column
   const matchupRows = opps
     .filter(p => p.matchup_gamertag?.trim())
-    .map(p => ({ game_id: gameRow.id, defender_player_id: playerMap[p.gamertag.trim()], offensive_player_id: playerMap[p.matchup_gamertag.trim()] }))
+    .map(p => ({ game_id: gameRow.id, series_id, defender_player_id: playerMap[p.gamertag.trim()], offensive_player_id: playerMap[p.matchup_gamertag.trim()] }))
     .filter(r => r.defender_player_id && r.offensive_player_id)
   // Green "YOU" arrow + red "YOUR MATCHUP" arrow on the screenshot
   const mm = cleanMatchup(marked_matchup)
   if (mm) {
     const d = playerMap[mm.defender], o = playerMap[mm.offensive]
     if (d && o && d !== o && !matchupRows.some(r => r.defender_player_id === d)) {
-      matchupRows.push({ game_id: gameRow.id, defender_player_id: d, offensive_player_id: o, submitted_by_gamertag: submitted_by_gamertag || null })
+      matchupRows.push({ game_id: gameRow.id, series_id, defender_player_id: d, offensive_player_id: o, submitted_by_gamertag: submitted_by_gamertag || null })
     }
   }
   if (matchupRows.length) {
