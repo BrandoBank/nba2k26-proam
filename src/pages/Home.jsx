@@ -56,10 +56,10 @@ export default function Home() {
                 <span style={styles.cardName}>{s.name}</span>
                 <span style={{
                   ...styles.badge,
-                  background: s.status === 'complete' ? '#1a3a1a' : '#1a0a2e',
-                  color: s.status === 'complete' ? '#4caf50' : '#9333ea',
+                  background: s.status === 'in_progress' ? '#1a0a2e' : '#1a3a1a',
+                  color: s.status === 'in_progress' ? '#9333ea' : '#4caf50',
                 }}>
-                  {s.status === 'complete' ? s.result_label || 'Complete' : 'In Progress'}
+                  {s.status === 'complete' ? s.result_label || 'Complete' : s.status === 'unfinished' ? `Ended ${s.our_wins}–${s.opp_wins}` : 'In Progress'}
                 </span>
               </div>
               <div style={styles.cardMeta}>

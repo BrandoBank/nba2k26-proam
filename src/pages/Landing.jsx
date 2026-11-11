@@ -45,7 +45,7 @@ export default function Landing() {
         { data: cmts },
       ] = await Promise.all([
         supabase.from('series').select('*').eq('status', 'in_progress').order('started_at', { ascending: false }),
-        supabase.from('series').select('*').eq('status', 'complete').order('ended_at', { ascending: false }).limit(3),
+        supabase.from('series').select('*').in('status', ['complete', 'unfinished']).order('ended_at', { ascending: false, nullsFirst: false }).limit(3),
         supabase.from('career_player_totals').select('*'),
         supabase.from('series_rankings').select('*, players(gamertag,display_name), series(name,ended_at)').eq('finalized', true).order('series(ended_at)', { ascending: true }),
         supabase.from('comments').select('*').order('created_at', { ascending: false }).limit(30),
@@ -263,7 +263,7 @@ export default function Landing() {
                     <div style={s.recentBottom}>
                       <span style={s.recentScore}>{highScore}–{lowScore}</span>
                       <span style={{color: OR, fontWeight: 800, fontSize: '0.75rem', letterSpacing: '0.06em'}}>
-                        {winner ? `${winner} wins` : 'FINAL'}
+                        {ser.status === 'unfinished' ? 'ENDED EARLY' : ser.our_wins === ser.opp_wins ? 'TIED' : winner ? `${winner} wins` : 'FINAL'}
                       </span>
                     </div>
                   </div>

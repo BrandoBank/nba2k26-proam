@@ -122,7 +122,7 @@ export default function History() {
           { data: gStats },
         ] = await Promise.all([
           supabase.from('career_player_totals').select('*'),
-          supabase.from('series').select('*').eq('status', 'complete').order('ended_at', { ascending: false }),
+          supabase.from('series').select('*').in('status', ['complete', 'unfinished']).order('ended_at', { ascending: false, nullsFirst: false }),
           supabase.from('series_rankings').select('*, players(gamertag,display_name)'),
           supabase.from('player_head_to_head').select('*'),
           supabase.from('series_player_stats').select('*'),

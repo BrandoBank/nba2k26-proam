@@ -238,6 +238,9 @@ export default function SeriesDetail() {
     }
   }
   const markComplete = () => seriesAdmin({ action: 'complete' })
+  const endSeries = () => {
+    if (window.confirm(`End ${series.name}? It stops being the live series and shows up with the finished series.`)) seriesAdmin({ action: 'end' })
+  }
   const togglePublish = () => seriesAdmin({ action: 'publish', published: !series.published })
 
   if (loading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
@@ -337,13 +340,23 @@ export default function SeriesDetail() {
             <IconPlus size={15} color="#fff" />
             Add Game
           </button>
+          {!seriesOver && isLive && (
+            <button onClick={endSeries} disabled={adminBusy} style={s.completeBtn}>
+              <IconCheck size={15} color="#4caf50" />
+              End Series
+            </button>
+          )}
           {seriesOver && (
-            <button onClick={markComplete} style={s.completeBtn}>
+            <button onClick={markComplete} disabled={adminBusy} style={s.completeBtn}>
               <IconCheck size={15} color="#4caf50" />
               Mark Complete
             </button>
           )}
         </div>
+      )}
+
+      {adminError && (
+        <p style={{color:'#f87171', fontSize:'0.82rem', margin:'0.5rem 0', padding:'0 1.1rem'}}>Couldn't save: {adminError}</p>
       )}
 
       {/* ══ CONTRIBUTE — any signed-in player ══ */}
@@ -509,6 +522,9 @@ export default function SeriesDetail() {
           <span style={{...s.actionTileLabel, color: copied ? '#4caf50' : '#444'}}>{copied ? 'Copied!' : 'Share'}</span>
         </button>
       </div>
+      {adminError && (
+        <p style={{color:'#f87171', fontSize:'0.82rem', margin:'0 0 1rem', padding:'0 1.1rem'}}>Couldn't save: {adminError}</p>
+      )}
 
       {/* ══ PREDICTIONS ══ */}
       <div style={{padding: '0 2rem'}} className="sd-preds">

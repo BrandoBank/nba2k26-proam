@@ -53,7 +53,8 @@ export default function Dashboard() {
   }, [series])
 
   const active = series.filter(s => s.status === 'in_progress')
-  const completed = series.filter(s => s.status === 'complete')
+  // Finished = complete or ended early (unfinished); both belong with past series
+  const completed = series.filter(s => s.status === 'complete' || s.status === 'unfinished')
 
   return (
     <div style={p.page}>

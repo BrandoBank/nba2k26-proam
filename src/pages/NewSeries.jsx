@@ -110,6 +110,11 @@ export default function NewSeries() {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [liveSeries, setLiveSeries] = useState([])
+  useEffect(() => {
+    supabase.from('series').select('id, name, our_wins, opp_wins').eq('status', 'in_progress')
+      .then(({ data }) => setLiveSeries(data || []))
+  }, [])
 
   if (authLoading || gamertagLoading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
   if (!isEditor) return <div style={s.page}><p style={s.dim}>Not authorized.</p></div>
@@ -126,30 +131,28 @@ export default function NewSeries() {
     const d2 = form.drafter_2.trim()
     const drafted_by = d1 && d2 ? `${d1} vs ${d2}` : (d1 || d2 || null)
 
-    // Any currently live series becomes unfinished — rankings preserved, games still addable
-    await supabase
-      .from('series')
-      .update({ status: 'unfinished' })
-      .eq('status', 'in_progress')
-
-    const { data, error } = await supabase
-      .from('series')
-      .insert({
-        name,
-        our_team_name: form.our_team_name.trim(),
-        opp_team_name: form.opp_team_name.trim(),
-        format: fmt,
-        storyline: form.storyline.trim() || null,
-        drafted_by,
-        status: 'in_progress',
-        started_at: new Date().toISOString(),
+    // Server closes any live series (it becomes unfinished) and creates this one
+    try {
+      const { data: { session: cur } } = await supabase.auth.getSession()
+      const res = await fetch('/.netlify/functions/series-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cur?.access_token || ''}` },
+        body: JSON.stringify({ action: 'create', series: {
+          name,
+          our_team_name: form.our_team_name,
+          opp_team_name: form.opp_team_name,
+          format: fmt,
+          storyline: form.storyline,
+          drafted_by,
+        } }),
       })
-      .select()
-      .single()
-
-    setSaving(false)
-    if (error) { setError(error.message); return }
-    navigate(`/series/${data.id}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not create series')
+      navigate(`/series/${data.series.id}`)
+    } catch (err) {
+      setError(err.message)
+      setSaving(false)
+    }
   }
 
   const namePlaceholder = autoSeriesName(form.format)
@@ -197,6 +200,11 @@ export default function NewSeries() {
         <label style={s.label}>Storyline <span style={s.opt}>(optional)</span>
           <textarea style={{...s.input, height: 70, resize: 'vertical'}} value={form.storyline} onChange={e => setForm(f => ({...f, storyline: e.target.value}))} placeholder="Series narrative for the banner..." />
         </label>
+        {liveSeries.length > 0 && (
+          <p style={{color:'#fbbf24', fontSize:'0.82rem', background:'#1a1200', border:'1px solid #4a3000', borderRadius:6, padding:'0.6rem 0.8rem', margin:'0 0 0.75rem'}}>
+            Only one series can be live. Creating this one ends {liveSeries.map(l => `${l.name} (${l.our_wins}–${l.opp_wins})`).join(', ')} — it'll be marked unfinished and keep its games and stats.
+          </p>
+        )}
         {error && <p style={s.error}>{error}</p>}
         <button type="submit" disabled={saving} style={s.btn}>{saving ? 'Creating...' : 'Create Series'}</button>
       </form>

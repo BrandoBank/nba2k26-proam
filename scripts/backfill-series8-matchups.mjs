@@ -1,4 +1,4 @@
-// One-off: re-insert the arrow-marker matchups for 2K27 Series 7 that were
+// One-off: re-insert the arrow-marker matchups for 2K27 Series 8 that were
 // dropped before migration 026 granted service_role access to game_matchups.
 // Run: node --env-file=.env scripts/backfill-series7-matchups.mjs
 import { createClient } from '@supabase/supabase-js'
