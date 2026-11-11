@@ -174,6 +174,7 @@ export default function SeriesDetail() {
   const [error, setError] = useState('')
   const [lastUpdated, setLastUpdated] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [pendingSubs, setPendingSubs] = useState([])
 
   const fetchAll = useCallback(async () => {
     const [{ data: ser }, { data: gms }, { data: sts }, { data: rankings }, { data: mups }, { data: pgs }] = await Promise.all([
@@ -190,9 +191,16 @@ export default function SeriesDetail() {
     setFinalizedRankings(rankings || [])
     setMatchups(mups || [])
     setPerGameStats(pgs || [])
+    // RLS: commissioner sees every pending submission, players see only their own
+    if (session) {
+      const { data: subs } = await supabase.from('game_submissions')
+        .select('id, game_number, status, review_note, created_at')
+        .eq('series_id', id).order('created_at', { ascending: false })
+      setPendingSubs(subs || [])
+    }
     setLastUpdated(new Date())
     setLoading(false)
-  }, [id])
+  }, [id, session])
 
   useEffect(() => {
     fetchAll()
@@ -331,6 +339,33 @@ export default function SeriesDetail() {
           )}
         </div>
       )}
+
+      {/* ══ CONTRIBUTE — any signed-in player ══ */}
+      {isActive && !isEditor && session && (
+        <div style={s.addWrap} className="sd-add">
+          <button onClick={() => navigate(authGamertag ? `/series/${id}/add-game` : '/claim')} style={s.addBtn}>
+            <IconPlus size={15} color="#fff" />
+            Submit a Game
+          </button>
+        </div>
+      )}
+      {(() => {
+        const open = pendingSubs.filter(p => p.status === 'pending')
+        const rejected = pendingSubs.filter(p => p.status === 'rejected').slice(0, 3)
+        if (isEditor) return open.length > 0 && (
+          <div style={s.subBanner} className="sd-add">
+            <span>{open.length} game{open.length > 1 ? 's' : ''} waiting for your review</span>
+            <Link to="/review" style={{color:'#f4701b', fontWeight:700, textDecoration:'none'}}>Review →</Link>
+          </div>
+        )
+        if (!open.length && !rejected.length) return null
+        return (
+          <div style={{...s.subBanner, flexDirection:'column', alignItems:'flex-start'}} className="sd-add">
+            {open.map(p => <span key={p.id}>Your Game {p.game_number} submission is waiting for commissioner review.</span>)}
+            {rejected.map(p => <span key={p.id} style={{color:'#f87171'}}>Game {p.game_number} submission was rejected{p.review_note ? `: ${p.review_note}` : '.'}</span>)}
+          </div>
+        )
+      })()}
 
       {/* ══ RANKINGS ══ */}
       {liveRankings.length > 0 && (
@@ -618,6 +653,7 @@ const s = {
 
   // Actions
   actionsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.6rem', padding: '1rem 2rem', borderBottom: '1px solid #0d0d0d' },
+  subBanner: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem', background: '#0b0614', border: '1px solid #2a1a3e', borderRadius: 8, padding: '0.7rem 1rem', margin: '0 0 1rem', color: '#bbb', fontSize: '0.85rem' },
   actionTile: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', background: '#080808', border: '1px solid #141414', borderRadius: 12, padding: '0.9rem 0.5rem', cursor: 'pointer', textDecoration: 'none' },
   actionTileLabel: { fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#444' },
 

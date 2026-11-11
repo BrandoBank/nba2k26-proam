@@ -1,175 +1,104 @@
+/**
+ * parse-screenshot — box score screenshot → stats, for any claimed player.
+ * POST { image_base64, media_type, series_id?, parse_base64?, parse_media_type? }
+ *
+ *   image_base64  the original file — hashed for duplicate detection
+ *   parse_base64  optional client-cropped copy (black bars trimmed) sent to the
+ *                 model instead, so the stats are read at full resolution
+ *
+ * Returns { image_hash, ours, opp, side_reason, issues, corrections,
+ *           new_players, marked_matchup, attempts }
+ */
+
 import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseAdmin = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
-
-// claude-sonnet-5 pricing per million tokens
-const INPUT_COST_PER_M = 3.0
-const OUTPUT_COST_PER_M = 15.0
+import { supabaseAdmin, getCaller, imageHash, findDuplicate, json, snapGamertags, resolveSides } from '../lib/shared.js'
+import { rateLimit, getClientIp, rateLimitResponse } from '../lib/ratelimit.js'
+import { parseBoxScore, estimateCost, PARSE_MODEL } from '../lib/parse.js'
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'])
 const MAX_B64_CHARS = 14_000_000
-
-const SYSTEM_PROMPT = `You are a stat transcription robot for NBA 2K box score screenshots. Your only job is to copy numbers and text exactly as shown — no inference, no estimation.
-
-## LAYOUT
-Two teams are shown. Each team lists players top-to-bottom in position order (PG, SG, SF, PF, C). There may be 3, 4, or 5 players per team depending on the game mode.
-
-Stat columns left-to-right: GRADE | PTS | REB | AST | STL | BLK | PF | TO | FGM-FGA | 3PM-3PA | FTM-FTA
-
-The bottom team may have a "YOUR MATCHUP" column at the far right showing the opponent gamertag they were assigned to guard.
-
-## CRITICAL — GAMERTAG TRANSCRIPTION
-Gamertags are case-sensitive and use mixed alphanumerics. YOU MUST:
-1. Read each character individually — do not guess or auto-correct spelling
-2. Distinguish: digit 0 (zero) vs letter O (oh), digit 1 (one) vs letter l (lowercase L) vs letter I (capital i), digit 5 vs letter S
-3. Preserve ALL underscores, numbers, capitals exactly as shown
-4. Do NOT add or remove any characters
-5. If a character is genuinely ambiguous due to font rendering, pick the most visually accurate one
-
-## CRITICAL — STAT ACCURACY
-- FGM-FGA, 3PM-3PA, FTM-FTA columns show "X/Y" — X is made, Y is attempted. Never swap them.
-- fgm MUST always be ≤ fga. If your read would violate this, re-examine the cell.
-- tpm MUST always be ≤ tpa. Same rule.
-- pts MUST equal (fgm - tpm) * 2 + tpm * 3 + ftm, approximately. If it's wildly off, re-read the FG row.
-- Blank or "--" cells = 0, not null
-- Grade: A+, A, A-, B+, B, B-, C+, C, C-, D, F — copy exactly, or null if the column is absent
-
-## OUTPUT
-Return ONLY valid JSON with no markdown fences, no explanation, no trailing text.
-
-{
-  "team_top": {
-    "name": "<team name exactly as shown>",
-    "score": <integer>,
-    "players": [
-      {
-        "position_slot": 1,
-        "gamertag": "<exact gamertag — transcribed character by character>",
-        "grade": "<grade or null>",
-        "pts": 0, "reb": 0, "ast": 0, "stl": 0, "blk": 0, "fouls": 0, "tov": 0,
-        "fgm": 0, "fga": 0, "tpm": 0, "tpa": 0, "ftm": 0, "fta": 0
-      }
-    ]
-  },
-  "team_bottom": {
-    "name": "<team name exactly as shown>",
-    "score": <integer>,
-    "players": [
-      {
-        "position_slot": 1,
-        "gamertag": "<exact gamertag — transcribed character by character>",
-        "grade": "<grade or null>",
-        "pts": 0, "reb": 0, "ast": 0, "stl": 0, "blk": 0, "fouls": 0, "tov": 0,
-        "fgm": 0, "fga": 0, "tpm": 0, "tpa": 0, "ftm": 0, "fta": 0,
-        "matchup_gamertag": "<gamertag from YOUR MATCHUP column, or null>"
-      }
-    ]
-  }
-}`
-
-const COMMISSIONERS = ['BrandoBank']
+const B64 = /^[A-Za-z0-9+/=]+$/
 
 export default async function handler(req) {
-  if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
-  }
+  if (req.method !== 'POST') return json(405, { error: 'Method not allowed' })
 
-  // Require commissioner session
-  const authHeader = req.headers.get('authorization') || ''
-  const token = authHeader.replace(/^Bearer\s+/i, '')
-  if (!token) {
-    return new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401 })
-  }
-  const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
-  if (authErr || !user) {
-    return new Response(JSON.stringify({ error: 'Invalid or expired session' }), { status: 401 })
-  }
-  const { data: callerPlayer } = await supabaseAdmin
-    .from('players').select('gamertag').eq('user_id', user.id).maybeSingle()
-  if (!callerPlayer || !COMMISSIONERS.includes(callerPlayer.gamertag)) {
-    return new Response(JSON.stringify({ error: 'Commissioner access required' }), { status: 403 })
+  // Any claimed player can parse (contributors); commissioner is unthrottled
+  const caller = await getCaller(req)
+  if (caller.error) return caller.error
+  if (!caller.isCommissioner) {
+    const rl = rateLimit(`parse:${caller.user.id}:${getClientIp(req.headers)}`, { windowMs: 10 * 60_000, max: 12 })
+    if (!rl.allowed) return rateLimitResponse(rl.resetMs)
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }), { status: 500 })
-  }
+  if (!apiKey) return json(500, { error: 'ANTHROPIC_API_KEY not configured' })
 
   let body
-  try {
-    body = await req.json()
-  } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 })
+  try { body = await req.json() } catch { return json(400, { error: 'Invalid JSON body' }) }
+
+  const { image_base64, media_type = 'image/jpeg', series_id } = body
+  if (!image_base64 || typeof image_base64 !== 'string' || !B64.test(image_base64)) {
+    return json(400, { error: 'image_base64 required' })
+  }
+  if (image_base64.length > MAX_B64_CHARS) return json(413, { error: 'Image too large (max ~7.5 MB)' })
+  if (!ALLOWED_TYPES.has(media_type)) return json(400, { error: 'Invalid image type' })
+
+  let parseData = image_base64, parseType = media_type
+  if (body.parse_base64) {
+    if (typeof body.parse_base64 !== 'string' || !B64.test(body.parse_base64) || body.parse_base64.length > MAX_B64_CHARS
+      || !ALLOWED_TYPES.has(body.parse_media_type)) {
+      return json(400, { error: 'Invalid cropped image' })
+    }
+    parseData = body.parse_base64
+    parseType = body.parse_media_type
   }
 
-  const { image_base64, media_type = 'image/jpeg' } = body
-
-  if (!image_base64 || typeof image_base64 !== 'string') {
-    return new Response(JSON.stringify({ error: 'image_base64 required' }), { status: 400 })
-  }
-  if (image_base64.length > MAX_B64_CHARS) {
-    return new Response(JSON.stringify({ error: 'Image too large (max ~7.5 MB)' }), { status: 413 })
-  }
-  if (!ALLOWED_TYPES.has(media_type)) {
-    return new Response(JSON.stringify({ error: 'Invalid image type' }), { status: 400 })
-  }
-  if (!/^[A-Za-z0-9+/=]+$/.test(image_base64)) {
-    return new Response(JSON.stringify({ error: 'Invalid base64 data' }), { status: 400 })
-  }
+  // Reject a picture that's already in the system before spending AI tokens on it
+  const image_hash = imageHash(image_base64)
+  const dup = await findDuplicate({ image_hash })
+  if (dup) return json(dup.status, dup)
 
   const client = new Anthropic({ apiKey })
-
+  let result
   try {
-    const message = await client.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type, data: image_base64 } },
-            { type: 'text', text: 'Parse every stat from this box score screenshot. Before returning, verify: (1) every gamertag was copied character-by-character, (2) fgm ≤ fga and tpm ≤ tpa for every player, (3) no player row was skipped. Then return the JSON.' },
-          ],
-        },
-      ],
-    })
-
-    const textBlock = message.content.find(b => b.type === 'text')
-    if (!textBlock) throw new Error('No text output from model')
-
-    let raw = textBlock.text.trim()
-    // Strip any accidental markdown fences
-    raw = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-
-    const parsed = JSON.parse(raw)
-
-    // Log usage — fire and forget, never block the response
-    const inputTokens = message.usage?.input_tokens || 0
-    const outputTokens = message.usage?.output_tokens || 0
-    const costUsd = (inputTokens / 1_000_000) * INPUT_COST_PER_M + (outputTokens / 1_000_000) * OUTPUT_COST_PER_M
-    supabaseAdmin.from('api_usage').insert({
-      function_name: 'parse-screenshot',
-      tokens_input: inputTokens,
-      tokens_output: outputTokens,
-      estimated_cost_usd: Math.round(costUsd * 100000) / 100000,
-      series_id: body.series_id || null,
-    }).then(() => {}).catch(() => {})
-
-    return new Response(JSON.stringify(parsed), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-    })
+    result = await parseBoxScore({ client, base64: parseData, mediaType: parseType })
   } catch (err) {
-    console.error('parse-screenshot error:', err.message)
-    return new Response(
-      JSON.stringify({ error: err.message?.includes('JSON') ? 'Model returned malformed JSON — try a clearer screenshot.' : 'Parsing failed. Try a clearer screenshot.' }),
-      { status: 500 }
-    )
+    console.error('parse-screenshot error:', err.status || '', err.message)
+    const auth = err.status === 401 || err.status === 403
+    return json(auth ? 503 : 502, {
+      error: auth ? 'Screenshot reader is misconfigured — tell the commissioner.' : 'Could not read that screenshot. Try a clearer one.',
+    })
   }
+
+  // Cost log — never block the response on it
+  supabaseAdmin.from('api_usage').insert({
+    function_name: 'parse-screenshot',
+    tokens_input: result.usage.input_tokens,
+    tokens_output: result.usage.output_tokens,
+    estimated_cost_usd: Math.round(estimateCost(PARSE_MODEL, result.usage) * 100000) / 100000,
+    series_id: series_id || null,
+  }).then(({ error }) => { if (error) console.warn('api_usage insert failed:', error.message) })
+
+  const { team_top: top, team_bottom: bottom } = result.parsed
+  const { corrections, newPlayers } = await snapGamertags([top, bottom])
+  const side = await resolveSides(series_id, top, bottom)
+  const [ours, opp] = side.ours === 'top' ? [top, bottom] : [bottom, top]
+
+  const all = [...top.players, ...bottom.players]
+  const you = all.find(p => p.marker === 'you')
+  const matchup = all.find(p => p.marker === 'matchup')
+  const sameTeam = you && matchup && (top.players.includes(you) === top.players.includes(matchup))
+  const marked_matchup = you && matchup && !sameTeam ? { defender: you.gamertag, offensive: matchup.gamertag } : null
+
+  return json(200, {
+    image_hash,
+    ours,
+    opp,
+    side_reason: side.reason,
+    issues: result.issues,
+    corrections,
+    new_players: newPlayers,
+    marked_matchup,
+    attempts: result.attempts,
+  })
 }

@@ -54,6 +54,7 @@ export default function MobileNav() {
           <DesktopLink to="/feed" label="Feed" active={active('/feed')} />
           <DesktopLink to="/history" label="History" active={active('/history')} />
           <DesktopLink to="/rivalries" label="Rivalries" active={active('/rivalries')} />
+          {isEditor && <DesktopLink to="/review" label="Review" active={active('/review')} />}
           {isEditor && <DesktopLink to="/series/new" label="+ New" active={active('/series/new')} accent />}
         </div>
         <div style={dt.right}>

@@ -17,6 +17,7 @@ import Feed from './pages/Feed'
 import Claim from './pages/Claim'
 import Profile from './pages/Profile'
 import Rivalries from './pages/Rivalries'
+import Review from './pages/Review'
 
 function ProtectedRoute({ children }) {
   const { session, loading } = useAuth()
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="/series/:id/game/:gameId/edit" element={<ProtectedRoute><GameEntry /></ProtectedRoute>} />
         <Route path="/player/:gamertag" element={<Profile />} />
         <Route path="/rivalries" element={<Rivalries />} />
+        <Route path="/review" element={<ProtectedRoute><Review /></ProtectedRoute>} />
         <Route path="/import" element={<ProtectedRoute><Import /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
