@@ -492,7 +492,7 @@ export default function SeriesDetail() {
             <span style={s.actionTileLabel}>Rankings</span>
           </Link>
         )}
-        {isEditor && !isLive && (
+        {isEditor && (
           <button onClick={togglePublish} style={s.actionTile}>
             <IconPublish size={20} color="#555" />
             <span style={s.actionTileLabel}>{series.published ? 'Unpublish' : 'Publish'}</span>
