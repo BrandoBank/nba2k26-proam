@@ -131,7 +131,8 @@ export default function Profile() {
   function getRank(key, reverse = false) {
     if (!career || !allCareers.length) return null
     const sorted = [...allCareers]
-      .filter(p => Number(p[key]) > 0)
+      // Same 3-game minimum as the Home leaderboard, so ranks agree everywhere
+      .filter(p => Number(p[key]) > 0 && p.total_gp >= 3)
       .sort((a, b) => reverse ? Number(a[key]) - Number(b[key]) : Number(b[key]) - Number(a[key]))
     const idx = sorted.findIndex(p => p.gamertag === gamertag)
     return idx >= 0 ? idx + 1 : null
@@ -261,7 +262,7 @@ export default function Profile() {
           {!editingName && player.display_name && player.display_name !== player.gamertag &&
             <div style={s.heroTag}>{player.gamertag}</div>
           }
-          <div style={s.heroMeta}>{career?.total_gp || 0} GP · {rankings.length} Series</div>
+          <div style={s.heroMeta}>{career?.total_gp || 0} GP · {career?.series_played ?? rankings.length} Series</div>
         </div>
         {isOwnProfile && !editingName && <div style={s.youBadge}>YOU</div>}
       </div>
