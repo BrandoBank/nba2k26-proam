@@ -2,7 +2,8 @@ import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 // Gamertags with commissioner-level access (can add games, create series, edit)
-const COMMISSIONERS = ['BrandoBank']
+// Single source of truth, shared with the Netlify functions: config/commissioners.json
+import COMMISSIONERS from '../../config/commissioners.json'
 
 const AuthContext = createContext(null)
 

@@ -13,7 +13,9 @@ export const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
-export const COMMISSIONERS = ['BrandoBank']
+// Gamertags with commissioner powers (publish, approve, add games). Edit config/commissioners.json.
+import COMMISSIONER_LIST from '../../config/commissioners.json' with { type: 'json' }
+export const COMMISSIONERS = COMMISSIONER_LIST
 export const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C']
 export const SCREENSHOT_BUCKET = 'box-scores'
 const STAT_FIELDS = ['pts', 'reb', 'ast', 'stl', 'blk', 'fouls', 'tov', 'fgm', 'fga', 'tpm', 'tpa', 'ftm', 'fta']

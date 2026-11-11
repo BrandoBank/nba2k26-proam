@@ -977,7 +977,7 @@ const s = {
   page: { minHeight: '100vh', background: '#0a0a0f', color: '#fff', fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 80, position: 'relative' },
   arcadeBg: { position: 'fixed', inset: 0, backgroundImage: 'url(/arcade-bg.png)', backgroundSize: 'cover', backgroundPosition: 'center top', opacity: 0.06, pointerEvents: 'none', zIndex: 0, filter: 'saturate(1.4)' },
 
-  nav: { position: 'sticky', top: 0, zIndex: 200, background: 'rgba(10,10,15,0.96)', backdropFilter: 'blur(16px)', borderBottom: `1px solid rgba(168,85,247,0.2)`, boxShadow: `0 1px 24px rgba(168,85,247,0.06)`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '0 1rem', paddingTop: 'env(safe-area-inset-top, 0px)', minHeight: 'calc(52px + env(safe-area-inset-top, 0px))', boxSizing: 'border-box' },
+  nav: { position: 'sticky', top: 'env(safe-area-inset-top, 0px)', zIndex: 200, background: 'rgba(10,10,15,0.96)', backdropFilter: 'blur(16px)', borderBottom: `1px solid rgba(168,85,247,0.2)`, boxShadow: `0 1px 24px rgba(168,85,247,0.06)`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '0 1rem', minHeight: 52, boxSizing: 'border-box' },
   logo: { display: 'flex', alignItems: 'center', gap: 7, textDecoration: 'none', fontFamily: "'Barlow Condensed', system-ui, sans-serif", fontWeight: 900, fontSize: '1.15rem', letterSpacing: '0.28em', color: '#fff', textShadow: `0 0 20px ${NEON_P_GLOW}`, textTransform: 'uppercase' },
   navRight: { display: 'flex', alignItems: 'center', gap: '0.25rem' },
   navLink: { color: '#555', textDecoration: 'none', fontSize: '0.82rem', padding: '0.4rem 0.6rem', fontFamily: "'Inter', system-ui, sans-serif" },

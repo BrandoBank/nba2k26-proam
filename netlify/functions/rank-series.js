@@ -15,7 +15,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 
-const COMMISSIONERS = ['BrandoBank']
+import COMMISSIONERS from '../../config/commissioners.json' with { type: 'json' }
 
 // ── Rate limiter ──────────────────────────────────────────────────────────────
 const _rlStore = new Map()

@@ -5,7 +5,7 @@
  * Caller must own the defender player row or be a commissioner.
  */
 
-const COMMISSIONERS = ['BrandoBank']
+import COMMISSIONERS from '../../config/commissioners.json' with { type: 'json' }
 
 export default async function handler(req) {
   if (req.method !== 'POST') {

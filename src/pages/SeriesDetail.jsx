@@ -174,6 +174,8 @@ export default function SeriesDetail() {
   const [error, setError] = useState('')
   const [lastUpdated, setLastUpdated] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [adminBusy, setAdminBusy] = useState(false)
+  const [adminError, setAdminError] = useState('')
   const [pendingSubs, setPendingSubs] = useState([])
 
   const fetchAll = useCallback(async () => {
@@ -214,25 +216,29 @@ export default function SeriesDetail() {
     return () => supabase.removeChannel(channel)
   }, [fetchAll])
 
-  async function markComplete() {
-    const wins = games.filter(g => g.our_result === 'W').length
-    const losses = games.filter(g => g.our_result === 'L').length
-    const label = `${wins}–${losses} ${wins > losses ? 'W' : 'L'}`
-    await supabase.from('series').update({
-      status: 'complete',
-      our_wins: wins,
-      opp_wins: losses,
-      result_label: label,
-      ended_at: new Date().toISOString(),
-      published: true,
-    }).eq('id', id)
-    fetchAll()
+  // Series status changes go through a commissioner-checked function and
+  // return the saved row, so the UI never shows a change that didn't stick.
+  async function seriesAdmin(body) {
+    setAdminBusy(true)
+    setAdminError('')
+    try {
+      const { data: { session: cur } } = await supabase.auth.getSession()
+      const res = await fetch('/.netlify/functions/series-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cur?.access_token || ''}` },
+        body: JSON.stringify({ series_id: id, ...body }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Save failed')
+      setSeries(prev => ({ ...prev, ...data.series }))
+    } catch (err) {
+      setAdminError(err.message)
+    } finally {
+      setAdminBusy(false)
+    }
   }
-
-  async function togglePublish() {
-    await supabase.from('series').update({ published: !series.published }).eq('id', id)
-    fetchAll()
-  }
+  const markComplete = () => seriesAdmin({ action: 'complete' })
+  const togglePublish = () => seriesAdmin({ action: 'publish', published: !series.published })
 
   if (loading) return <div style={s.page}><p style={s.dim}>Loading...</p></div>
   if (!series) return <div style={s.page}><p style={s.dim}>Series not found.</p></div>
@@ -493,9 +499,9 @@ export default function SeriesDetail() {
           </Link>
         )}
         {isEditor && (
-          <button onClick={togglePublish} style={s.actionTile}>
+          <button onClick={togglePublish} disabled={adminBusy} style={{...s.actionTile, ...(series.published ? {borderColor: '#14532d', background: '#03140a'} : {}), opacity: adminBusy ? 0.5 : 1}}>
             <IconPublish size={20} color="#555" />
-            <span style={s.actionTileLabel}>{series.published ? 'Unpublish' : 'Publish'}</span>
+            <span style={s.actionTileLabel}>{adminBusy ? 'Saving…' : series.published ? 'Public · Unpublish' : 'Private · Publish'}</span>
           </button>
         )}
         <button onClick={handleShare} style={{...s.actionTile, ...(copied ? {borderColor: '#1a4a1a', background: '#020f02'} : {})}}>

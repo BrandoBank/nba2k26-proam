@@ -1,3 +1,4 @@
+import COMMISSIONERS from '../../config/commissioners.json' with { type: 'json' }
 /**
  * import-history — Netlify serverless function
  * POST { series: [...] }
@@ -30,7 +31,6 @@ export default async function handler(req, context) {
   }
 
   // Verify the caller is a commissioner
-  const COMMISSIONERS = ['BrandoBank']
   const { data: callerPlayer } = await supabaseAdmin
     .from('players').select('gamertag').eq('user_id', user.id).maybeSingle()
   if (!callerPlayer || !COMMISSIONERS.includes(callerPlayer.gamertag)) {
