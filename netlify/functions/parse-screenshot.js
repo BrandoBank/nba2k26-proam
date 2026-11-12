@@ -80,6 +80,9 @@ export default async function handler(req) {
   }).then(({ error }) => { if (error) console.warn('api_usage insert failed:', error.message) })
 
   const { team_top: top, team_bottom: bottom } = result.parsed
+  if (!top?.players?.length || !bottom?.players?.length) {
+    return json(422, { error: "That doesn't look like a 2K box score. Upload the end-of-game box score screenshot." })
+  }
   const { corrections, newPlayers } = await snapGamertags([top, bottom])
   const side = await resolveSides(series_id, top, bottom)
   const [ours, opp] = side.ours === 'top' ? [top, bottom] : [bottom, top]

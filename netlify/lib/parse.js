@@ -161,8 +161,10 @@ export async function parseBoxScore({ client, base64, mediaType, model = PARSE_M
   let parsed = readJson(message)
   let issues = validateBoxScore(parsed)
   let attempts = 1
+  // No rows at all = not a box score; don't pay for a second read
+  const empty = !parsed?.team_top?.players?.length && !parsed?.team_bottom?.players?.length
 
-  if (issues.length) {
+  if (issues.length && !empty) {
     // One targeted re-read: tell the model exactly which cells don't reconcile
     // Pass the assistant turn back unchanged (thinking blocks included)
     messages.push({ role: 'assistant', content: message.content })
