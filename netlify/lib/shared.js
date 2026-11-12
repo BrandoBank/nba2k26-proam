@@ -301,7 +301,13 @@ export async function insertGame({ series_id, game_number, our_score, opp_score,
   await supabaseAdmin.from('series').update({
     our_wins: wins,
     opp_wins: losses,
-    ...(isComplete ? { status: 'complete', ended_at: new Date().toISOString() } : {}),
+    // A clinching game finishes the series the same way Mark Complete does
+    ...(isComplete ? {
+      status: 'complete',
+      ended_at: new Date().toISOString(),
+      result_label: `${wins}–${losses} ${wins > losses ? 'W' : 'L'}`,
+      published: true,
+    } : {}),
   }).eq('id', series_id)
 
   return gameRow.id
