@@ -70,6 +70,7 @@ export function cleanPlayers(players) {
       gamertag: String(p?.gamertag || '').trim().slice(0, 40),
       grade: p?.grade ? String(p.grade).trim().slice(0, 3) : null,
       matchup_gamertag: p?.matchup_gamertag ? String(p.matchup_gamertag).trim().slice(0, 40) : '',
+      graded_out: p?.graded_out === true,
     }
     for (const f of STAT_FIELDS) row[f] = Math.max(0, Math.min(999, Math.trunc(+p?.[f] || 0)))
     return row
@@ -263,6 +264,7 @@ export async function insertGame({ series_id, game_number, our_score, opp_score,
     game_id: gameRow.id, series_id, side,
     player_id: playerMap[p.gamertag.trim()],
     grade: p.grade || null,
+    graded_out: p.graded_out === true,
     ...Object.fromEntries(STAT_FIELDS.map(f => [f, +p[f] || 0])),
   })
   const statsRows = [...ours.map(toRow('our')), ...opps.map(toRow('opp'))]

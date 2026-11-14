@@ -26,7 +26,16 @@ function normalizePct(pct) {
   return Math.min(100, Math.max(0, (pct / 60) * 100))
 }
 
-export function computeImpactScores(playerStats, defensiveDeltas = {}) {
+/** Player ids that graded out in any of these game_stats rows (rows need graded_out). */
+export function gradedOutIds(gameStats = []) {
+  return new Set((gameStats || []).filter(r => r.graded_out).map(r => r.player_id))
+}
+
+/**
+ * gradedOut: Set of player_ids who graded out in the series — league rule is an
+ * automatic G Tier, no MVP, tagged GRADED OUT.
+ */
+export function computeImpactScores(playerStats, defensiveDeltas = {}, gradedOut = new Set()) {
   if (!playerStats || playerStats.length === 0) return []
 
   const players = playerStats.map(p => ({ ...p }))
@@ -116,6 +125,7 @@ export function computeImpactScores(playerStats, defensiveDeltas = {}) {
   // outclassed in a great series hasn't EARNED G_TIER — it needs to be earned.
   // Formula: [PTS - 0.90×FGA] + 0.5×AST + 0.4×REB + 1.0×STL + 0.6×BLK - 1.0×TOV
   for (const p of players) {
+    if (gradedOut.has(p.player_id)) { p.tier = 'G_TIER'; p.graded_out = true; continue }
     if (p.impact_score >= 75)      { p.tier = 'ELITE'; continue }
     if (p.impact_score >= 58)      { p.tier = 'STRONG'; continue }
     if (p.impact_score >= 42)      { p.tier = 'SOLID'; continue }
@@ -143,8 +153,9 @@ export function computeImpactScores(playerStats, defensiveDeltas = {}) {
   }
 
   // MVP: highest impact_score among 'our' side players
-  const ourPlayers = players.filter(p => p.primary_side === 'our')
-  const mvpPool = ourPlayers.length > 0 ? ourPlayers : players
+  const eligible = players.filter(p => !p.graded_out)
+  const ourPlayers = eligible.filter(p => p.primary_side === 'our')
+  const mvpPool = ourPlayers.length > 0 ? ourPlayers : eligible
   const mvpScore = Math.max(...mvpPool.map(p => p.impact_score))
   for (const p of players) {
     p.is_mvp = mvpPool.includes(p) && p.impact_score === mvpScore
@@ -152,7 +163,7 @@ export function computeImpactScores(playerStats, defensiveDeltas = {}) {
 
   // Tags
   for (const p of players) {
-    const tags = []
+    const tags = p.graded_out ? ['GRADED OUT'] : []
     // BUILD tag if player has a non-standard position indicator (is_swing = false but could be non-default)
     // We use is_swing for SWING; for BUILD we check if primary_side suggests an atypical role
     // Since we don't have a direct "position" field, BUILD = non-default: flag if not swing and not a standard role

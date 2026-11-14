@@ -16,6 +16,7 @@ const emptyPlayer = (slot) => ({
   pts:0, reb:0, ast:0, stl:0, blk:0, fouls:0, tov:0,
   fgm:0, fga:0, tpm:0, tpa:0, ftm:0, fta:0,
   matchup_gamertag: '',
+  graded_out: false,
 })
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -531,6 +532,7 @@ function PlayerGrid({ title, side, players, allPlayers, teamColor, onChange, sho
               <th style={gs.th}>POS</th>
               <th style={{...gs.th, minWidth:140}}>GAMERTAG</th>
               <th style={gs.th}>GRD</th>
+              <th style={gs.th} title="Graded out — kicked by 2K for a failing teammate grade. Automatic G Tier for the series.">OUT</th>
               {['PTS','REB','AST','STL','BLK','FOUL','TOV','FGM','FGA','3PM','3PA','FTM','FTA'].map(h => (
                 <th key={h} style={gs.th}>{h}</th>
               ))}
@@ -550,6 +552,16 @@ function PlayerGrid({ title, side, players, allPlayers, teamColor, onChange, sho
                 </td>
                 <td style={gs.td}>
                   <input style={gs.small} maxLength={3} value={p.grade} onChange={e => onChange(side, p.slot, 'grade', e.target.value)} placeholder="A+" />
+                </td>
+                <td style={{...gs.td, textAlign:'center'}}>
+                  <input
+                    type="checkbox"
+                    aria-label={`${p.gamertag || 'Player'} graded out`}
+                    title="Graded out (automatic G Tier)"
+                    checked={!!p.graded_out}
+                    onChange={e => onChange(side, p.slot, 'graded_out', e.target.checked)}
+                    style={{width:16,height:16,cursor:'pointer',accentColor:'#f4701b'}}
+                  />
                 </td>
                 {STAT_COLS.map(col => (
                   <td key={col} style={gs.td}>

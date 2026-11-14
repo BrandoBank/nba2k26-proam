@@ -4,7 +4,7 @@ import { toPng } from 'html-to-image'
 import { supabase } from '../lib/supabase'
 import { colors, statColor } from '../lib/theme'
 import { IconStar, IconArrow, IconCheck } from '../lib/icons'
-import { computeImpactScores, computeDefensiveDeltas } from '../lib/ranking'
+import { computeImpactScores, computeDefensiveDeltas, gradedOutIds } from '../lib/ranking'
 
 const TIER_META = {
   ELITE:  { label: 'ELITE TIER — SERIES-DEFINING IMPACT',      spine: '#9333ea', bg: 'rgba(147,51,234,0.07)',  text: '#c084fc' },
@@ -30,7 +30,7 @@ export default function SeriesChart() {
   useEffect(() => { fetchAll() }, [seriesId])
 
   async function fetchAll() {
-    const [{ data: ser }, { data: gms }, { data: rnk }, { data: sts }, { data: grds }, { data: mups }, { data: pgs }] = await Promise.all([
+    const [{ data: ser }, { data: gms }, { data: rnk }, { data: sts }, { data: grds }, { data: mups }, { data: pgs }, { data: gouts }] = await Promise.all([
       supabase.from('series').select('*').eq('id', seriesId).single(),
       supabase.from('games').select('*').eq('series_id', seriesId).order('game_number'),
       supabase.from('series_rankings').select('*, players(gamertag,display_name,default_position)').eq('series_id', seriesId).order('tier').order('rank_in_tier'),
@@ -38,6 +38,7 @@ export default function SeriesChart() {
       supabase.from('game_stats').select('player_id,grade').eq('series_id', seriesId).not('grade', 'is', null),
       supabase.rpc('get_series_matchups', { p_series_id: seriesId }),
       supabase.rpc('get_series_game_pts', { p_series_id: seriesId }),
+      supabase.from('game_stats').select('player_id,graded_out').eq('series_id', seriesId).eq('graded_out', true),
     ])
     // Pick best grade per player (A+ > A > A- > B+ > B > B- > C+ > C > C- > D)
     const GRADE_RANK = ['A+','A','A-','B+','B','B-','C+','C','C-','D','F']
@@ -56,7 +57,7 @@ export default function SeriesChart() {
     const isSeriesLive = ser?.status === 'in_progress'
     if ((isSeriesLive || resolvedRankings.length === 0) && seriesStats.length > 0) {
       const defDeltas = computeDefensiveDeltas(mups || [], pgs || [], seriesStats)
-      resolvedRankings = computeImpactScores(seriesStats, defDeltas)
+      resolvedRankings = computeImpactScores(seriesStats, defDeltas, gradedOutIds(gouts))
         .map(r => ({
           ...r,
           players: { gamertag: r.gamertag, display_name: r.display_name, default_position: r.default_position },

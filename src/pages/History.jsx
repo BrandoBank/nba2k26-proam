@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { colors, fonts, radius, statColor } from '../lib/theme'
 import { IconTrophy, IconChart, IconArrow, IconStar, IconBall, IconFlame, IconTarget, IconPass, IconShield, IconDraft, IconX } from '../lib/icons'
 import { computeAchievements, ACHIEVEMENT_CATALOGUE } from '../lib/achievements'
-import { computeImpactScores, computeDefensiveDeltas } from '../lib/ranking'
+import { computeImpactScores, computeDefensiveDeltas, gradedOutIds } from '../lib/ranking'
 
 // ─── Tier helpers ────────────────────────────────────────────────────────────
 
@@ -127,7 +127,7 @@ export default function History() {
           supabase.from('player_head_to_head').select('*'),
           supabase.from('series_player_stats').select('*'),
           supabase.from('game_matchups').select('game_id,series_id,defender_player_id,offensive_player_id'),
-          supabase.from('game_stats').select('game_id,series_id,player_id,pts'),
+          supabase.from('game_stats').select('game_id,series_id,player_id,pts,graded_out'),
         ])
         if (e1 || e2 || e3) throw new Error('Failed to load history data.')
         setCareerStats(career || [])
@@ -219,7 +219,7 @@ export default function History() {
       const seriesMatchups = matchupsBySeries[seriesId] || []
       const seriesGameStats = gameStatsBySeries[seriesId] || []
       const defDeltas = computeDefensiveDeltas(seriesMatchups, seriesGameStats, stats)
-      const computed = computeImpactScores(stats, defDeltas)
+      const computed = computeImpactScores(stats, defDeltas, gradedOutIds(seriesGameStats))
       for (const r of computed) {
         autoRankings.push({ ...r, series_id: seriesId, auto: true })
       }

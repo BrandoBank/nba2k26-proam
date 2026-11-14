@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate, NavLink } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { computeImpactScores, computeDefensiveDeltas, tierLabel } from '../lib/ranking'
+import { computeImpactScores, computeDefensiveDeltas, gradedOutIds, tierLabel } from '../lib/ranking'
 import { IconCrystal, IconLock, IconStar, IconChart, IconTrophy, IconEdit, IconShare, IconPlus, IconPublish, IconCheck, IconChat } from '../lib/icons'
 import { colors } from '../lib/theme'
 
@@ -170,6 +170,7 @@ export default function SeriesDetail() {
   const [finalizedRankings, setFinalizedRankings] = useState([])
   const [matchups, setMatchups] = useState([])
   const [perGameStats, setPerGameStats] = useState([])
+  const [gradedOutRows, setGradedOutRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lastUpdated, setLastUpdated] = useState(null)
@@ -179,13 +180,14 @@ export default function SeriesDetail() {
   const [pendingSubs, setPendingSubs] = useState([])
 
   const fetchAll = useCallback(async () => {
-    const [{ data: ser }, { data: gms }, { data: sts }, { data: rankings }, { data: mups }, { data: pgs }] = await Promise.all([
+    const [{ data: ser }, { data: gms }, { data: sts }, { data: rankings }, { data: mups }, { data: pgs }, { data: gouts }] = await Promise.all([
       supabase.from('series').select('*').eq('id', id).single(),
       supabase.from('games').select('*').eq('series_id', id).order('game_number'),
       supabase.from('series_player_stats').select('*').eq('series_id', id),
       supabase.from('series_rankings').select('*, players(gamertag,display_name)').eq('series_id', id).eq('finalized', true),
       supabase.rpc('get_series_matchups', { p_series_id: id }),
       supabase.rpc('get_series_game_pts', { p_series_id: id }),
+      supabase.from('game_stats').select('player_id,graded_out').eq('series_id', id).eq('graded_out', true),
     ])
     setSeries(ser)
     setGames(gms || [])
@@ -193,6 +195,7 @@ export default function SeriesDetail() {
     setFinalizedRankings(rankings || [])
     setMatchups(mups || [])
     setPerGameStats(pgs || [])
+    setGradedOutRows(gouts || [])
     // RLS: commissioner sees every pending submission, players see only their own
     if (session) {
       const { data: subs } = await supabase.from('game_submissions')
@@ -272,7 +275,7 @@ export default function SeriesDetail() {
     }))
     if (stats.length === 0) return []
     const defDeltas = computeDefensiveDeltas(matchups, perGameStats, stats)
-    return computeImpactScores(stats, defDeltas).map(r => ({ ...r, finalized: false }))
+    return computeImpactScores(stats, defDeltas, gradedOutIds(gradedOutRows)).map(r => ({ ...r, finalized: false }))
   })()
 
   const isFinalized = liveRankings[0]?.finalized

@@ -6,6 +6,7 @@
 //   ANTHROPIC_API_KEY=... node --env-file=.env scripts/ingest-series.mjs <series_id> g1.jpg g2.jpg ...
 // Save:
 //   ... scripts/ingest-series.mjs <series_id> --commit g1.jpg g2.jpg ...
+// Grade-outs: --out=Tag1,Tag2 marks those players graded out in every game ingested.
 // Files are taken in game order (first file = Game 1, unless the series already has games).
 import fs from 'node:fs'
 import Anthropic from '@anthropic-ai/sdk'
@@ -14,7 +15,8 @@ import { parseBoxScore, PARSE_MODEL, estimateCost } from '../netlify/lib/parse.j
 
 const args = process.argv.slice(2)
 const commit = args.includes('--commit')
-const [seriesId, ...files] = args.filter(a => a !== '--commit')
+const gradedOut = new Set((args.find(a => a.startsWith('--out=')) || '--out=').slice(6).split(',').filter(Boolean).map(t => t.toLowerCase()))
+const [seriesId, ...files] = args.filter(a => a !== '--commit' && !a.startsWith('--out='))
 if (!seriesId || !files.length) { console.error('usage: ingest-series.mjs <series_id> [--commit] files...'); process.exit(1) }
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -47,6 +49,7 @@ for (const file of files) {
     our_players: cleanPlayers(ours.players), opp_players: cleanPlayers(opp.players),
     screenshot_hash: image_hash, marked_matchup, submitted_by_gamertag: 'BrandoBank',
   }
+  for (const p of [...game.our_players, ...game.opp_players]) if (gradedOut.has(p.gamertag.toLowerCase())) p.graded_out = true
   console.log(`\nG${game_number} ${file}  ${game.our_result} ${game.our_score}-${game.opp_score}  (tries ${r.attempts}, sides by ${side.reason})`)
   console.log(`  checks: ${r.issues.length ? r.issues.join('; ') : 'all pass'}  new: ${newPlayers.join(',') || '-'}  fixes: ${corrections.map(c => c.from + '→' + c.to).join(',') || '-'}  matchup: ${marked_matchup ? marked_matchup.defender + '→' + marked_matchup.offensive : '-'}`)
   console.log(`  ours: ${game.our_players.map(fmt).join(' | ')}`)

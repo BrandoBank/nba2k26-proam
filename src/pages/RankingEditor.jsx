@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { colors } from '../lib/theme'
-import { computeImpactScores, computeDefensiveDeltas, tierLabel } from '../lib/ranking'
+import { computeImpactScores, computeDefensiveDeltas, gradedOutIds, tierLabel } from '../lib/ranking'
 import { IconStar, IconTrophy, IconFlame, IconBolt } from '../lib/icons'
 
 const TIERS = ['ELITE', 'STRONG', 'SOLID', 'G_TIER']
@@ -34,7 +34,7 @@ export default function RankingEditor() {
       supabase.from('series_player_stats').select('*').eq('series_id', seriesId),
       supabase.from('series_rankings').select('*, players(gamertag,display_name)').eq('series_id', seriesId),
       supabase.from('game_matchups').select('game_id,defender_player_id,offensive_player_id').in('game_id', gameIds),
-      supabase.from('game_stats').select('game_id,player_id,pts').in('game_id', gameIds),
+      supabase.from('game_stats').select('game_id,player_id,pts,graded_out').in('game_id', gameIds),
     ])
     setSeries(ser)
     setStats(sts || [])
@@ -57,7 +57,7 @@ export default function RankingEditor() {
     } else if (sts && sts.length > 0) {
       // Run deterministic engine with matchup defensive deltas
       const defDeltas = computeDefensiveDeltas(matchups || [], gStats || [], sts)
-      const computed = computeImpactScores(sts, defDeltas)
+      const computed = computeImpactScores(sts, defDeltas, gradedOutIds(gStats))
       setRows(computed.map(p => ({
         player_id: p.player_id,
         gamertag: p.gamertag,
