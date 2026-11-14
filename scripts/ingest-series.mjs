@@ -26,7 +26,7 @@ let total = 0
 for (const file of files) {
   const game_number = nextGame++
   const base64 = fs.readFileSync(file).toString('base64')
-  const mediaType = file.endsWith('.png') ? 'image/png' : 'image/jpeg'
+  const mediaType = file.endsWith('.png') ? 'image/png' : file.endsWith('.webp') ? 'image/webp' : 'image/jpeg'
   const image_hash = imageHash(base64)
   const dupImg = await findDuplicate({ image_hash })
   if (dupImg) { console.log(`G${game_number} SKIP ${file}: ${dupImg.message}`); continue }
