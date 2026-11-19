@@ -250,6 +250,41 @@ netlify dev
 | `VITE_SUPABASE_ANON_KEY` | Frontend Supabase client (public, read-only RLS) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Netlify functions only — bypasses RLS for commissioner writes |
 | `ANTHROPIC_API_KEY` | Screenshot parsing + AI ranking drafts |
+| `GITHUB_ISSUES_TOKEN` | Netlify functions only — creates public bug-report issues |
+
+### Bug reports
+
+The **Report a bug** footer is available on every page. Sending requires a signed-in
+user with a claimed player profile. Review queue cards also offer a report button
+that includes that submission's IDs.
+
+Reports create **public issues in `BrandoBank/nba2k26-proam`**, labeled `bug-report`.
+The form warns that the reporter's gamertag, text, page URL/route, browser/device
+user agent, viewport, deploy commit SHA, and available series/submission IDs will
+be public. Query strings and URL fragments are omitted to avoid publishing auth
+tokens. Screenshots, private-bucket links, email addresses, and auth tokens are
+not attached automatically. Users must not put sensitive information in report text.
+
+The repository owner must:
+
+1. Create a fine-grained GitHub personal access token restricted to
+   `BrandoBank/nba2k26-proam`, granting **Issues: read and write** only (plus GitHub's
+   mandatory metadata access). Approve it for the organization if required.
+2. Ensure the repository has a `bug-report` label.
+3. Set `GITHUB_ISSUES_TOKEN` in Netlify's environment variables for Functions,
+   then redeploy. Never use a `VITE_` prefix or put this token in frontend code.
+   Rotate it before expiry.
+
+Netlify supplies `COMMIT_REF` at build time; Vite embeds only that non-secret SHA
+as the app version (`local` outside Netlify). The function uses a fixed repository,
+bounds and quotes user text, neutralizes mentions, and applies the shared rate
+limiter at **5 attempts per user per 10 minutes**. Like the existing limiter,
+this is in-memory per warm function instance, not a distributed quota.
+GitHub outages or missing configuration produce a friendly error without exposing
+provider responses or credentials.
+
+Run the dependency-free function/context tests with `npm test`. GitHub calls and
+Supabase auth/player lookups are stubbed; tests do not create real issues.
 
 ---
 

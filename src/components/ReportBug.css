@@ -1,0 +1,62 @@
+.report-bug-footer {
+  padding: 1rem 1rem calc(5rem + env(safe-area-inset-bottom, 0px));
+  text-align: center;
+  background: #000;
+}
+
+.report-bug-trigger {
+  background: transparent;
+  color: #ccc;
+  border: 1px solid #555;
+  border-radius: 5px;
+  padding: 0.6rem 0.9rem;
+  cursor: pointer;
+}
+
+.report-bug-dialog {
+  box-sizing: border-box;
+  width: min(94vw, 540px);
+  max-height: 85dvh;
+  overflow-y: auto;
+  border: 1px solid #555;
+  border-radius: 8px;
+  background: #111;
+  color: #eee;
+  padding: 1.25rem;
+}
+
+.report-bug-dialog::backdrop { background: rgba(0, 0, 0, 0.8); }
+.report-bug-dialog h2 { margin-top: 0; }
+.report-bug-dialog p { line-height: 1.5; }
+.report-bug-dialog a { color: #f9a66c; }
+.report-bug-dialog label { display: block; margin: 1rem 0; }
+.report-bug-dialog textarea {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 100px;
+  margin-top: 0.5rem;
+  padding: 0.6rem;
+  resize: vertical;
+  background: #000;
+  color: #fff;
+  border: 1px solid #777;
+  border-radius: 4px;
+  font: inherit;
+}
+.report-bug-dialog button {
+  margin-top: 0.75rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid #777;
+  border-radius: 5px;
+  background: #222;
+  color: #fff;
+  cursor: pointer;
+}
+.report-bug-dialog button[type="submit"] { background: #a44000; }
+.report-bug-dialog button:disabled { opacity: 0.6; cursor: default; }
+.report-bug-dialog [role="alert"] { color: #fca5a5; }
+
+@media (min-width: 900px) {
+  .report-bug-footer { padding-bottom: 1rem; }
+}
