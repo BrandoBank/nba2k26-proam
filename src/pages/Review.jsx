@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { IconCheck, IconX } from '../lib/icons'
+import ReportBug from '../components/ReportBug'
 
 // Commissioner review queue — every contributor-submitted game lands here
 // and stays off the public app until approved.
@@ -59,6 +60,7 @@ export default function Review() {
                   <span style={{display:'flex', alignItems:'center', gap:4}}>{sub.series?.opp_team_name} Σ{sum('opp')} {oppOk ? <IconCheck size={13} color="#4ade80" /> : <IconX size={13} color="#f87171" />}</span>
                 </div>
                 <Link to={`/series/${sub.series_id}/add-game?submission=${sub.id}`} style={s.btn}>Verify & approve →</Link>
+                <ReportBug seriesId={sub.series_id} submissionId={sub.id} />
               </div>
             </div>
           )
