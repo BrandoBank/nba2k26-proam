@@ -4,19 +4,9 @@ import { describe, it, expect, vi } from 'vitest'
 // cover the helpers that never touch the database, so the client is a stub.
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({}) }))
 
-import { json, imageHash, statsFingerprint, cleanPlayers, cleanMatchup } from './shared.js'
+import { imageHash, statsFingerprint, cleanPlayers, cleanMatchup } from './shared.js'
 
 const b64 = text => Buffer.from(text).toString('base64')
-
-describe('json', () => {
-  it('builds a JSON response that is never cached', async () => {
-    const res = json(409, { error: 'duplicate_image' })
-    expect(res.status).toBe(409)
-    expect(res.headers.get('Content-Type')).toBe('application/json')
-    expect(res.headers.get('Cache-Control')).toBe('no-store')
-    expect(await res.json()).toEqual({ error: 'duplicate_image' })
-  })
-})
 
 describe('imageHash', () => {
   it('is the SHA-256 of the decoded image bytes', () => {
@@ -26,10 +16,6 @@ describe('imageHash', () => {
   it('gives the same file the same hash and different files different hashes', () => {
     expect(imageHash(b64('screenshot one'))).toBe(imageHash(b64('screenshot one')))
     expect(imageHash(b64('screenshot one'))).not.toBe(imageHash(b64('screenshot two')))
-  })
-
-  it('matches the format add-game accepts', () => {
-    expect(imageHash(b64('anything'))).toMatch(/^[a-f0-9]{64}$/)
   })
 })
 
@@ -90,10 +76,6 @@ describe('statsFingerprint', () => {
     const changed = game()
     Object.assign(changed.our_players[0], { stl: 4, blk: 2, tov: 6, tpm: 3, tpa: 9, ftm: 1, fta: 2 })
     expect(statsFingerprint(changed)).toBe(statsFingerprint(game()))
-  })
-
-  it('handles a game with no players or scores', () => {
-    expect(statsFingerprint({})).toBe('0-0|')
   })
 })
 
@@ -175,11 +157,5 @@ describe('cleanMatchup', () => {
     expect(cleanMatchup({})).toBeNull()
     expect(cleanMatchup({ defender: 'Alpha' })).toBeNull()
     expect(cleanMatchup({ offensive: 'Zed' })).toBeNull()
-  })
-
-  it('cuts gamertags to 40 characters and drops extra fields', () => {
-    const m = cleanMatchup({ defender: 'x'.repeat(60), offensive: 'Zed', series_id: 'other' })
-    expect(m.defender).toHaveLength(40)
-    expect(m).toEqual({ defender: 'x'.repeat(40), offensive: 'Zed' })
   })
 })

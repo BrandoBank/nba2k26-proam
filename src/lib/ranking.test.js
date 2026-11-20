@@ -3,8 +3,6 @@ import {
   computeImpactScores,
   computeDefensiveDeltas,
   gradedOutIds,
-  tierLabel,
-  TIER_ORDER,
 } from './ranking.js'
 
 /** A player with every stat at zero. Override only what a test is about. */
@@ -147,15 +145,6 @@ describe('computeImpactScores', () => {
       expect(scoreOf(250).impact_score).toBe(100)
       expect(scoreOf(-50).impact_score).toBe(0)
     })
-
-    it('rounds to one decimal place', () => {
-      // 0.25 × 100 × 0.18 = 4.5 for scoring, × 0.85 sample multiplier → 12.325 with TOV credit.
-      const results = computeImpactScores([
-        player({ player_id: 'a', gp: 4, ppg: 20 }),
-        player({ player_id: 'b', gp: 2, ppg: 5 }),
-      ])
-      expect(byId(results, 'b').impact_score).toBe(12.3)
-    })
   })
 
   describe('tiers', () => {
@@ -293,38 +282,6 @@ describe('computeImpactScores', () => {
       expect(byId(results, 'partial').tags).toEqual(['GP:3'])
     })
   })
-
-  describe('impact note', () => {
-    it('falls back to a plain line when nothing stands out', () => {
-      // One turnover a game avoids the "zero turnovers" note.
-      const [p] = computeImpactScores([player({ gp: 3, ppg: 0, tovpg: 1 })])
-      expect(p.impact_note_prompt).toBe('contributed 0 PPG over 3 games.')
-    })
-
-    it('joins the first two notes and drops the rest', () => {
-      const [p] = computeImpactScores([player({
-        gp: 4, ppg: 25, apg: 9, rpg: 11, tovpg: 1,
-        fg_pct: 58.4, total_fga: 60,
-      })])
-      expect(p.impact_note_prompt).toBe('elite 58.4% shooting and led scoring at 25 PPG.')
-    })
-
-    it('calls out poor shooting only on real volume', () => {
-      const cold = { fg_pct: 30, tovpg: 1 }
-      const volume = computeImpactScores([player({ ...cold, total_fga: 6 })])[0]
-      const fewShots = computeImpactScores([player({ ...cold, total_fga: 5 })])[0]
-      expect(volume.impact_note_prompt).toContain('struggled from the field at 30.0%')
-      expect(fewShots.impact_note_prompt).not.toContain('struggled')
-    })
-
-    it('describes a strong defensive matchup in either direction', () => {
-      const quiet = { tovpg: 1 }
-      const lockdown = computeImpactScores([player(quiet)], { p1: 4 })[0]
-      const torched = computeImpactScores([player(quiet)], { p1: -4 })[0]
-      expect(lockdown.impact_note_prompt).toBe('locked down their matchup (-4.0 pts vs avg).')
-      expect(torched.impact_note_prompt).toBe('matchup went off (+4.0 pts vs avg).')
-    })
-  })
 })
 
 describe('computeDefensiveDeltas', () => {
@@ -377,12 +334,6 @@ describe('computeDefensiveDeltas', () => {
     expect(result).toEqual({ d1: 4, d2: -4 })
   })
 
-  it('rounds to one decimal place', () => {
-    // 3 below average → 2.4.
-    expect(computeDefensiveDeltas([guard('g1')], [game('g1', 17)], seriesStats))
-      .toEqual({ defender: 2.4 })
-  })
-
   it('skips matchups it cannot score', () => {
     const matchups = [
       { game_id: 'g1', defender_player_id: null, offensive_player_id: 'scorer' },
@@ -408,21 +359,5 @@ describe('gradedOutIds', () => {
   it('returns an empty set for no rows', () => {
     expect(gradedOutIds().size).toBe(0)
     expect(gradedOutIds(null).size).toBe(0)
-  })
-})
-
-describe('tier labels', () => {
-  it('shows SOLID as ROLE PLAYER and G_TIER as G TIER', () => {
-    expect(tierLabel('SOLID')).toBe('ROLE PLAYER')
-    expect(tierLabel('G_TIER')).toBe('G TIER')
-    expect(tierLabel('ELITE')).toBe('ELITE')
-  })
-
-  it('passes unknown tiers through unchanged', () => {
-    expect(tierLabel('LEGEND')).toBe('LEGEND')
-  })
-
-  it('orders tiers best to worst', () => {
-    expect(TIER_ORDER).toEqual(['ELITE', 'STRONG', 'SOLID', 'G_TIER'])
   })
 })

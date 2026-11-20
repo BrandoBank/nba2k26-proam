@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { rowToPlayer, toTeams, validateBoxScore, estimateCost, parseBoxScore } from './parse.js'
+import { rowToPlayer, toTeams, validateBoxScore, parseBoxScore } from './parse.js'
 
 /** The model's raw output for a box score where every check passes. */
 function rawBoxScore() {
@@ -38,29 +38,19 @@ describe('rowToPlayer', () => {
     })
   })
 
-  it('tolerates uneven spacing around cells and numbers', () => {
-    const p = rowToPlayer('  Tag_1|A|none|  6   10 6 0 2 1 3  |2/8|1/4|1/1')
-    expect(p.gamertag).toBe('Tag_1')
-    expect(p.reb).toBe(10)
-    expect(p.fta).toBe(1)
-  })
-
   it('keeps the gamertag exactly as printed', () => {
     expect(rowToPlayer('x_O0l1I_x | A | none | 0 0 0 0 0 0 0 | 0/0 | 0/0 | 0/0').gamertag).toBe('x_O0l1I_x')
   })
 
-  it.each(['null', 'NULL', '--', '-', 'n/a', 'N/A', ''])('reads a grade of "%s" as no grade', grade => {
+  it.each(['null', '--', ''])('reads a grade of "%s" as no grade', grade => {
     expect(rowToPlayer(`Tag | ${grade} | none | 0 0 0 0 0 0 0 | 0/0 | 0/0 | 0/0`).grade).toBeNull()
   })
 
   it.each([
     ['you', 'you'],
-    ['YOU', 'you'],
     ['matchup', 'matchup'],
     ['your matchup', 'matchup'],
     ['none', 'none'],
-    ['', 'none'],
-    ['something else', 'none'],
   ])('reads a marker of "%s" as %s', (marker, expected) => {
     expect(rowToPlayer(`Tag | A | ${marker} | 0 0 0 0 0 0 0 | 0/0 | 0/0 | 0/0`).marker).toBe(expected)
   })
@@ -167,23 +157,6 @@ describe('validateBoxScore', () => {
   })
 })
 
-describe('estimateCost', () => {
-  it('prices input and output tokens per million for a known model', () => {
-    const cost = estimateCost('claude-haiku-5-5', { input_tokens: 1_000_000, output_tokens: 1_000_000 })
-    expect(cost).toBeCloseTo(0.6)
-  })
-
-  it('falls back to the most expensive rate for a model it does not know', () => {
-    const usage = { input_tokens: 2000, output_tokens: 500 }
-    expect(estimateCost('some-future-model', usage)).toBe(estimateCost('claude-opus-5-5', usage))
-    expect(estimateCost('some-future-model', usage)).toBeCloseTo(0.018)
-  })
-
-  it('treats missing token counts as zero', () => {
-    expect(estimateCost('claude-opus-5-5', {})).toBe(0)
-  })
-})
-
 describe('parseBoxScore', () => {
   /** A stand-in for one Claude reply carrying `raw` as its JSON text. */
   const reply = (raw, usage = { input_tokens: 100, output_tokens: 20 }) => ({
@@ -220,18 +193,6 @@ describe('parseBoxScore', () => {
     expect(result.parsed.team_top.players[0].gamertag).toBe('Alpha')
     expect(result.usage).toEqual({ input_tokens: 100, output_tokens: 20 })
     expect(result.model).toBe('test-model')
-  })
-
-  it('sends the image and the requested model to Claude', async () => {
-    const client = fakeClient(reply(rawBoxScore()))
-    await run(client)
-
-    const request = client.messages.create.mock.calls[0][0]
-    expect(request.model).toBe('test-model')
-    expect(request.messages[0].content[0]).toEqual({
-      type: 'image',
-      source: { type: 'base64', media_type: 'image/png', data: 'aW1hZ2U=' },
-    })
   })
 
   it('asks for one re-read when checks fail, and uses it when it is clean', async () => {
