@@ -73,7 +73,11 @@ const SCHEMA = {
 
 function statsFromCells(counting, fg, tp, ft) {
   const nums = String(counting).trim().split(/\s+/).map(n => parseInt(n, 10))
-  const pair = c => String(c || '0/0').split('/').map(n => parseInt(n, 10) || 0)
+  // "made/attempted". A blank or "--" cell has no slash and means 0/0.
+  const pair = c => {
+    const [made, attempted] = String(c || '').split('/').map(n => parseInt(n, 10) || 0)
+    return [made || 0, attempted || 0]
+  }
   const [fgm, fga] = pair(fg), [tpm, tpa] = pair(tp), [ftm, fta] = pair(ft)
   const [pts, reb, ast, stl, blk, fouls, tov] = nums.map(n => (Number.isFinite(n) ? n : 0))
   return { pts, reb, ast, stl, blk, fouls, tov, fgm, fga, tpm, tpa, ftm, fta }

@@ -15,7 +15,9 @@ const _store = new Map()
  * Check and record a request from an IP.
  * @param {string} ip
  * @param {object} opts
- * @param {number} opts.windowMs   - Rolling window in milliseconds
+ * @param {number} opts.windowMs   - Fixed window in milliseconds. It starts at the key's first
+ *                                   request and the count resets once it has passed, so a burst
+ *                                   across the reset can reach up to twice `max`.
  * @param {number} opts.max        - Max requests per window
  * @returns {{ allowed: boolean, remaining: number, resetMs: number }}
  */
