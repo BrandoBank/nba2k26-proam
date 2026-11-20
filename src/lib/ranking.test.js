@@ -113,16 +113,18 @@ describe('computeImpactScores', () => {
       expect(byId(results, 'sloppy').impact_score).toBe(0)
     })
 
-    it('scales the score down for players who missed games, to a floor of 0.7', () => {
+    it('scales the score by the share of games played, to a floor of 0.7', () => {
       const results = computeImpactScores([
-        player({ player_id: 'full', gp: 4, fg_pct: 60 }),
-        player({ player_id: 'half', gp: 2, fg_pct: 60 }),
+        player({ player_id: 'all4', gp: 4, fg_pct: 60 }),
+        player({ player_id: 'three', gp: 3, fg_pct: 60 }),
+        player({ player_id: 'two', gp: 2, fg_pct: 60 }),
         player({ player_id: 'none', gp: 0, fg_pct: 60 }),
       ])
-      // Raw score is 40 for each. Multiplier is 0.7 + 0.3 × (gp / max gp).
-      expect(byId(results, 'full').impact_score).toBe(40)
-      expect(byId(results, 'half').impact_score).toBe(34)
-      expect(byId(results, 'none').impact_score).toBe(28)
+      // Raw score is 40 for each. Multiplier is max(0.7, gp / max gp).
+      expect(byId(results, 'all4').impact_score).toBe(40)
+      expect(byId(results, 'three').impact_score).toBe(30) // 0.75
+      expect(byId(results, 'two').impact_score).toBe(28)   // 0.50, held at the 0.7 floor
+      expect(byId(results, 'none').impact_score).toBe(28)  // floor
     })
 
     it('adds 3 points for players on our side', () => {

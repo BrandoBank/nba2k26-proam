@@ -95,9 +95,9 @@ export function computeImpactScores(playerStats, defensiveDeltas = {}, gradedOut
       defenseScore    * 0.16           +
       tovScore        * 0.10
 
-    // Sample size multiplier [0.7, 1.0]
+    // Sample size multiplier: share of games played, never below 0.7
     const sampleMult = maxGP > 0
-      ? Math.min(1.0, Math.max(0.7, (p.gp || 0) / maxGP * 1.0 * 0.3 + 0.7))
+      ? Math.min(1.0, Math.max(0.7, (p.gp || 0) / maxGP))
       : 0.7
 
     // Apply multiplier
