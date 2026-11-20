@@ -55,8 +55,8 @@ describe('rowToPlayer', () => {
     expect(rowToPlayer(`Tag | A | ${marker} | 0 0 0 0 0 0 0 | 0/0 | 0/0 | 0/0`).marker).toBe(expected)
   })
 
-  it('reads a blank shooting cell as 0 made, 0 attempted', () => {
-    const p = rowToPlayer('Tag | A | none | 0 0 0 0 0 0 0 | 0/0 |  | 0/0')
+  it.each(['', '--', '-'])('reads a shooting cell of "%s" as 0 made, 0 attempted', cell => {
+    const p = rowToPlayer(`Tag | A | none | 0 0 0 0 0 0 0 | 0/0 | ${cell} | 0/0`)
     expect(p.tpm).toBe(0)
     expect(p.tpa).toBe(0)
   })
